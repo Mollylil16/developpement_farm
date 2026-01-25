@@ -7,7 +7,6 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   ScrollView,
   TouchableOpacity,
   Alert,
@@ -52,9 +51,6 @@ function CollaborationListComponent() {
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [filterStatut, setFilterStatut] = useState<StatutCollaborateur | 'tous'>('tous');
-  const [displayedCollaborateurs, setDisplayedCollaborateurs] = useState<Collaborateur[]>([]);
-  const [page, setPage] = useState(1);
-  const ITEMS_PER_PAGE = 50;
 
   // S'assurer que collaborateurs est toujours un tableau
   const collaborateursArray = useMemo(() => {
@@ -79,30 +75,6 @@ function CollaborationListComponent() {
     const enAttente = collaborateursArray.filter((c) => c.statut === 'en_attente').length;
     return { actifs, enAttente, total: collaborateursArray.length };
   }, [collaborateursArray]);
-
-  // Pagination: charger les premiers collaborateurs filtrés
-  useEffect(() => {
-    const initial = collaborateursFiltres.slice(0, ITEMS_PER_PAGE);
-    setDisplayedCollaborateurs(initial);
-    setPage(1);
-  }, [collaborateursFiltres.length, filterStatut]);
-
-  // Charger plus de collaborateurs
-  const loadMore = useCallback(() => {
-    if (displayedCollaborateurs.length >= collaborateursFiltres.length) {
-      return;
-    }
-
-    const nextPage = page + 1;
-    const start = page * ITEMS_PER_PAGE;
-    const end = start + ITEMS_PER_PAGE;
-    const newItems = collaborateursFiltres.slice(start, end);
-
-    if (newItems.length > 0) {
-      setDisplayedCollaborateurs((prev) => [...prev, ...newItems]);
-      setPage(nextPage);
-    }
-  }, [page, displayedCollaborateurs.length, collaborateursFiltres]);
 
   const handleEdit = (collaborateur: Collaborateur) => {
     if (!isProprietaire) {
@@ -305,189 +277,173 @@ function CollaborationListComponent() {
           />
         </View>
       ) : (
-        <FlatList
-          data={displayedCollaborateurs}
-          renderItem={({ item: collaborateur }) => (
-            <View
-              style={[
-                styles.card,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                  ...colors.shadow.medium,
-                },
-              ]}
-            >
-              <View style={styles.cardHeader}>
-                <View style={styles.cardHeaderLeft}>
-                  <View
-                    style={[
-                      styles.avatar,
-                      {
-                        backgroundColor: `${colors.primary}15`,
-                        borderColor: `${colors.primary}30`,
-                        borderWidth: 2,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.avatarText, { color: colors.primary }]}>
-                      {collaborateur.prenom.charAt(0).toUpperCase()}
-                      {collaborateur.nom.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={styles.infoContainer}>
-                    <Text style={[styles.nomText, { color: colors.text }]}>
-                      {collaborateur.prenom} {collaborateur.nom}
-                    </Text>
-                    <Text style={[styles.emailText, { color: colors.textSecondary }]}>
-                      {collaborateur.email}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.cardActions}>
-                  {collaborateur.statut === 'en_attente' && isProprietaire && (
-                    <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: `${colors.success}15` }]}
-                      onPress={() => handleAccepterInvitation(collaborateur.id)}
-                    >
-                      <Ionicons name="checkmark" size={18} color={colors.success} />
-                    </TouchableOpacity>
-                  )}
-                  {isProprietaire && (
-                    <>
-                      <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
-                        onPress={() => handleEdit(collaborateur)}
-                      >
-                        <Ionicons name="create-outline" size={18} color={colors.text} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.actionButton, { backgroundColor: `${colors.error}15` }]}
-                        onPress={() => handleDelete(collaborateur.id)}
-                      >
-                        <Ionicons name="trash-outline" size={18} color={colors.error} />
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </View>
-              </View>
-              <View style={styles.cardContent}>
-                <View style={styles.badgesContainer}>
-                  <View
-                    style={[
-                      styles.roleBadge,
-                      {
-                        backgroundColor: `${getRoleColor(collaborateur.role)}20`,
-                        borderColor: `${getRoleColor(collaborateur.role)}40`,
-                        borderWidth: 1,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[styles.roleBadgeText, { color: getRoleColor(collaborateur.role) }]}
-                    >
-                      {ROLE_LABELS[collaborateur.role]}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.statutBadge,
-                      {
-                        backgroundColor: `${getStatutColor(collaborateur.statut)}20`,
-                        borderColor: `${getStatutColor(collaborateur.statut)}40`,
-                        borderWidth: 1,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statutBadgeText,
-                        { color: getStatutColor(collaborateur.statut) },
-                      ]}
-                    >
-                      {STATUT_LABELS[collaborateur.statut]}
-                    </Text>
-                  </View>
-                </View>
-                {collaborateur.telephone && (
-                  <View style={styles.infoRow}>
-                    <Ionicons name="call-outline" size={16} color={colors.textSecondary} />
-                    <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-                      {collaborateur.telephone}
-                    </Text>
-                  </View>
-                )}
-                <View style={styles.permissionsContainer}>
-                  <Text style={[styles.permissionsTitle, { color: colors.text }]}>
-                    Permissions :
-                  </Text>
-                  <View style={styles.permissionsList}>
-                    {Object.entries(collaborateur.permissions).map(([key, value]) =>
-                      value ? (
-                        <View
-                          key={key}
-                          style={[
-                            styles.permissionBadge,
-                            {
-                              backgroundColor: `${colors.primary}10`,
-                              borderColor: `${colors.primary}20`,
-                              borderWidth: 1,
-                            },
-                          ]}
-                        >
-                          <Text style={[styles.permissionBadgeText, { color: colors.primary }]}>
-                            {key.charAt(0).toUpperCase() + key.slice(1)}
-                          </Text>
-                        </View>
-                      ) : null
-                    )}
-                  </View>
-                </View>
-                {collaborateur.notes && (
-                  <View
-                    style={[
-                      styles.notesContainer,
-                      { backgroundColor: colors.surfaceVariant, borderColor: colors.border },
-                    ]}
-                  >
-                    <Text style={[styles.notesText, { color: colors.textSecondary }]}>
-                      {collaborateur.notes}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          )}
-          keyExtractor={(item) => item.id}
-          onEndReached={loadMore}
-          onEndReachedThreshold={0.5}
-          style={styles.listContainer}
-          contentContainerStyle={[
-            styles.listContent,
-            displayedCollaborateurs.length === 0 && styles.listContentEmpty,
-          ]}
-          showsVerticalScrollIndicator={false}
-          // Optimisations de performance
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          initialNumToRender={10}
-          updateCellsBatchingPeriod={50}
-          ListEmptyComponent={
-            displayedCollaborateurs.length === 0 && collaborateursFiltres.length === 0 ? (
+        <View style={styles.listContainer}>
+          <View style={[styles.listContent, collaborateursFiltres.length === 0 && styles.listContentEmpty]}>
+            {collaborateursFiltres.length === 0 ? (
               <EmptyState
                 title="Aucun collaborateur"
                 message="Ajoutez des collaborateurs pour commencer"
                 icon="👥"
               />
-            ) : null
-          }
-          ListFooterComponent={
-            displayedCollaborateurs.length < collaborateursFiltres.length ? (
-              <LoadingSpinner message="Chargement..." />
-            ) : null
-          }
-        />
+            ) : (
+              <>
+                {/* ✅ Utiliser .map() au lieu de FlatList car on est dans un ScrollView */}
+                {collaborateursFiltres.map((collaborateur) => (
+                  <View
+                    key={collaborateur.id}
+                    style={[
+                      styles.card,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        ...colors.shadow.medium,
+                      },
+                    ]}
+                  >
+                    <View style={styles.cardHeader}>
+                      <View style={styles.cardHeaderLeft}>
+                        <View
+                          style={[
+                            styles.avatar,
+                            {
+                              backgroundColor: `${colors.primary}15`,
+                              borderColor: `${colors.primary}30`,
+                              borderWidth: 2,
+                            },
+                          ]}
+                        >
+                          <Text style={[styles.avatarText, { color: colors.primary }]}>
+                            {collaborateur.prenom.charAt(0).toUpperCase()}
+                            {collaborateur.nom.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={styles.infoContainer}>
+                          <Text style={[styles.nomText, { color: colors.text }]}>
+                            {collaborateur.prenom} {collaborateur.nom}
+                          </Text>
+                          <Text style={[styles.emailText, { color: colors.textSecondary }]}>
+                            {collaborateur.email}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.cardActions}>
+                        {collaborateur.statut === 'en_attente' && isProprietaire && (
+                          <TouchableOpacity
+                            style={[styles.actionButton, { backgroundColor: `${colors.success}15` }]}
+                            onPress={() => handleAccepterInvitation(collaborateur.id)}
+                          >
+                            <Ionicons name="checkmark" size={18} color={colors.success} />
+                          </TouchableOpacity>
+                        )}
+                        {isProprietaire && (
+                          <>
+                            <TouchableOpacity
+                              style={[styles.actionButton, { backgroundColor: colors.surfaceVariant }]}
+                              onPress={() => handleEdit(collaborateur)}
+                            >
+                              <Ionicons name="create-outline" size={18} color={colors.text} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.actionButton, { backgroundColor: `${colors.error}15` }]}
+                              onPress={() => handleDelete(collaborateur.id)}
+                            >
+                              <Ionicons name="trash-outline" size={18} color={colors.error} />
+                            </TouchableOpacity>
+                          </>
+                        )}
+                      </View>
+                    </View>
+                    <View style={styles.cardContent}>
+                      <View style={styles.badgesContainer}>
+                        <View
+                          style={[
+                            styles.roleBadge,
+                            {
+                              backgroundColor: `${getRoleColor(collaborateur.role)}20`,
+                              borderColor: `${getRoleColor(collaborateur.role)}40`,
+                              borderWidth: 1,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[styles.roleBadgeText, { color: getRoleColor(collaborateur.role) }]}
+                          >
+                            {ROLE_LABELS[collaborateur.role]}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.statutBadge,
+                            {
+                              backgroundColor: `${getStatutColor(collaborateur.statut)}20`,
+                              borderColor: `${getStatutColor(collaborateur.statut)}40`,
+                              borderWidth: 1,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.statutBadgeText,
+                              { color: getStatutColor(collaborateur.statut) },
+                            ]}
+                          >
+                            {STATUT_LABELS[collaborateur.statut]}
+                          </Text>
+                        </View>
+                      </View>
+                      {collaborateur.telephone && (
+                        <View style={styles.infoRow}>
+                          <Ionicons name="call-outline" size={16} color={colors.textSecondary} />
+                          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                            {collaborateur.telephone}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.permissionsContainer}>
+                        <Text style={[styles.permissionsTitle, { color: colors.text }]}>
+                          Permissions :
+                        </Text>
+                        <View style={styles.permissionsList}>
+                          {Object.entries(collaborateur.permissions).map(([key, value]) =>
+                            value ? (
+                              <View
+                                key={key}
+                                style={[
+                                  styles.permissionBadge,
+                                  {
+                                    backgroundColor: `${colors.primary}10`,
+                                    borderColor: `${colors.primary}20`,
+                                    borderWidth: 1,
+                                  },
+                                ]}
+                              >
+                                <Text style={[styles.permissionBadgeText, { color: colors.primary }]}>
+                                  {key.charAt(0).toUpperCase() + key.slice(1)}
+                                </Text>
+                              </View>
+                            ) : null
+                          )}
+                        </View>
+                      </View>
+                      {collaborateur.notes && (
+                        <View
+                          style={[
+                            styles.notesContainer,
+                            { backgroundColor: colors.surfaceVariant, borderColor: colors.border },
+                          ]}
+                        >
+                          <Text style={[styles.notesText, { color: colors.textSecondary }]}>
+                            {collaborateur.notes}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </>
+            )}
+          </View>
+        </View>
       )}
 
       {/* Modal de formulaire */}

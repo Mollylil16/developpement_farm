@@ -17,6 +17,7 @@ export const SCREENS = {
   SANTE: 'Sante',
   FINANCE: 'Finance',
   REPORTS: 'Reports',
+  STATISTICS: 'Statistics',
   LOGIN_LOGS: 'LoginLogs',
   PLANIFICATION: 'Planification',
   TRAINING: 'Training',
@@ -64,6 +65,12 @@ export const SCREENS = {
   MANAGE_PROFILES: 'ManageProfiles',
   // Écrans de détails
   SUJET_PESEE_DETAIL: 'SujetPeseeDetail',
+  // 🆕 Écrans pour vétérinaires et techniciens
+  MY_PROJECTS: 'MyProjects',
+  VET_PROJECT_DETAIL: 'VetProjectDetail',
+  VET_CONSULTATIONS: 'VetConsultations',
+  VET_REPORTS: 'VetReports',
+  VET_TREATMENTS: 'VetTreatments',
 } as const;
 
 export type ScreenName = (typeof SCREENS)[keyof typeof SCREENS];

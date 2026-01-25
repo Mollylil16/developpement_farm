@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import ProtectedScreen from '../components/ProtectedScreen';
 import MortalitesListComponent from '../components/MortalitesListComponent';
+import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
 
 function MortalitesScreenContent() {
   const { colors } = useTheme();

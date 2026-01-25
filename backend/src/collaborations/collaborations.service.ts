@@ -40,6 +40,7 @@ interface PermissionColumns {
   permission_planification: boolean;
   permission_mortalites: boolean;
   permission_sante: boolean;
+  permission_cheptel: boolean; // ✅ Permission pour gérer le cheptel (animaux, bandes)
 }
 
 // Interface pour un collaborateur retourné (exportée pour le contrôleur)
@@ -86,6 +87,7 @@ interface CollaborationRow {
   permission_planification: boolean;
   permission_mortalites: boolean;
   permission_sante: boolean;
+  permission_cheptel?: boolean; // ✅ Permission pour gérer le cheptel (animaux, bandes)
   date_invitation?: string | null;
   date_acceptation?: string | null;
   expiration_date?: string | null;
@@ -307,6 +309,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
    */
   private permissionsToColumns(permissions: Partial<Permissions>): PermissionColumns {
     const defaultPerms = permissions || {};
+    // ✅ permission_cheptel est mappée depuis reproduction (le cheptel fait partie de la reproduction/gestion des animaux)
     return {
       permission_reproduction: defaultPerms.reproduction ?? false,
       permission_nutrition: defaultPerms.nutrition ?? false,
@@ -315,6 +318,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       permission_planification: defaultPerms.planification ?? false,
       permission_mortalites: defaultPerms.mortalites ?? false,
       permission_sante: defaultPerms.sante ?? false,
+      permission_cheptel: defaultPerms.reproduction ?? false, // ✅ Cheptel = reproduction (gestion des animaux)
     };
   }
 
@@ -599,9 +603,9 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         id, projet_id, user_id, profile_id, nom, prenom, email, telephone, role, statut,
         permission_reproduction, permission_nutrition, permission_finance,
         permission_rapports, permission_planification, permission_mortalites,
-        permission_sante, date_invitation, date_acceptation, expiration_date,
+        permission_sante, permission_cheptel, date_invitation, date_acceptation, expiration_date,
         invitation_type, invited_by, qr_scan_data, notes, date_creation, derniere_modification
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
       RETURNING *`,
       [
         id,
@@ -621,6 +625,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         permColumns.permission_planification,
         permColumns.permission_mortalites,
         permColumns.permission_sante,
+        permColumns.permission_cheptel,
         nowISO, // date_invitation
         null, // ✅ CHANGEMENT: date_acceptation = NULL (sera rempli lors de l'acceptation)
         expirationDateISO, // ✅ CHANGEMENT: expiration_date = J+7
@@ -787,8 +792,8 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         id, projet_id, user_id, nom, prenom, email, telephone, role, statut,
         permission_reproduction, permission_nutrition, permission_finance,
         permission_rapports, permission_planification, permission_mortalites,
-        permission_sante, date_invitation, expiration_date, invitation_type, notes, date_creation, derniere_modification
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+        permission_sante, permission_cheptel, date_invitation, expiration_date, invitation_type, notes, date_creation, derniere_modification
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
       RETURNING *`,
       [
         id,
@@ -807,6 +812,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         permColumns.permission_planification,
         permColumns.permission_mortalites,
         permColumns.permission_sante,
+        permColumns.permission_cheptel,
         nowISO, // date_invitation
         expirationDateISO, // expiration_date
         'manual', // invitation_type (défaut pour les invitations manuelles)
@@ -1034,9 +1040,13 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       paramIndex++;
     }
     if (updateCollaborateurDto.email !== undefined) {
-      fields.push(`email = $${paramIndex}`);
-      values.push(updateCollaborateurDto.email);
-      paramIndex++;
+      // ✅ Ne pas mettre à jour l'email s'il est vide (null ou chaîne vide)
+      const emailValue = updateCollaborateurDto.email?.trim() || null;
+      if (emailValue !== null && emailValue !== '') {
+        fields.push(`email = $${paramIndex}`);
+        values.push(emailValue);
+        paramIndex++;
+      }
     }
     if (updateCollaborateurDto.telephone !== undefined) {
       fields.push(`telephone = $${paramIndex}`);
@@ -1075,6 +1085,9 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       paramIndex++;
       fields.push(`permission_sante = $${paramIndex}`);
       values.push(permColumns.permission_sante);
+      paramIndex++;
+      fields.push(`permission_cheptel = $${paramIndex}`);
+      values.push(permColumns.permission_cheptel);
       paramIndex++;
     }
     if (updateCollaborateurDto.date_acceptation !== undefined) {
@@ -1535,7 +1548,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         id, projet_id, user_id, nom, prenom, email, telephone, role, statut,
         permission_reproduction, permission_nutrition, permission_finance, 
         permission_rapports, permission_planification, permission_mortalites, permission_sante,
-        date_invitation, date_acceptation, notes, date_creation, derniere_modification
+        permission_cheptel, date_invitation, date_acceptation, notes, date_creation, derniere_modification
         FROM collaborations 
         WHERE statut = 'en_attente'`;
       const params: unknown[] = [];
@@ -1690,7 +1703,7 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         c.id, c.projet_id, c.user_id, c.nom, c.prenom, c.email, c.telephone, c.role, c.statut,
         c.permission_reproduction, c.permission_nutrition, c.permission_finance, 
         c.permission_rapports, c.permission_planification, c.permission_mortalites, c.permission_sante,
-        c.date_invitation, c.date_acceptation, c.notes, c.date_creation, c.derniere_modification,
+        c.permission_cheptel, c.date_invitation, c.date_acceptation, c.notes, c.date_creation, c.derniere_modification,
         c.profile_id,
         p.nom as projet_nom, p.localisation as projet_localisation
         FROM collaborations c

@@ -6,6 +6,7 @@ import React from 'react';
 import { Modal, View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import { useRole } from '../contexts/RoleContext';
 import { SPACING, FONT_SIZES } from '../constants/theme';
 import GlobalSearchComponent, { SearchResult } from './GlobalSearchComponent';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
@@ -18,6 +19,7 @@ interface GlobalSearchModalProps {
 
 export default function GlobalSearchModal({ visible, onClose }: GlobalSearchModalProps) {
   const { colors } = useTheme();
+  const { activeRole } = useRole();
   const navigation = useNavigation<NavigationProp<any>>();
 
   const handleResultPress = (result: SearchResult) => {
@@ -29,7 +31,12 @@ export default function GlobalSearchModal({ visible, onClose }: GlobalSearchModa
         navigation.navigate(SCREENS.PRODUCTION);
         break;
       case 'Reproduction':
-        navigation.navigate(SCREENS.REPRODUCTION);
+        // Pour les vétérinaires, rediriger vers le Dashboard au lieu de Reproduction
+        if (activeRole === 'veterinarian') {
+          navigation.navigate('Main', { screen: SCREENS.DASHBOARD_VET });
+        } else {
+          navigation.navigate(SCREENS.REPRODUCTION);
+        }
         break;
       case 'Nutrition':
         navigation.navigate(SCREENS.NUTRITION);

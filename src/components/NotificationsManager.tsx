@@ -7,12 +7,14 @@
 import React, { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { useRole } from '../contexts/RoleContext';
 import { useNotifications } from '../hooks/useNotifications';
 import { SCREENS } from '../navigation/types';
 import { NotificationAction } from '../constants/notifications';
 
 export default function NotificationsManager() {
   const navigation = useNavigation<NavigationProp<any>>();
+  const { activeRole } = useRole();
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
 
@@ -38,13 +40,18 @@ export default function NotificationsManager() {
         try {
           switch (action) {
             case NotificationAction.OPEN_GESTATION:
-              navigation.navigate('Main', {
-                screen: SCREENS.REPRODUCTION,
-                params: {
-                  // Optionnel: passer l'ID de la gestation pour ouvrir directement
-                  initialGestationId: data?.gestationId,
-                },
-              });
+              // Pour les vétérinaires, rediriger vers le Dashboard au lieu de Reproduction
+              if (activeRole === 'veterinarian') {
+                navigation.navigate('Main', { screen: SCREENS.DASHBOARD_VET });
+              } else {
+                navigation.navigate('Main', {
+                  screen: SCREENS.REPRODUCTION,
+                  params: {
+                    // Optionnel: passer l'ID de la gestation pour ouvrir directement
+                    initialGestationId: data?.gestationId,
+                  },
+                });
+              }
               break;
 
             case NotificationAction.OPEN_PLANIFICATION:

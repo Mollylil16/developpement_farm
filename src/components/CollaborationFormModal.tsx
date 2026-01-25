@@ -132,10 +132,16 @@ export default function CollaborationFormModal({
     setLoading(true);
     try {
       if (isEditing && collaborateur) {
+        // Exclure projet_id des updates car il ne peut pas être modifié
+        const { projet_id, ...updates } = formData;
+        // ✅ Ne pas envoyer l'email s'il est vide ou invalide
+        if (!updates.email || updates.email.trim() === '') {
+          delete updates.email;
+        }
         await dispatch(
           updateCollaborateur({
             id: collaborateur.id,
-            updates: formData,
+            updates,
           })
         ).unwrap();
       } else {

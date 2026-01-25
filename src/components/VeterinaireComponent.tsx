@@ -500,7 +500,7 @@ function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
                   </View>
 
                   {/* Animaux examinés - Toujours visible */}
-                  {visite.animaux_examines && (
+                  {visite.animaux_examines ? (
                     <View style={styles.visiteSection}>
                       <View style={styles.visiteSectionHeader}>
                         <Ionicons name="paw" size={14} color={colors.info} />
@@ -512,7 +512,7 @@ function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
                         {visite.animaux_examines}
                       </Text>
                     </View>
-                  )}
+                  ) : null}
 
                   {/* Bouton Voir détails / Masquer détails */}
                   <TouchableOpacity
@@ -533,7 +533,7 @@ function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
                   {detailsOuverts && (
                     <View style={styles.detailsContainer}>
                       {/* Diagnostic */}
-                      {visite.diagnostic && (
+                      {visite.diagnostic ? (
                         <View style={styles.visiteSection}>
                           <View style={styles.visiteSectionHeader}>
                             <Ionicons name="medical" size={14} color={colors.warning} />
@@ -545,10 +545,10 @@ function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
                             {visite.diagnostic}
                           </Text>
                         </View>
-                      )}
+                      ) : null}
 
                       {/* Prescriptions / Produits administrés */}
-                      {visite.prescriptions && (
+                      {visite.prescriptions ? (
                         <View style={styles.visiteSection}>
                           <View style={styles.visiteSectionHeader}>
                             <Ionicons name="flask" size={14} color={colors.success} />
@@ -560,10 +560,10 @@ function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
                             {visite.prescriptions}
                           </Text>
                         </View>
-                      )}
+                      ) : null}
 
                       {/* Recommandations du vétérinaire */}
-                      {visite.recommandations && (
+                      {visite.recommandations ? (
                         <View
                           style={[
                             styles.visiteSection,
@@ -581,10 +581,10 @@ function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
                             {visite.recommandations}
                           </Text>
                         </View>
-                      )}
+                      ) : null}
 
                       {/* Notes supplémentaires */}
-                      {visite.notes && (
+                      {visite.notes ? (
                         <View style={styles.visiteSection}>
                           <View style={styles.visiteSectionHeader}>
                             <Ionicons
@@ -602,19 +602,19 @@ function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
                             {visite.notes}
                           </Text>
                         </View>
-                      )}
+                      ) : null}
 
                       {/* Footer: Coût et prochaine visite */}
                       <View style={styles.visiteFooter}>
-                        {visite.cout && (
+                        {visite.cout != null ? (
                           <View style={styles.visiteCout}>
                             <Ionicons name="cash-outline" size={16} color={colors.success} />
                             <Text style={[styles.visiteCoutText, { color: colors.success }]}>
                               {visite.cout.toLocaleString()} F CFA
                             </Text>
                           </View>
-                        )}
-                        {visite.prochaine_visite && (
+                        ) : null}
+                        {visite.prochaine_visite ? (
                           <View
                             style={[
                               styles.prochainVisiteBadge,
@@ -626,7 +626,7 @@ function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
                               Prochaine: {formatDisplayDate(visite.prochaine_visite)}
                             </Text>
                           </View>
-                        )}
+                        ) : null}
                       </View>
                     </View>
                   )}

@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, useIsFocused } from '@react-navigation/native';
+import { useNavigation, useRoute, useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -54,11 +54,20 @@ const DashboardVetScreen: React.FC = () => {
   const {
     todayConsultations,
     upcomingConsultations,
+    totalConsultations,
     loading,
     error,
     refresh,
   } = useVetData(currentUser?.id);
   const { projetCollaboratifActif, collaborateurActuel, invitationsEnAttente } = useAppSelector((state) => state.collaboration);
+
+  // Recharger les données vétérinaire (dont totalConsultations) à chaque fois que l'écran reprend le focus
+  // → la carte Consultations se met à jour après ajout d'une visite depuis un autre écran
+  useFocusEffect(
+    React.useCallback(() => {
+      if (currentUser?.id) refresh();
+    }, [refresh, currentUser?.id])
+  );
 
   // Charger les invitations en attente au montage et quand l'écran devient actif
   React.useEffect(() => {
@@ -366,7 +375,7 @@ const DashboardVetScreen: React.FC = () => {
             <Card style={[styles.statCard, { backgroundColor: colors.surface }]}>
               <Ionicons name="medical" size={32} color="#3B82F6" />
               <Text style={[styles.statValue, { color: '#3B82F6' }]}>
-                {vetProfile.stats.totalConsultations || 0}
+                {totalConsultations}
               </Text>
               <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Consultations</Text>
             </Card>

@@ -36,7 +36,7 @@ export class PlanificationsService {
     
     // ✅ Sinon, vérifier s'il est collaborateur actif avec permission 'planification'
     const collabResult = await this.databaseService.query(
-      `SELECT id, permission_planification FROM collaborations 
+      `SELECT id, permission_planification, permission_gestion_complete FROM collaborations 
        WHERE projet_id = $1 
        AND (user_id = $2 OR profile_id LIKE $3)
        AND statut = 'actif'`,
@@ -44,13 +44,14 @@ export class PlanificationsService {
     );
     
     if (collabResult.rows.length > 0) {
-      // Vérifier si la permission planification est accordée
-      if (collabResult.rows[0].permission_planification === true) {
+      const collab = collabResult.rows[0];
+      // Vérifier si la permission planification ou gestion_complete est accordée
+      if (collab.permission_planification === true || collab.permission_gestion_complete === true) {
         return;
       }
     }
     
-    throw new ForbiddenException('Ce projet ne vous appartient pas');
+    throw new ForbiddenException('Vous n\'avez pas accès à ce projet ou les permissions nécessaires');
   }
 
   /**

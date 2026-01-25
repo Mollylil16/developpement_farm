@@ -16,6 +16,7 @@ interface StandardHeaderProps {
   subtitle?: string;
   badge?: number;
   badgeColor?: string;
+  onBack?: () => void; // ✅ Prop optionnelle pour le bouton retour (non utilisée par défaut - React Navigation gère le retour)
 }
 
 export default function StandardHeader({

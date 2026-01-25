@@ -1,5 +1,6 @@
-import { IsString, IsEnum, IsOptional, IsBoolean, IsEmail } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsBoolean, IsEmail, ValidateIf } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { PermissionsDto } from './create-collaborateur.dto';
 
 export class UpdateCollaborateurDto {
@@ -20,8 +21,10 @@ export class UpdateCollaborateurDto {
 
   @ApiPropertyOptional({ description: 'Email du collaborateur' })
   @IsOptional()
-  @IsEmail()
-  email?: string;
+  @Transform(({ value }) => (value === '' ? null : value)) // Transformer les chaînes vides en null
+  @ValidateIf((o) => o.email !== null && o.email !== undefined) // Valider seulement si l'email n'est pas null/undefined
+  @IsEmail({}, { message: 'email must be an email' })
+  email?: string | null;
 
   @ApiPropertyOptional({ description: 'Téléphone du collaborateur' })
   @IsOptional()

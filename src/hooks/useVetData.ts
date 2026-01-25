@@ -15,6 +15,7 @@ import { logger } from '../utils/logger';
 interface VetData {
   todayConsultations: VisiteVeterinaire[];
   upcomingConsultations: VisiteVeterinaire[];
+  totalConsultations: number;
   clientFarms: Array<{
     farmId: string;
     farmName: string;
@@ -252,6 +253,7 @@ export function useVetData(vetUserId?: string) {
       setData({
         todayConsultations,
         upcomingConsultations,
+        totalConsultations: allVisites.length,
         clientFarms,
         healthAlerts,
         loading: false,

@@ -62,7 +62,7 @@ export interface SanteLogicReturn {
   }>;
 }
 
-export function useSanteLogic(): SanteLogicReturn {
+export function useSanteLogic(initialTab?: OngletType): SanteLogicReturn {
   const dispatch = useAppDispatch();
 
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
@@ -81,8 +81,10 @@ export function useSanteLogic(): SanteLogicReturn {
   const { chargerDonnees: chargerMaladies } = useMaladiesLogic();
   const { chargerDonnees: chargerTraitements } = useTraitementsLogic();
 
-  // État local
-  const [ongletActif, setOngletActif] = useState<OngletType>('vaccinations');
+  // État local - Utiliser initialTab si fourni, sinon 'vaccinations' par défaut
+  const [ongletActif, setOngletActif] = useState<OngletType>(
+    initialTab || 'vaccinations'
+  );
   const [refreshing, setRefreshing] = useState(false);
   const [showAlertes, setShowAlertes] = useState(true);
 
@@ -149,6 +151,23 @@ export function useSanteLogic(): SanteLogicReturn {
     }
   }, [projetActif?.id, chargerDonnees]);
 
+  // ✅ Mettre à jour l'onglet actif si initialTab change (navigation depuis VetProjectDetailScreen)
+  // ✅ En mode restreint (initialTab fourni), verrouiller l'onglet pour empêcher le changement
+  useEffect(() => {
+    if (initialTab && initialTab !== ongletActif) {
+      setOngletActif(initialTab);
+    }
+  }, [initialTab]);
+
+  // ✅ Wrapper pour setOngletActif qui empêche le changement en mode restreint
+  const handleSetOngletActif = (onglet: OngletType) => {
+    // Si initialTab est fourni (mode restreint), empêcher le changement d'onglet
+    if (initialTab) {
+      return; // Ne pas permettre le changement d'onglet en mode restreint
+    }
+    setOngletActif(onglet);
+  };
+
   return {
     // État
     ongletActif,
@@ -167,7 +186,8 @@ export function useSanteLogic(): SanteLogicReturn {
     projetActif,
 
     // Actions
-    setOngletActif,
+    // ✅ Utiliser handleSetOngletActif qui empêche le changement en mode restreint
+    setOngletActif: handleSetOngletActif,
     setShowAlertes,
     onRefresh,
     chargerDonnees,

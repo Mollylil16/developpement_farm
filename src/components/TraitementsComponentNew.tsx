@@ -23,9 +23,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
-import { selectAllVaccinations, selectAllMaladies } from '../store/selectors/santeSelectors';
+import {
+  selectAllVaccinations,
+  selectAllMaladies,
+  selectAllVisitesVeterinaires,
+} from '../store/selectors/santeSelectors';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
-import { loadVaccinations, loadMaladies, updateMaladie } from '../store/slices/santeSlice';
+import {
+  loadVaccinations,
+  loadMaladies,
+  loadVisitesVeterinaires,
+  updateMaladie,
+} from '../store/slices/santeSlice';
 import { loadProductionAnimaux, updateProductionAnimal } from '../store/slices/productionSlice';
 import { createMortalite } from '../store/slices/mortalitesSlice';
 import {
@@ -60,6 +69,7 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
   const projetActif = useProjetEffectif();
   const vaccinations = useAppSelector((state) => selectAllVaccinations(state));
   const maladies = useAppSelector((state) => selectAllMaladies(state));
+  const visitesVeterinaires = useAppSelector((state) => selectAllVisitesVeterinaires(state));
   const animaux = useAppSelector((state) => selectAllAnimaux(state));
 
   const [rechercheFiltre, setRechercheFiltre] = useState('');
@@ -104,9 +114,10 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
     useCallback(() => {
       if (!projetActif?.id) return;
 
-      // Charger les vaccinations, maladies et animaux uniquement quand l'écran est visible
+      // Charger vaccinations, maladies, visites vétérinaires et animaux
       dispatch(loadVaccinations(projetActif.id));
       dispatch(loadMaladies(projetActif.id));
+      dispatch(loadVisitesVeterinaires(projetActif.id));
       // Inclure les inactifs pour avoir tous les animaux (actif et autre statuts)
       dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true }));
     }, [projetActif?.id, dispatch])
@@ -167,8 +178,35 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
       }
     });
 
+    // Récupérer produits depuis visites vétérinaires (prescriptions / produits administrés en consultation)
+    (visitesVeterinaires || []).forEach((visite) => {
+      if (visite.prescriptions) {
+        const segments = visite.prescriptions
+          .split(/[,\n;]|\s+et\s+/i)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        segments.forEach((produit) => {
+          const key = produit.toLowerCase();
+          if (!produitsMap.has(key)) {
+            produitsMap.set(key, {
+              nom: produit,
+              type: 'medicament',
+              raison: 'traitement_curatif',
+              stock: 0,
+              derniereUtilisation: visite.date_visite,
+            });
+          } else {
+            const existing = produitsMap.get(key)!;
+            if (visite.date_visite > (existing.derniereUtilisation || '')) {
+              existing.derniereUtilisation = visite.date_visite;
+            }
+          }
+        });
+      }
+    });
+
     return Array.from(produitsMap.values());
-  }, [vaccinations, maladies]);
+  }, [vaccinations, maladies, visitesVeterinaires]);
 
   // Filtrer produits
   const produitsFiltres = useMemo(() => {
