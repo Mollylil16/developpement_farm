@@ -4523,21 +4523,38 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
    */
   async calculatePriceTrendsFromListings(weeksCount: number = 27) {
     const trends = [];
-    const now = new Date();
-    const { year: currentYear, weekNumber: currentWeek } = this.getWeekNumber(now);
+    try {
+      const now = new Date();
+      const { year: currentYear, weekNumber: currentWeek } = this.getWeekNumber(now);
 
-    for (let i = 0; i < weeksCount; i++) {
-      let year = currentYear;
-      let week = currentWeek - i;
+      for (let i = 0; i < weeksCount; i++) {
+        try {
+          let year = currentYear;
+          let week = currentWeek - i;
 
-      // Gérer le passage d'année
-      while (week < 1) {
-        year--;
-        week += 52;
+          // Gérer le passage d'année
+          while (week < 1) {
+            year--;
+            week += 52;
+          }
+
+          const trend = await this.calculateWeekTrend(year, week);
+          trends.push(trend);
+        } catch (error: any) {
+          this.logger.warn(`[calculatePriceTrendsFromListings] Erreur pour semaine ${currentWeek - i}:`, {
+            message: error?.message,
+            year: currentYear,
+            week: currentWeek - i,
+          });
+          // Continuer avec les autres semaines même si une échoue
+        }
       }
-
-      const trend = await this.calculateWeekTrend(year, week);
-      trends.push(trend);
+    } catch (error: any) {
+      this.logger.error(`[calculatePriceTrendsFromListings] Erreur générale:`, {
+        message: error?.message,
+        stack: error?.stack,
+      });
+      throw error; // Re-lancer pour que calculatePriceTrends puisse gérer
     }
 
     // Retourner dans l'ordre chronologique (du plus ancien au plus récent)
@@ -4549,13 +4566,14 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
    * Utilise les listings DISPONIBLES pendant cette semaine (pas seulement créés)
    */
   private async calculateWeekTrend(year: number, weekNumber: number) {
-    // Calculer les dates de début et fin de la semaine
-    const weekStart = this.getWeekStartDate(year, weekNumber);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 7);
-    
-    const now = new Date();
-    const isCurrentOrFutureWeek = weekEnd >= now;
+    try {
+      // Calculer les dates de début et fin de la semaine
+      const weekStart = this.getWeekStartDate(year, weekNumber);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 7);
+      
+      const now = new Date();
+      const isCurrentOrFutureWeek = weekEnd >= now;
 
     // 1. Récupérer les listings qui étaient DISPONIBLES pendant cette semaine
     // Un listing est disponible si:
@@ -4680,9 +4698,33 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       await this.upsertPriceTrend(trend);
     } catch (e) {
       // Ignorer si la table n'existe pas encore
+      this.logger.debug(`[calculateWeekTrend] Table weekly_pork_price_trends n'existe pas ou erreur de sauvegarde:`, e?.message);
     }
 
     return trend;
+    } catch (error: any) {
+      this.logger.error(`[calculateWeekTrend] Erreur pour semaine ${year}-W${weekNumber}:`, {
+        message: error?.message,
+        stack: error?.stack,
+        year,
+        weekNumber,
+      });
+      // Retourner une tendance vide plutôt que de faire planter
+      return {
+        id: `${year}-W${weekNumber.toString().padStart(2, '0')}`,
+        year,
+        weekNumber,
+        avgPricePlatform: null,
+        avgPriceRegional: null,
+        transactionsCount: 0,
+        offersCount: 0,
+        listingsCount: 0,
+        sourcePriority: 'none' as const,
+        totalWeightKg: null,
+        totalPriceFcfa: null,
+        updatedAt: new Date().toISOString(),
+      };
+    }
   }
 
   /**
@@ -4748,10 +4790,21 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
    * Forcer le recalcul des tendances de prix
    */
   async calculatePriceTrends(weeksCount: number = 4) {
-    this.logger.log(`[calculatePriceTrends] Recalcul des ${weeksCount} dernières semaines...`);
-    const trends = await this.calculatePriceTrendsFromListings(weeksCount);
-    this.logger.log(`[calculatePriceTrends] ${trends.length} tendances calculées`);
-    return trends;
+    try {
+      this.logger.log(`[calculatePriceTrends] Recalcul des ${weeksCount} dernières semaines...`);
+      const trends = await this.calculatePriceTrendsFromListings(weeksCount);
+      this.logger.log(`[calculatePriceTrends] ${trends.length} tendances calculées`);
+      return trends;
+    } catch (error: any) {
+      this.logger.error(`[calculatePriceTrends] Erreur lors du recalcul:`, {
+        message: error?.message,
+        stack: error?.stack,
+        weeksCount,
+      });
+      // Retourner un tableau vide plutôt que de faire planter l'endpoint
+      // Le frontend pourra toujours récupérer les tendances existantes
+      return [];
+    }
   }
 
   /**
