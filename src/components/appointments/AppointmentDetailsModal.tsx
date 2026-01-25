@@ -53,12 +53,21 @@ export default function AppointmentDetailsModal({
    */
   const handleAccept = async () => {
     if (appointment.status !== 'pending') {
-      Alert.alert('Erreur', 'Ce rendez-vous a déjà été traité');
+      Alert.alert(
+        'Erreur',
+        `Ce rendez-vous a déjà été traité (statut: ${appointment.status}). Veuillez rafraîchir la page.`,
+      );
+      return;
+    }
+
+    // Empêcher les double-clics
+    if (actionLoading) {
       return;
     }
 
     setActionLoading(true);
     try {
+      logger.debug(`[AppointmentDetailsModal] Acceptation RDV ${appointment.id}`);
       await update(appointment.id, {
         status: 'accepted',
         vetResponse: vetResponse.trim() || undefined,
@@ -76,7 +85,9 @@ export default function AppointmentDetailsModal({
       ]);
     } catch (error: any) {
       logger.error('Erreur lors de l\'acceptation du rendez-vous:', error);
-      Alert.alert('Erreur', error.message || 'Impossible d\'accepter le rendez-vous');
+      const errorMessage =
+        error?.data?.message || error?.message || 'Impossible d\'accepter le rendez-vous';
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setActionLoading(false);
     }
@@ -87,7 +98,10 @@ export default function AppointmentDetailsModal({
    */
   const handleReject = async () => {
     if (appointment.status !== 'pending') {
-      Alert.alert('Erreur', 'Ce rendez-vous a déjà été traité');
+      Alert.alert(
+        'Erreur',
+        `Ce rendez-vous a déjà été traité (statut: ${appointment.status}). Veuillez rafraîchir la page.`,
+      );
       return;
     }
 
@@ -99,8 +113,14 @@ export default function AppointmentDetailsModal({
       return;
     }
 
+    // Empêcher les double-clics
+    if (actionLoading) {
+      return;
+    }
+
     setActionLoading(true);
     try {
+      logger.debug(`[AppointmentDetailsModal] Refus RDV ${appointment.id}`);
       await update(appointment.id, {
         status: 'rejected',
         vetResponse: vetResponse.trim(),
@@ -118,7 +138,9 @@ export default function AppointmentDetailsModal({
       ]);
     } catch (error: any) {
       logger.error('Erreur lors du refus du rendez-vous:', error);
-      Alert.alert('Erreur', error.message || 'Impossible de refuser le rendez-vous');
+      const errorMessage =
+        error?.data?.message || error?.message || 'Impossible de refuser le rendez-vous';
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setActionLoading(false);
     }

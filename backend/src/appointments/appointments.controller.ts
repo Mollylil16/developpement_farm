@@ -91,8 +91,29 @@ export class AppointmentsController {
     @Body() updateAppointmentDto: UpdateAppointmentDto,
     @CurrentUser('id') userId: string,
   ): Promise<AppointmentResponseDto> {
-    this.logger.log(`[Appointments] Mise à jour du rendez-vous ${id} par ${userId}`);
-    return this.appointmentsService.update(id, updateAppointmentDto, userId);
+    this.logger.log(
+      `[AppointmentsController] Mise à jour du rendez-vous ${id} (longueur: ${id.length}) par ${userId}`,
+    );
+    this.logger.debug(
+      `[AppointmentsController] DTO reçu: ${JSON.stringify(updateAppointmentDto)}`,
+    );
+
+    // Vérifier que l'ID n'est pas tronqué
+    if (id.length < 20) {
+      this.logger.warn(
+        `[AppointmentsController] ⚠️ ID suspect (trop court): ${id} (longueur: ${id.length})`,
+      );
+    }
+
+    try {
+      return await this.appointmentsService.update(id, updateAppointmentDto, userId);
+    } catch (error) {
+      this.logger.error(
+        `[AppointmentsController] Erreur lors de la mise à jour du rendez-vous ${id}:`,
+        error,
+      );
+      throw error;
+    }
   }
 
   @Delete(':id/cancel')

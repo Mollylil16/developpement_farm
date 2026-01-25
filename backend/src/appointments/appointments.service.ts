@@ -271,17 +271,33 @@ export class AppointmentsService {
     updateAppointmentDto: UpdateAppointmentDto,
     userId: string,
   ): Promise<AppointmentResponseDto> {
+    this.logger.log(
+      `[Appointments] Mise à jour rendez-vous ${appointmentId} par user ${userId}, status: ${updateAppointmentDto.status}`,
+    );
+
     // Récupérer le rendez-vous
     const appointment = await this.findOne(appointmentId, userId);
 
+    this.logger.debug(
+      `[Appointments] Rendez-vous trouvé: id=${appointment.id}, status=${appointment.status}, vetId=${appointment.vetId}, producerId=${appointment.producerId}`,
+    );
+
     // Vérifier que seul le vétérinaire peut mettre à jour
     if (appointment.vetId !== userId) {
+      this.logger.warn(
+        `[Appointments] ⚠️ Tentative de mise à jour par un non-vétérinaire: userId=${userId}, vetId=${appointment.vetId}`,
+      );
       throw new ForbiddenException('Seul le vétérinaire peut répondre à cette demande');
     }
 
     // Vérifier que le rendez-vous est en attente
     if (appointment.status !== 'pending') {
-      throw new BadRequestException('Ce rendez-vous a déjà été traité');
+      this.logger.warn(
+        `[Appointments] ⚠️ Tentative de modification d'un rendez-vous déjà traité: id=${appointmentId}, status actuel=${appointment.status}, nouveau status demandé=${updateAppointmentDto.status}`,
+      );
+      throw new BadRequestException(
+        `Ce rendez-vous a déjà été traité (statut actuel: ${appointment.status}). Vous ne pouvez plus le modifier.`,
+      );
     }
 
     // Mettre à jour le rendez-vous
