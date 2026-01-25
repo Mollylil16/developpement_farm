@@ -12,6 +12,7 @@ import { DatabaseService } from '../database/database.service';
 import { CreateCollaborateurDto } from './dto/create-collaborateur.dto';
 import { UpdateCollaborateurDto } from './dto/update-collaborateur.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../marketplace/dto/notification.dto';
 
 // Limite maximale de collaborateurs par projet
 const MAX_COLLABORATEURS = 50;
@@ -1178,7 +1179,61 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       userAgent
     );
 
+    // Récupérer les informations du projet et du propriétaire pour la notification
+    let projetNom = 'le projet';
+    let proprietaireNom = 'le propriétaire';
+    try {
+      const projetResult = await this.databaseService.query(
+        `SELECT p.nom, u.nom as proprietaire_nom, u.prenom as proprietaire_prenom 
+         FROM projets p 
+         JOIN users u ON p.proprietaire_id = u.id 
+         WHERE p.id = $1`,
+        [existing.projet_id]
+      );
+      if (projetResult.rows.length > 0) {
+        projetNom = projetResult.rows[0].nom || projetNom;
+        const propNom = projetResult.rows[0].proprietaire_nom || '';
+        const propPrenom = projetResult.rows[0].proprietaire_prenom || '';
+        proprietaireNom = `${propPrenom} ${propNom}`.trim() || proprietaireNom;
+      }
+    } catch (error) {
+      this.logger.warn('Erreur lors de la récupération des infos du projet pour notification:', error);
+    }
+
+    // Supprimer la collaboration
     await this.databaseService.query('DELETE FROM collaborations WHERE id = $1', [id]);
+
+    // Envoyer une notification au collaborateur retiré (si user_id existe)
+    if (existing.user_id) {
+      try {
+        await this.notificationsService.createNotification({
+          userId: existing.user_id,
+          type: NotificationType.COLLABORATION_REMOVED,
+          title: 'Accès au projet retiré',
+          message: `Vous avez été retiré du projet "${projetNom}" par ${proprietaireNom}. Vous n'avez plus accès à ce projet.`,
+          relatedType: 'collaboration',
+          relatedId: id,
+          actionUrl: '/collaborations',
+          data: {
+            collaborationId: id,
+            projetId: existing.projet_id,
+            projetNom: projetNom,
+            proprietaireNom: proprietaireNom,
+            role: existing.role,
+          },
+        });
+        this.logger.log(
+          `[Collaborations] ✅ Notification de retrait envoyée au collaborateur ${existing.user_id} pour projet ${existing.projet_id}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `[Collaborations] ⚠️ Erreur lors de l'envoi de la notification de retrait (non-bloquant):`,
+          error,
+        );
+        // Ne pas bloquer si la notification échoue
+      }
+    }
+
     return { id };
   }
 

@@ -21,6 +21,8 @@ export enum NotificationType {
   APPOINTMENT_REJECTED = 'appointment_rejected',     // RDV refusé (producteur)
   APPOINTMENT_CANCELLED = 'appointment_cancelled',   // RDV annulé (les deux)
   APPOINTMENT_REMINDER = 'appointment_reminder',     // Rappel RDV (les deux)
+  // ✅ Notifications pour les collaborations
+  COLLABORATION_REMOVED = 'collaboration_removed',   // Collaborateur retiré d'un projet
 }
 
 export class CreateNotificationDto {

@@ -637,13 +637,49 @@ this.logger.error(`Erreur lors de la création automatique des animaux individue
   }
 
   async findAll(userId: string) {
-    const result = await this.databaseService.query(
+    // Récupérer les projets où l'utilisateur est propriétaire
+    const ownedProjects = await this.databaseService.query(
       `SELECT * FROM projets 
        WHERE proprietaire_id = $1 
        ORDER BY date_creation DESC`,
       [userId]
     );
-    return result.rows.map((row) => this.mapRowToProjet(row));
+
+    // Récupérer les projets où l'utilisateur est collaborateur actif
+    const collaborationProjects = await this.databaseService.query(
+      `SELECT DISTINCT p.* 
+       FROM projets p
+       INNER JOIN collaborations c ON p.id = c.projet_id
+       WHERE (c.user_id = $1 OR c.profile_id LIKE $2)
+         AND c.statut = 'actif'
+       ORDER BY p.date_creation DESC`,
+      [userId, `%${userId}%`]
+    );
+
+    // Combiner les deux listes et éliminer les doublons (au cas où un utilisateur serait propriétaire ET collaborateur)
+    const allProjectsMap = new Map();
+    
+    // Ajouter les projets possédés
+    ownedProjects.rows.forEach((row) => {
+      allProjectsMap.set(row.id, row);
+    });
+
+    // Ajouter les projets de collaboration (sans écraser les projets possédés)
+    collaborationProjects.rows.forEach((row) => {
+      if (!allProjectsMap.has(row.id)) {
+        allProjectsMap.set(row.id, row);
+      }
+    });
+
+    // Convertir en tableau et mapper
+    return Array.from(allProjectsMap.values())
+      .map((row) => this.mapRowToProjet(row))
+      .sort((a, b) => {
+        // Trier par date de création décroissante
+        const dateA = new Date(a.date_creation || 0).getTime();
+        const dateB = new Date(b.date_creation || 0).getTime();
+        return dateB - dateA;
+      });
   }
 
   async findOne(id: string) {
