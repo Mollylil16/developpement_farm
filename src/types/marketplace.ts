@@ -266,7 +266,7 @@ export type NotificationType =
 /**
  * Type d'entit├® li├®e ├á la notification
  */
-export type NotificationRelatedType = 'offer' | 'transaction' | 'message' | 'rating';
+export type NotificationRelatedType = 'offer' | 'transaction' | 'message' | 'rating' | 'appointment';
 
 /**
  * Notification marketplace
