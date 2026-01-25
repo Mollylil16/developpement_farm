@@ -158,8 +158,9 @@ export default function AppointmentDetailsModal({
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={true}
           keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled={true}
         >
           {/* Informations producteur */}
           <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
