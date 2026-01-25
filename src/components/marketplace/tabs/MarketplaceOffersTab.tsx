@@ -539,7 +539,7 @@ function MarketplaceOffersTab({
         onRequestClose={() => setCounterModalVisible(false)}
         statusBarTranslucent={true}
       >
-        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: marketplaceColors.overlay }]}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
@@ -554,16 +554,22 @@ function MarketplaceOffersTab({
               activeOpacity={1}
               onPress={(e) => e.stopPropagation()}
             >
-              <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-                <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
-                  <Text style={[styles.modalTitle, { color: colors.text }]}>
+              <View style={[
+                styles.modalContent,
+                {
+                  backgroundColor: marketplaceColors.surfaceSolid,
+                  ...MarketplaceTheme.shadows.large,
+                }
+              ]}>
+                <View style={[styles.modalHeader, { borderBottomColor: marketplaceColors.divider }]}>
+                  <Text style={[styles.modalTitle, { color: marketplaceColors.text }]}>
                     Contre-proposition
                   </Text>
                   <TouchableOpacity
                     onPress={() => setCounterModalVisible(false)}
                     style={styles.closeButton}
                   >
-                    <Ionicons name="close" size={24} color={colors.textSecondary} />
+                    <Ionicons name="close" size={24} color={marketplaceColors.textSecondary} />
                   </TouchableOpacity>
                 </View>
 
@@ -576,25 +582,33 @@ function MarketplaceOffersTab({
                       keyboardShouldPersistTaps="handled"
                     >
                       {/* Informations de l'offre actuelle */}
-                      <View style={[styles.infoCard, { backgroundColor: colors.surfaceLight || colors.surface }]}>
+                      <View style={[
+                        styles.infoCard,
+                        {
+                          backgroundColor: marketplaceColors.glassBackground,
+                          borderColor: marketplaceColors.glassBorder,
+                          borderWidth: 1,
+                          ...MarketplaceTheme.shadows.small,
+                        }
+                      ]}>
                         <View style={styles.infoRow}>
-                          <Ionicons name="pricetag-outline" size={20} color={colors.textSecondary} />
+                          <Ionicons name="pricetag-outline" size={20} color={marketplaceColors.primary} />
                           <View style={styles.infoContent}>
-                            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                            <Text style={[styles.infoLabel, { color: marketplaceColors.textSecondary }]}>
                               Offre actuelle
                             </Text>
-                            <Text style={[styles.infoValue, { color: colors.text }]}>
+                            <Text style={[styles.infoValue, { color: marketplaceColors.primary }]}>
                               {(selectedOfferForCounter.offeredAmount || selectedOfferForCounter.proposedPrice || 0).toLocaleString('fr-FR')} FCFA
                             </Text>
                           </View>
                         </View>
                         <View style={styles.infoRow}>
-                          <Ionicons name="cash-outline" size={20} color={colors.textSecondary} />
+                          <Ionicons name="cash-outline" size={20} color={marketplaceColors.primary} />
                           <View style={styles.infoContent}>
-                            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                            <Text style={[styles.infoLabel, { color: marketplaceColors.textSecondary }]}>
                               Prix de l'annonce
                             </Text>
-                            <Text style={[styles.infoValue, { color: colors.text }]}>
+                            <Text style={[styles.infoValue, { color: marketplaceColors.text }]}>
                               {(selectedOfferForCounter.originalPrice || 0).toLocaleString('fr-FR')} FCFA
                             </Text>
                           </View>
@@ -603,38 +617,38 @@ function MarketplaceOffersTab({
 
                       {/* Champ prix proposé */}
                       <View style={styles.inputSection}>
-                        <Text style={[styles.inputLabel, { color: colors.text }]}>
+                        <Text style={[styles.inputLabel, { color: marketplaceColors.text }]}>
                           Votre prix proposé (FCFA)
                         </Text>
                         <TextInput
                           style={[styles.modalInput, { 
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.border
+                            backgroundColor: marketplaceColors.surfaceSolid,
+                            color: marketplaceColors.text,
+                            borderColor: marketplaceColors.border
                           }]}
                           value={counterPrice}
                           onChangeText={setCounterPrice}
                           keyboardType="numeric"
                           placeholder="Ex: 150000"
-                          placeholderTextColor={colors.textSecondary}
+                          placeholderTextColor={marketplaceColors.textSecondary}
                         />
                       </View>
 
                       {/* Champ message */}
                       <View style={styles.inputSection}>
-                        <Text style={[styles.inputLabel, { color: colors.text }]}>
+                        <Text style={[styles.inputLabel, { color: marketplaceColors.text }]}>
                           Message (optionnel)
                         </Text>
                         <TextInput
                           style={[styles.modalInput, styles.messageInput, { 
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.border
+                            backgroundColor: marketplaceColors.surfaceSolid,
+                            color: marketplaceColors.text,
+                            borderColor: marketplaceColors.border
                           }]}
                           value={counterMessage}
                           onChangeText={setCounterMessage}
                           placeholder="Expliquez votre proposition..."
-                          placeholderTextColor={colors.textSecondary}
+                          placeholderTextColor={marketplaceColors.textSecondary}
                           multiline
                           numberOfLines={3}
                           textAlignVertical="top"
@@ -643,24 +657,42 @@ function MarketplaceOffersTab({
                     </ScrollView>
 
                     {/* Boutons d'action (fixés en bas) */}
-                    <View style={[styles.modalActions, { backgroundColor: colors.surface, borderTopColor: colors.divider }]}>
+                    <View style={[
+                      styles.modalActions,
+                      {
+                        backgroundColor: marketplaceColors.surfaceSolid,
+                        borderTopColor: marketplaceColors.divider
+                      }
+                    ]}>
                       <TouchableOpacity
-                        style={[styles.modalButtonCancel, { borderColor: colors.border }]}
+                        style={[
+                          styles.modalButtonCancel,
+                          {
+                            borderColor: marketplaceColors.border,
+                            backgroundColor: marketplaceColors.surfaceSolid,
+                          }
+                        ]}
                         onPress={() => setCounterModalVisible(false)}
                         disabled={isSubmittingCounter}
                         activeOpacity={0.7}
                       >
-                        <Text style={[styles.modalButtonTextCancel, { color: colors.text }]}>
+                        <Text style={[styles.modalButtonTextCancel, { color: marketplaceColors.text }]}>
                           Annuler
                         </Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        style={[styles.modalButtonSend, { backgroundColor: colors.primary }]}
+                        style={[
+                          styles.modalButtonSend,
+                          {
+                            backgroundColor: marketplaceColors.primary,
+                            ...MarketplaceTheme.shadows.medium,
+                          }
+                        ]}
                         onPress={submitCounterOffer}
                         disabled={isSubmittingCounter || !counterPrice || parseFloat(counterPrice) <= 0}
                         activeOpacity={0.7}
                       >
-                        <Text style={[styles.modalButtonTextSend, { color: colors.textOnPrimary || '#FFF' }]}>
+                        <Text style={[styles.modalButtonTextSend, { color: marketplaceColors.textInverse }]}>
                           {isSubmittingCounter ? 'Envoi...' : 'Envoyer'}
                         </Text>
                       </TouchableOpacity>
@@ -799,15 +831,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  // Styles pour le modal de contre-proposition (style similaire au modal d'ajout de profil)
+  // Styles pour le modal de contre-proposition (alignés avec le thème marketplace)
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-end',
   },
   modalContent: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: SPACING.lg,
+    borderTopLeftRadius: MarketplaceTheme.borderRadius.xl,
+    borderTopRightRadius: MarketplaceTheme.borderRadius.xl,
+    paddingTop: MarketplaceTheme.spacing.lg,
     paddingBottom: 0,
     maxHeight: Dimensions.get('window').height * 0.85,
     minHeight: Dimensions.get('window').height * 0.5,
@@ -816,96 +848,96 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.md,
+    paddingHorizontal: MarketplaceTheme.spacing.lg,
+    paddingBottom: MarketplaceTheme.spacing.md,
     borderBottomWidth: 1,
   },
   modalTitle: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: FONT_WEIGHTS.bold,
+    fontSize: MarketplaceTheme.typography.fontSizes.xl,
+    fontWeight: MarketplaceTheme.typography.fontWeights.bold,
     flex: 1,
   },
   closeButton: {
-    padding: SPACING.xs,
-    marginLeft: SPACING.sm,
+    padding: MarketplaceTheme.spacing.xs,
+    marginLeft: MarketplaceTheme.spacing.sm,
   },
   modalBody: {
     flex: 1,
     maxHeight: Dimensions.get('window').height * 0.6,
   },
   modalBodyContent: {
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
-    paddingBottom: SPACING.xl,
-    gap: SPACING.md,
+    paddingHorizontal: MarketplaceTheme.spacing.lg,
+    paddingTop: MarketplaceTheme.spacing.md,
+    paddingBottom: MarketplaceTheme.spacing.xl,
+    gap: MarketplaceTheme.spacing.md,
   },
   infoCard: {
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
+    borderRadius: MarketplaceTheme.borderRadius.lg,
+    padding: MarketplaceTheme.spacing.md,
+    marginBottom: MarketplaceTheme.spacing.sm,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
+    marginBottom: MarketplaceTheme.spacing.sm,
   },
   infoContent: {
-    marginLeft: SPACING.sm,
+    marginLeft: MarketplaceTheme.spacing.sm,
     flex: 1,
   },
   infoLabel: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: MarketplaceTheme.typography.fontSizes.sm,
     marginBottom: 2,
   },
   infoValue: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semiBold,
+    fontSize: MarketplaceTheme.typography.fontSizes.md,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
   },
   inputSection: {
-    marginBottom: SPACING.md,
+    marginBottom: MarketplaceTheme.spacing.md,
   },
   inputLabel: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semiBold,
-    marginBottom: SPACING.xs,
+    fontSize: MarketplaceTheme.typography.fontSizes.md,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    marginBottom: MarketplaceTheme.spacing.xs,
   },
   modalInput: {
     borderWidth: 1,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    fontSize: FONT_SIZES.md,
+    borderRadius: MarketplaceTheme.borderRadius.md,
+    padding: MarketplaceTheme.spacing.md,
+    fontSize: MarketplaceTheme.typography.fontSizes.md,
   },
   messageInput: {
     minHeight: 100,
   },
   modalActions: {
     flexDirection: 'row',
-    gap: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
-    paddingBottom: SPACING.lg,
+    gap: MarketplaceTheme.spacing.sm,
+    paddingHorizontal: MarketplaceTheme.spacing.lg,
+    paddingTop: MarketplaceTheme.spacing.md,
+    paddingBottom: MarketplaceTheme.spacing.lg,
     borderTopWidth: 1,
   },
   modalButtonCancel: {
     flex: 1,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: MarketplaceTheme.spacing.md,
+    borderRadius: MarketplaceTheme.borderRadius.md,
     alignItems: 'center',
     borderWidth: 1,
   },
   modalButtonTextCancel: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semiBold,
+    fontSize: MarketplaceTheme.typography.fontSizes.md,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
   },
   modalButtonSend: {
     flex: 1,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: MarketplaceTheme.spacing.md,
+    borderRadius: MarketplaceTheme.borderRadius.md,
     alignItems: 'center',
   },
   modalButtonTextSend: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semiBold,
+    fontSize: MarketplaceTheme.typography.fontSizes.md,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
   },
 });
 
