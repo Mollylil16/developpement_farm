@@ -9,17 +9,31 @@ module.exports = {
     extend: {
       colors: {
         brand: {
-          50: '#f0f4ff',
-          100: '#e0e9ff',
-          200: '#c7d7fe',
-          300: '#a5b9fc',
-          400: '#8192f8',
-          500: '#465fff',
-          600: '#3d4fe8',
-          700: '#323dd4',
-          800: '#2d35ac',
-          900: '#2d3587',
+          50: '#f8fafc',
+          100: '#f1f5f9',
+          200: '#e2e8f0',
+          300: '#cbd5e1',
+          400: '#94a3b8',
+          500: '#3b82f6', // Bright blue
+          600: '#2563eb', // Deeper blue
+          700: '#1d4ed8',
+          800: '#1e40af',
+          900: '#1e3a8a', // Deep navy
         },
+        success: {
+          50: '#f0fdf4',
+          500: '#22c55e',
+          600: '#16a34a',
+        },
+      },
+      boxShadow: {
+        'premium': '0 10px 30px -10px rgba(0, 0, 0, 0.1)',
+        'premium-hover': '0 20px 40px -15px rgba(0, 0, 0, 0.15)',
+        'brand': '0 10px 30px -10px rgba(59, 130, 246, 0.3)',
+      },
+      backgroundImage: {
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+        'glass': 'linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05))',
       },
       fontFamily: {
         sans: ['Outfit', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
