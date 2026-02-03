@@ -56,13 +56,14 @@ export default function Header() {
               </Link>
             ))}
             <div className="w-px h-6 bg-gray-200 mx-2" />
-            <Link
-              href="/admin"
+            <a
+              href={process.env.NEXT_PUBLIC_ADMIN_URL || 'https://fermier-pro-admin.onrender.com'}
               className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors"
               target="_blank"
+              rel="noopener noreferrer"
             >
               Admin
-            </Link>
+            </a>
           </div>
 
           {/* CTA Buttons */}
@@ -100,7 +101,6 @@ export default function Header() {
                   { name: 'Producteurs', href: '#producers' },
                   { name: 'Témoignages', href: '#testimonials' },
                   { name: 'Contact', href: '#contact' },
-                  { name: 'Admin', href: '/admin' },
                 ].map((item) => (
                   <Link
                     key={item.name}
@@ -111,6 +111,15 @@ export default function Header() {
                     {item.name}
                   </Link>
                 ))}
+                <a
+                  href={process.env.NEXT_PUBLIC_ADMIN_URL || 'https://fermier-pro-admin.onrender.com'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-3 text-base font-semibold text-gray-600 hover:text-brand-600 hover:bg-brand-50 rounded-xl transition-all"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Admin
+                </a>
                 <div className="pt-4 border-t border-gray-100">
                   <Link
                     href="#download"
