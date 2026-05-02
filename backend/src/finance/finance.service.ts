@@ -638,49 +638,47 @@ export class FinanceService {
   // ==================== CALCUL DES MARGES ====================
 
   /**
-   * Calcule les coûts par kg pour une date de vente donnée
-   * Utilise une période glissante de 30 jours avant la vente pour calculer les coûts
+   * Calcule les coûts par kg pour une vente donnée.
+   *
+   * Utilise la totalité de la période depuis la création du projet jusqu'à la date de vente
+   * pour calculer les coûts moyens de production.  L'ancienne approche de 30 jours glissants
+   * sous-estimait systématiquement les coûts des animaux élevés sur plusieurs mois.
    */
   private async calculerCoutsParKgPourVente(
     projetId: string,
     dateVente: string
   ): Promise<{ cout_kg_opex: number; cout_kg_complet: number }> {
-    // Utiliser une période de 30 jours avant la vente pour calculer les coûts moyens
-    const dateVenteObj = new Date(dateVente);
-    const dateDebut = new Date(dateVenteObj);
-    dateDebut.setDate(dateDebut.getDate() - 30);
-    const dateFin = dateVenteObj.toISOString();
+    // Récupérer la date de création du projet pour couvrir toute la période d'élevage
+    const projetResult = await this.databaseService.query(
+      `SELECT date_creation, cout_kg_opex_moyen, cout_kg_complet_moyen FROM projets WHERE id = $1`,
+      [projetId]
+    );
+    const projet = projetResult.rows[0];
 
-    // Calculer les coûts de production pour cette période
-    // Note: userId non nécessaire ici car la propriété du projet a déjà été vérifiée dans calculerMargesVente
+    const dateDebut = projet?.date_creation
+      ? new Date(projet.date_creation).toISOString()
+      : (() => {
+          // Fallback: 2 years before sale date covers most production cycles
+          const d = new Date(dateVente);
+          d.setFullYear(d.getFullYear() - 2);
+          return d.toISOString();
+        })();
+
     const couts = await this.calculerCoutsProduction(
       projetId,
-      dateDebut.toISOString(),
-      dateFin,
-      undefined // userId optionnel - la vérification de propriété sera sautée
+      dateDebut,
+      dateVente,
+      undefined // propriété déjà vérifiée par l'appelant
     );
 
-    // Si pas de kg vendus dans la période, utiliser les coûts moyens du projet
-    if (couts.total_kg_vendus === 0 || (couts.cout_kg_opex === 0 && couts.cout_kg_complet === 0)) {
-      // Récupérer le projet pour obtenir les coûts moyens si disponibles
-      const projetResult = await this.databaseService.query(
-        `SELECT cout_kg_opex_moyen, cout_kg_complet_moyen FROM projets WHERE id = $1`,
-        [projetId]
-      );
-      const projet = projetResult.rows[0];
-      
+    if (couts.cout_kg_opex === 0 && couts.cout_kg_complet === 0) {
+      // Utiliser les coûts moyens pré-calculés du projet si disponibles
       if (projet?.cout_kg_opex_moyen && projet?.cout_kg_complet_moyen) {
         return {
           cout_kg_opex: parseFloat(projet.cout_kg_opex_moyen),
           cout_kg_complet: parseFloat(projet.cout_kg_complet_moyen),
         };
       }
-      
-      // Par défaut, utiliser les coûts calculés même s'ils sont 0
-      return {
-        cout_kg_opex: couts.cout_kg_opex,
-        cout_kg_complet: couts.cout_kg_complet,
-      };
     }
 
     return {

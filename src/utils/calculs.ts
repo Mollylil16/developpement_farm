@@ -1,14 +1,16 @@
 // Utilitaires pour les calculs agricoles
-import { 
-  Porc, 
-  PlanificationAccouplement, 
-  SailliePlanifiee, 
+import {
+  Porc,
+  PlanificationAccouplement,
+  SailliePlanifiee,
   ObjectifReproduction,
   Recommandation,
   Devise,
   DeviseConfig
 } from '../types';
 import { DEVISES_CONFIG } from '../store/slices/parametresSlice';
+import { PORC_PROFILE } from '../config/species/porc';
+import { GrowthParams, SigmoidGrowthParams, GompertzGrowthParams, LinearGrowthParams } from '../config/species/types';
 
 export class CalculsAgricoles {
   /**
@@ -66,21 +68,193 @@ export class CalculsAgricoles {
   }
 
   /**
-   * Calcule le poids cible selon l'âge
+   * Évalue un modèle de croissance à un âge donné.
+   * Modèles supportés: sigmoid (logistique), gompertz, linear.
+   */
+  static evaluerCourbe(params: GrowthParams, ageJours: number): number {
+    if (ageJours <= 0) return 0;
+    switch (params.model) {
+      case 'sigmoid': {
+        const p = params as SigmoidGrowthParams;
+        return p.Wmax / (1 + Math.exp(-p.k * (ageJours - p.t0)));
+      }
+      case 'gompertz': {
+        const p = params as GompertzGrowthParams;
+        return p.A * Math.exp(-p.B * Math.exp(-p.k * ageJours));
+      }
+      case 'linear':
+      default: {
+        const p = params as LinearGrowthParams;
+        return Math.min(ageJours * p.rateKgPerDay, p.maxWeight);
+      }
+    }
+  }
+
+  /**
+   * Calcule le poids cible d'un porc selon son âge.
+   * Utilise le modèle sigmoid calibré par race à partir du profil espèce porc.
+   * Les races non reconnues tombent sur le profil standard.
+   *
    * @param ageJours Âge en jours
-   * @param race Race du porc
-   * @returns Poids cible en kg
+   * @param race     Race (standard | pietrain | landrace | duroc | large_white)
+   * @returns Poids estimé en kg
    */
   static calculerPoidsCible(ageJours: number, race: string = 'standard'): number {
-    // Courbe de croissance standard
-    const courbesCroissance = {
-      standard: (age: number) => Math.min(age * 0.8, 120), // Max 120kg
-      pietrain: (age: number) => Math.min(age * 0.7, 100), // Max 100kg
-      landrace: (age: number) => Math.min(age * 0.9, 130), // Max 130kg
-    };
+    const override = PORC_PROFILE.breedOverrides[race.toLowerCase()];
+    const params = override ? override.growthParams : PORC_PROFILE.defaultGrowthParams;
+    return Math.round(CalculsAgricoles.evaluerCourbe(params, ageJours) * 10) / 10;
+  }
 
-    const courbe = courbesCroissance[race as keyof typeof courbesCroissance] || courbesCroissance.standard;
-    return courbe(ageJours);
+  /**
+   * Calcule le PSY (Porcelets Sevrés par Truie par An).
+   * PSY = (365 / IBF) × taille_portée_sevrée
+   *
+   * Avec IBF = gestation + lactation + intervalle_service
+   *
+   * @param gestations    Liste des gestations avec date_mise_bas et nombre_porcelets_sevres
+   * @param truies        Liste des truies
+   * @returns             PSY moyen (0 si pas de données)
+   */
+  static calculerPSY(
+    gestations: Array<{
+      truie_id: string;
+      date_mise_bas?: string;
+      nombre_porcelets_sevres?: number;
+      statut: string;
+    }>,
+    truies: Porc[]
+  ): number {
+    const gestationsTerminees = gestations.filter(
+      g => g.statut === 'terminee' && g.date_mise_bas && (g.nombre_porcelets_sevres ?? 0) > 0
+    );
+
+    if (gestationsTerminees.length === 0) return 0;
+
+    // Group by truie and sort by date
+    const byTruie: Record<string, typeof gestationsTerminees> = {};
+    for (const g of gestationsTerminees) {
+      if (!byTruie[g.truie_id]) byTruie[g.truie_id] = [];
+      byTruie[g.truie_id].push(g);
+    }
+
+    let totalIBF = 0;
+    let countIBF = 0;
+    let totalSevrés = 0;
+
+    for (const [, gList] of Object.entries(byTruie)) {
+      gList.sort((a, b) => new Date(a.date_mise_bas!).getTime() - new Date(b.date_mise_bas!).getTime());
+
+      // Calculate IBF from consecutive farrowings
+      for (let i = 1; i < gList.length; i++) {
+        const ibf = UtilitairesDate.differenceEnJours(
+          new Date(gList[i - 1].date_mise_bas!),
+          new Date(gList[i].date_mise_bas!)
+        );
+        if (ibf > 100 && ibf < 400) { // sanity range
+          totalIBF += ibf;
+          countIBF++;
+        }
+      }
+
+      totalSevrés += gList.reduce((s, g) => s + (g.nombre_porcelets_sevres ?? 0), 0);
+    }
+
+    const ibfMoyen = countIBF > 0
+      ? totalIBF / countIBF
+      // Fall back to theoretical minimum from species profile
+      : PORC_PROFILE.gestationDays + PORC_PROFILE.optimalWeaningDays + PORC_PROFILE.serviceIntervalDays;
+
+    const moyenneSevresParPortee = totalSevrés / gestationsTerminees.length;
+    const portéesParAn = 365 / ibfMoyen;
+
+    return Math.round(portéesParAn * moyenneSevresParPortee * 10) / 10;
+  }
+
+  /**
+   * Calcule l'Intervalle Entre Mises-Bas (IBF) moyen en jours.
+   */
+  static calculerIntervalleEntreMisesBas(
+    gestations: Array<{ truie_id: string; date_mise_bas?: string; statut: string }>
+  ): number {
+    const gestationsTerminees = gestations.filter(g => g.statut === 'terminee' && g.date_mise_bas);
+
+    const byTruie: Record<string, Date[]> = {};
+    for (const g of gestationsTerminees) {
+      if (!byTruie[g.truie_id]) byTruie[g.truie_id] = [];
+      byTruie[g.truie_id].push(new Date(g.date_mise_bas!));
+    }
+
+    let totalIBF = 0;
+    let count = 0;
+
+    for (const dates of Object.values(byTruie)) {
+      dates.sort((a, b) => a.getTime() - b.getTime());
+      for (let i = 1; i < dates.length; i++) {
+        const ibf = UtilitairesDate.differenceEnJours(dates[i - 1], dates[i]);
+        if (ibf > 100 && ibf < 400) {
+          totalIBF += ibf;
+          count++;
+        }
+      }
+    }
+
+    return count > 0 ? Math.round(totalIBF / count) : 0;
+  }
+
+  /**
+   * Calcule le taux de sevrage (porcelets sevrés / porcelets nés vivants).
+   */
+  static calculerTauxSevrage(
+    gestations: Array<{
+      nombre_porcelets_nes_vivants?: number;
+      nombre_porcelets_sevres?: number;
+      statut: string;
+    }>
+  ): number {
+    const gestationsTerminees = gestations.filter(g => g.statut === 'terminee');
+    const totalNésVivants = gestationsTerminees.reduce(
+      (s, g) => s + (g.nombre_porcelets_nes_vivants ?? 0), 0
+    );
+    const totalSevrés = gestationsTerminees.reduce(
+      (s, g) => s + (g.nombre_porcelets_sevres ?? 0), 0
+    );
+
+    return totalNésVivants > 0 ? Math.round((totalSevrés / totalNésVivants) * 1000) / 10 : 0;
+  }
+
+  /**
+   * Calcule le point mort (prix de vente minimum par kg pour couvrir les coûts).
+   *
+   * @param coutsTotaux         Coûts totaux de production (OPEX ou complet)
+   * @param poidsVifTotalKg     Poids vif total disponible à la vente
+   * @param avecRendementCarcasse Si true, divise par le rendement carcasse pour
+   *                            exprimer le point mort en $/kg de carcasse
+   * @returns Prix de vente minimum par kg
+   */
+  static calculerPointMort(
+    coutsTotaux: number,
+    poidsVifTotalKg: number,
+    avecRendementCarcasse: boolean = false
+  ): number {
+    if (poidsVifTotalKg <= 0) return 0;
+    const poidsBase = avecRendementCarcasse
+      ? poidsVifTotalKg * (PORC_PROFILE.dressingPercentagePct / 100)
+      : poidsVifTotalKg;
+    return Math.round((coutsTotaux / poidsBase) * 100) / 100;
+  }
+
+  /**
+   * Calcule le coût alimentaire par kg de gain (FCR économique).
+   *
+   * @param coutAlimentation    Coût total de l'alimentation
+   * @param gainPoidsTotalKg    Gain de poids total de l'élevage
+   * @returns Coût alimentaire par kg de gain (FCRE)
+   */
+  static calculerCoutAlimentaireParKgGain(
+    coutAlimentation: number,
+    gainPoidsTotalKg: number
+  ): number {
+    return gainPoidsTotalKg > 0 ? Math.round((coutAlimentation / gainPoidsTotalKg) * 100) / 100 : 0;
   }
 
   /**
@@ -427,7 +601,7 @@ export class CalculsAgricoles {
       ? porcsEnCroissance.reduce((sum: number, p: Porc) => sum + p.poidsActuel, 0) / porcsEnCroissance.length 
       : 0;
     
-    const tauxMortalite = porcs.filter(p => p.statut === 'vente').length / totalPorcs * 100;
+    const tauxMortalite = totalPorcs > 0 ? porcs.filter(p => p.statut === 'mort').length / totalPorcs * 100 : 0;
     
     const chiffreAffairesMensuel = transactions
       .filter(t => t.type === 'vente' && new Date(t.date) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
@@ -846,7 +1020,7 @@ export class GestionAlertes {
       ? porcsEnCroissance.reduce((sum: number, p: Porc) => sum + p.poidsActuel, 0) / porcsEnCroissance.length 
       : 0;
     
-    const tauxMortalite = porcs.filter(p => p.statut === 'vente').length / totalPorcs * 100;
+    const tauxMortalite = totalPorcs > 0 ? porcs.filter(p => p.statut === 'mort').length / totalPorcs * 100 : 0;
     
     const chiffreAffairesMensuel = transactions
       .filter(t => t.type === 'vente' && new Date(t.date) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))

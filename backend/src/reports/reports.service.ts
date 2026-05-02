@@ -529,6 +529,9 @@ export class ReportsService {
 
       const poidsTotal = parseFloat(poidsTotalResult.rows[0]?.poids_total) || 0;
 
+      // ── Pig-specific KPIs ───────────────────────────────────────────────────
+      const kpisPorcins = await this.calculerKPIsPorcins(projetId);
+
       return {
         taux_mortalite: tauxMortalite,
         taux_croissance: tauxCroissance,
@@ -543,6 +546,7 @@ export class ReportsService {
         periode_jours: periodeJours,
         date_debut: dateDebut.toISOString(),
         date_fin: dateFin.toISOString(),
+        ...kpisPorcins,
       };
     } catch (error: any) {
       // Logger l'erreur pour le débogage
@@ -564,6 +568,101 @@ export class ReportsService {
         `Erreur lors du calcul des indicateurs de performance: ${error.message || 'Erreur inconnue'}`
       );
     }
+  }
+
+  // ==================== KPIs PORCINS (PSY, IBF, taux de sevrage) ====================
+
+  /**
+   * Calcule les KPIs spécifiques à l'élevage porcin:
+   *  - PSY  : Porcelets Sevrés par Truie par An
+   *  - IBF  : Intervalle Between Farrowings (jours)
+   *  - taux_sevrage : porcelets sevrés / porcelets nés vivants (%)
+   *  - taux_conception : gestations confirmées / saillies (%)
+   *
+   * Retourne 0/null pour chaque indicateur si les données sont insuffisantes.
+   */
+  private async calculerKPIsPorcins(projetId: string): Promise<{
+    psy: number;
+    ibf_jours: number;
+    taux_sevrage_pct: number;
+    taux_conception_pct: number;
+  }> {
+    // Récupérer toutes les gestations terminées avec les sevrages associés
+    const gestationsResult = await this.databaseService.query(
+      `SELECT
+         g.truie_id,
+         g.date_mise_bas_reelle,
+         g.nombre_porcelets_reel          AS nes_vivants,
+         COALESCE(s.nombre_porcelets_sevres, 0) AS sevres,
+         g.statut
+       FROM gestations g
+       LEFT JOIN sevrages s ON s.gestation_id = g.id
+       WHERE g.projet_id = $1
+         AND g.statut = 'terminee'
+         AND g.date_mise_bas_reelle IS NOT NULL
+       ORDER BY g.truie_id, g.date_mise_bas_reelle`,
+      [projetId]
+    );
+
+    const rows = gestationsResult.rows;
+    if (rows.length === 0) {
+      return { psy: 0, ibf_jours: 0, taux_sevrage_pct: 0, taux_conception_pct: 0 };
+    }
+
+    // ── IBF (mean interval between consecutive farrowings per sow) ────────────
+    let totalIBF = 0;
+    let countIBF = 0;
+    const byTruie: Record<string, Date[]> = {};
+    for (const r of rows) {
+      if (!byTruie[r.truie_id]) byTruie[r.truie_id] = [];
+      byTruie[r.truie_id].push(new Date(r.date_mise_bas_reelle));
+    }
+    for (const dates of Object.values(byTruie)) {
+      for (let i = 1; i < dates.length; i++) {
+        const ibf = Math.round(
+          (dates[i].getTime() - dates[i - 1].getTime()) / (1000 * 60 * 60 * 24)
+        );
+        if (ibf > 100 && ibf < 400) { // sanity range
+          totalIBF += ibf;
+          countIBF++;
+        }
+      }
+    }
+    // If only one farrowing per sow, use theoretical minimum IBF
+    const ibfMoyen = countIBF > 0 ? Math.round(totalIBF / countIBF) : 149;
+
+    // ── PSY ───────────────────────────────────────────────────────────────────
+    const totalSevres = rows.reduce((s: number, r: any) => s + (parseInt(r.sevres) || 0), 0);
+    const moyenneSevresParPortee = totalSevres / rows.length;
+    const portéesParAn = 365 / ibfMoyen;
+    const psy = Math.round(portéesParAn * moyenneSevresParPortee * 10) / 10;
+
+    // ── Taux de sevrage ───────────────────────────────────────────────────────
+    const totalNesVivants = rows.reduce((s: number, r: any) => s + (parseInt(r.nes_vivants) || 0), 0);
+    const tauxSevragePct = totalNesVivants > 0
+      ? Math.round((totalSevres / totalNesVivants) * 1000) / 10
+      : 0;
+
+    // ── Taux de conception ────────────────────────────────────────────────────
+    const sailliesResult = await this.databaseService.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE statut IN ('terminee', 'en_cours')) AS confirmees,
+         COUNT(*) AS total
+       FROM gestations
+       WHERE projet_id = $1`,
+      [projetId]
+    );
+    const sailliesRow = sailliesResult.rows[0] || {};
+    const tauxConceptionPct = parseInt(sailliesRow.total) > 0
+      ? Math.round((parseInt(sailliesRow.confirmees) / parseInt(sailliesRow.total)) * 1000) / 10
+      : 0;
+
+    return {
+      psy,
+      ibf_jours: ibfMoyen,
+      taux_sevrage_pct: tauxSevragePct,
+      taux_conception_pct: tauxConceptionPct,
+    };
   }
 
   // ==================== CALCUL DE LA PERFORMANCE GLOBALE ====================
