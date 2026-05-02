@@ -312,9 +312,9 @@ export default function CreatePurchaseRequestOfferModal({
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator color={colors.textOnPrimary} />
+                  <ActivityIndicator color={colors.textInverse} />
                 ) : (
-                  <Text style={[styles.submitButtonText, { color: colors.textOnPrimary }]}>Envoyer l'offre</Text>
+                  <Text style={[styles.submitButtonText, { color: colors.textInverse }]}>Envoyer l'offre</Text>
                 )}
               </TouchableOpacity>
             </View>

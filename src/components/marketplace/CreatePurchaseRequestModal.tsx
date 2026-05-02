@@ -407,7 +407,7 @@ export default function CreatePurchaseRequestModal({
                       <Text
                         style={[
                           styles.ageCategoryText,
-                          { color: ageCategory === cat.value ? colors.textOnPrimary : colors.text },
+                          { color: ageCategory === cat.value ? colors.textInverse : colors.text },
                         ]}
                       >
                         {cat.label}
@@ -415,7 +415,7 @@ export default function CreatePurchaseRequestModal({
                     </TouchableOpacity>
                   ))}
                 </View>
-                <View style={styles.row} style={{ marginTop: SPACING.sm }}>
+                <View style={[styles.row, { marginTop: SPACING.sm }]}>
                   <View style={styles.halfField}>
                     <TextInput
                       style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
@@ -454,7 +454,7 @@ export default function CreatePurchaseRequestModal({
 
               {/* Localisation */}
               <View style={styles.field}>
-                <View style={styles.row} style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={[styles.row, { justifyContent: 'space-between', alignItems: 'center' }]}>
                   <Text style={[styles.label, { color: colors.text }]}>Localisation de livraison</Text>
                   <TouchableOpacity onPress={handleGetLocation} style={styles.locationButton}>
                     <Ionicons name="location" size={16} color={colors.primary} />
@@ -559,9 +559,9 @@ export default function CreatePurchaseRequestModal({
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color={colors.textOnPrimary} />
+              <ActivityIndicator color={colors.textInverse} />
             ) : (
-                <Text style={[styles.submitButtonText, { color: colors.textOnPrimary }]}>
+                <Text style={[styles.submitButtonText, { color: colors.textInverse }]}>
                   {editRequest ? 'Enregistrer les modifications' : 'Publier la demande'}
                 </Text>
             )}

@@ -110,8 +110,8 @@ export default function VaccinationFormModalNew({
     if (rechercheTexte.trim()) {
       const search = rechercheTexte.toLowerCase();
       filtered = filtered.filter((a) => {
-        const nom = a.nom_personnalise?.toLowerCase() || '';
-        const code = a.code_identification?.toLowerCase() || '';
+        const nom = a.nom?.toLowerCase() || '';
+        const code = a.code?.toLowerCase() || '';
         return nom.includes(search) || code.includes(search);
       });
     }

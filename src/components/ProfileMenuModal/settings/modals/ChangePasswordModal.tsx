@@ -57,18 +57,22 @@ export default function ChangePasswordModal({ visible, onClose }: ChangePassword
       const userRepo = new UserRepository(db);
       
       // Récupérer l'utilisateur avec le hash du mot de passe
-      const dbUser = await userRepo.findById(user.id);
-      if (!dbUser) {
+      // Note: password_hash n'est pas dans le type User, on doit le récupérer directement
+      const dbUserRow = await db.getFirstAsync<{ password_hash?: string }>(
+        'SELECT password_hash FROM users WHERE id = ?',
+        [user.id]
+      );
+      if (!dbUserRow) {
         Alert.alert('Erreur', 'Utilisateur introuvable');
         setLoading(false);
         return;
       }
 
       // Vérifier le mot de passe actuel
-      if (dbUser.password_hash) {
+      if (dbUserRow.password_hash) {
         const currentPasswordHash = await hashPassword(currentPassword);
         
-        if (currentPasswordHash !== dbUser.password_hash) {
+        if (currentPasswordHash !== dbUserRow.password_hash) {
           Alert.alert('Erreur', 'Mot de passe actuel incorrect');
           setLoading(false);
           return;

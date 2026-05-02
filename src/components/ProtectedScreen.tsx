@@ -99,7 +99,7 @@ export default function ProtectedScreen({
   let hasAccess: boolean;
   if (requireOwner) {
     // Seul le propriétaire peut accéder
-    hasAccess = isProprietaire;
+    hasAccess = isProprietaire ?? false;
   } else if (requiredPermission) {
     // Vérifier la permission (propriétaire a toujours accès)
     hasAccess = isProprietaire || hasPermission(requiredPermission);

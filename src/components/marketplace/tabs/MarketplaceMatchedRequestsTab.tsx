@@ -173,8 +173,8 @@ export default function MarketplaceMatchedRequestsTab({
             style={[styles.offerButton, { backgroundColor: colors.primary }]}
             onPress={() => onMakeOffer?.(request, match)}
           >
-            <Ionicons name="send" size={16} color={colors.textOnPrimary} />
-            <Text style={[styles.offerButtonText, { color: colors.textOnPrimary }]}> Faire une offre</Text>
+            <Ionicons name="send" size={16} color={colors.textInverse} />
+            <Text style={[styles.offerButtonText, { color: colors.textInverse }]}> Faire une offre</Text>
           </TouchableOpacity>
 
           <Text style={[styles.dateText, { color: colors.textSecondary }]}>

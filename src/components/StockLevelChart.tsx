@@ -68,7 +68,7 @@ export default function StockLevelChart({ stocks, mouvementsParAliment = {} }: P
     let dateDebut = dateDebutMax;
     if (premiereDateMouvement) {
       // Commencer au maximum N jours en arrière, mais pas avant le premier mouvement
-      dateDebut = premiereDateMouvement < dateDebutMax ? dateDebutMax : premiereDateMouvement;
+      dateDebut = premiereDateMouvement.getTime() < dateDebutMax.getTime() ? dateDebutMax : premiereDateMouvement;
     }
     
     const dates = eachDayOfInterval({ start: dateDebut, end: today });

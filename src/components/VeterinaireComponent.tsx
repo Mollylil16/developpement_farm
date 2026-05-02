@@ -344,8 +344,8 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
       >
         <View style={styles.vetoHeader}>
           <View style={styles.vetoAvatar}>
-            {veterinaire.photo ? (
-              <Image source={{ uri: veterinaire.photo }} style={styles.vetoAvatarImage} />
+            {(veterinaire as any).photo ? (
+              <Image source={{ uri: (veterinaire as any).photo }} style={styles.vetoAvatarImage} />
             ) : (
               <View style={[styles.vetoAvatarPlaceholder, { backgroundColor: colors.primary }]}>
                 <Text style={styles.vetoAvatarInitiales}>

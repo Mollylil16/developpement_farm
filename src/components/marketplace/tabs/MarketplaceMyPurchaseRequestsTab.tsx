@@ -217,7 +217,7 @@ export default function MarketplaceMyPurchaseRequestsTab({
                 style={[styles.actionButton, { backgroundColor: colors.primary }]}
                 onPress={() => onRequestPress?.(item)}
               >
-                <Text style={[styles.actionButtonText, { color: colors.textOnPrimary }]}>
+                <Text style={[styles.actionButtonText, { color: colors.textInverse }]}>
                   Voir les offres ({item.offersCount})
                 </Text>
               </TouchableOpacity>
@@ -227,8 +227,8 @@ export default function MarketplaceMyPurchaseRequestsTab({
                 style={[styles.actionButton, { backgroundColor: colors.primary }]}
                 onPress={() => handleEdit(item)}
               >
-                <Ionicons name="create" size={16} color={colors.textOnPrimary} />
-                <Text style={[styles.actionButtonText, { color: colors.textOnPrimary }]}> Modifier</Text>
+                <Ionicons name="create" size={16} color={colors.textInverse} />
+                <Text style={[styles.actionButtonText, { color: colors.textInverse }]}> Modifier</Text>
               </TouchableOpacity>
             )}
             {item.status === 'archived' ? (
@@ -236,16 +236,16 @@ export default function MarketplaceMyPurchaseRequestsTab({
                 style={[styles.actionButton, { backgroundColor: colors.success }]}
                 onPress={() => handleRestore(item.id)}
               >
-                <Ionicons name="refresh" size={16} color={colors.textOnPrimary} />
-                <Text style={[styles.actionButtonText, { color: colors.textOnPrimary }]}> Restaurer</Text>
+                <Ionicons name="refresh" size={16} color={colors.textInverse} />
+                <Text style={[styles.actionButtonText, { color: colors.textInverse }]}> Restaurer</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: colors.error }]}
                 onPress={() => handleArchive(item.id)}
               >
-                <Ionicons name="archive" size={16} color={colors.textOnPrimary} />
-                <Text style={[styles.actionButtonText, { color: colors.textOnPrimary }]}> Archiver</Text>
+                <Ionicons name="archive" size={16} color={colors.textInverse} />
+                <Text style={[styles.actionButtonText, { color: colors.textInverse }]}> Archiver</Text>
               </TouchableOpacity>
             )}
           </View>

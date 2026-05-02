@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity, ViewStyle } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { format, startOfMonth, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -20,7 +20,7 @@ import type { WeeklyPorkPriceTrend } from '../../database/repositories/WeeklyPor
 const screenWidth = Dimensions.get('window').width;
 
 interface PorkPriceTrendCardProps {
-  style?: any;
+  style?: ViewStyle | ViewStyle[];
 }
 
 export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
@@ -221,7 +221,7 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
 
   if (loading) {
     return (
-      <Card style={[styles.card, style, { backgroundColor: colors.surface }]}>
+      <Card style={StyleSheet.flatten([styles.card, style, { backgroundColor: colors.surface }])}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>Tendance du prix du porc poids vif (FCFA/kg)</Text>
         </View>
@@ -234,7 +234,7 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
 
   if (error) {
     return (
-      <Card style={[styles.card, style, { backgroundColor: colors.surface }]}>
+      <Card style={StyleSheet.flatten([styles.card, style, { backgroundColor: colors.surface }])}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>Tendance du prix du porc poids vif (FCFA/kg)</Text>
         </View>
@@ -249,7 +249,7 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
 
   if (!chartData || trends.length === 0) {
     return (
-      <Card style={[styles.card, style, { backgroundColor: colors.surface }]}>
+      <Card style={StyleSheet.flatten([styles.card, style, { backgroundColor: colors.surface }])}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.text }]}>Tendance du prix du porc poids vif (FCFA/kg)</Text>
         </View>
@@ -263,7 +263,7 @@ export default function PorkPriceTrendCard({ style }: PorkPriceTrendCardProps) {
   }
 
   return (
-    <Card style={[styles.card, style, { backgroundColor: colors.surface }]}>
+    <Card style={StyleSheet.flatten([styles.card, style, { backgroundColor: colors.surface }])}>
       <View style={styles.header}>
         <View style={styles.titleContainer}>
           <Text style={[styles.title, { color: colors.text }]}>Tendance du prix du porc poids vif (FCFA/kg)</Text>

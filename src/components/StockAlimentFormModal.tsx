@@ -162,11 +162,16 @@ export default function StockAlimentFormModal({
       return;
     }
 
-    // Validation avec Yup
-    const { isValid, errors: validationErrors } = await validateStockAliment({
+    // Validation avec Yup - convertir undefined en null pour compatibilité
+    const validationData = {
       ...formData,
       projet_id: projetId,
-    });
+      quantite_initiale: formData.quantite_initiale ?? 0,
+      categorie: formData.categorie || null,
+      seuil_alerte: formData.seuil_alerte ?? null,
+      notes: formData.notes || null,
+    };
+    const { isValid, errors: validationErrors } = await validateStockAliment(validationData as any);
     if (!isValid) {
       const firstError = Object.values(validationErrors)[0];
       Alert.alert('Erreur de validation', firstError || 'Veuillez corriger les erreurs du formulaire');

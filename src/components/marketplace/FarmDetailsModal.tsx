@@ -139,7 +139,7 @@ export default function FarmDetailsModal({
         })
       );
 
-      setListings(enrichedListings.filter((l): l is MarketplaceListing => l !== null));
+      setListings(enrichedListings.filter((l) => l !== null) as MarketplaceListing[]);
     } catch (error: any) {
       console.error('Erreur chargement listings:', error);
     } finally {
@@ -659,7 +659,7 @@ function HealthDetailsContent({ details }: { details: any }) {
                 color={v.date_rappel && new Date(v.date_rappel) > new Date() ? colors.success : colors.warning}
               />
               <Text style={[styles.healthItemText, { color: colors.text }]}>
-                {v.type_prophylaxie ? TYPE_PROPHYLAXIE_LABELS[v.type_prophylaxie] || v.type_prophylaxie : v.type_vaccin || 'Vaccination'} - {formatDate(v.date_vaccination)}
+                {v.type_prophylaxie ? (TYPE_PROPHYLAXIE_LABELS[v.type_prophylaxie as keyof typeof TYPE_PROPHYLAXIE_LABELS] || v.type_prophylaxie) : v.type_vaccin || 'Vaccination'} - {formatDate(v.date_vaccination)}
               </Text>
             </View>
           ))}

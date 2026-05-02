@@ -405,15 +405,20 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
         // Réinitialiser et fermer
         reinitialiserFormulaire();
-        toggleSection(sectionOuverte);
+        // Mapper sectionOuverte vers TypeProphylaxie pour toggleSection
+        const typeProphylaxieForToggle: TypeProphylaxie = sectionOuverte?.replace('_calendrier', '') as TypeProphylaxie || 'autre_traitement';
+        toggleSection(typeProphylaxieForToggle);
       } else {
         // Création d'une nouvelle vaccination
         const dateVaccination = getCurrentLocalDate();
 
+        // Mapper sectionOuverte vers TypeProphylaxie (enlever le suffixe "_calendrier" si présent)
+        const typeProphylaxie: TypeProphylaxie = sectionOuverte?.replace('_calendrier', '') as TypeProphylaxie || 'autre_traitement';
+        
         const input: CreateVaccinationInput = {
           projet_id: projetActif.id,
           animal_ids: animauxSelectionnes,
-          type_prophylaxie: sectionOuverte,
+          type_prophylaxie: typeProphylaxie,
           produit_administre: produitAdministre.trim(),
           date_vaccination: dateVaccination,
           dosage: dosage.trim(),
@@ -434,7 +439,9 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
 
         // Réinitialiser et fermer
         reinitialiserFormulaire();
-        toggleSection(sectionOuverte);
+        // Mapper sectionOuverte vers TypeProphylaxie pour toggleSection
+        const typeProphylaxieForToggle: TypeProphylaxie = sectionOuverte?.replace('_calendrier', '') as TypeProphylaxie || 'autre_traitement';
+        toggleSection(typeProphylaxieForToggle);
       }
     } catch (error: any) {
       console.error('=== ERREUR ENREGISTREMENT ===');

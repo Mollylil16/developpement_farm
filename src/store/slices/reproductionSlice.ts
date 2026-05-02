@@ -80,7 +80,8 @@ export const loadGestations = createAsyncThunk(
     try {
       const db = await getDatabase();
       const gestationRepo = new GestationRepository(db);
-      const gestations = await gestationRepo.findByProjet(projetId);
+      // Utiliser findAll avec projetId (méthode de BaseRepository)
+      const gestations = await gestationRepo.findAll(projetId);
       return gestations;
     } catch (error: unknown) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des gestations');

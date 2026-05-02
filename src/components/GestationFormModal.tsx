@@ -346,8 +346,14 @@ export default function GestationFormModal({
       return;
     }
 
-    // Validation avec Yup
-    const { isValid, errors: validationErrors } = await validateGestation(formData);
+    // Validation avec Yup - convertir undefined en null pour compatibilité
+    const validationData = {
+      ...formData,
+      truie_nom: formData.truie_nom ?? null,
+      verrat_nom: formData.verrat_nom ?? null,
+      notes: formData.notes ?? null,
+    };
+    const { isValid, errors: validationErrors } = await validateGestation(validationData as any);
     if (!isValid) {
       // Afficher la première erreur trouvée
       const firstError = Object.values(validationErrors)[0];

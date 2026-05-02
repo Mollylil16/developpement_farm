@@ -26,22 +26,44 @@ export default function HomeView({ onNavigateToSettings, onNavigateToMonProjet, 
   const navigation = useNavigation<any>();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
-  const { activeRole, availableRoles, switchRole } = useRole();
+  const { activeRole, availableRoles, switchRole, logoutRole } = useRole();
   const [roleSwitcherVisible, setRoleSwitcherVisible] = useState(false);
   const [addRoleModalVisible, setAddRoleModalVisible] = useState(false);
 
-  const handleSignOut = () => {
-    Alert.alert('Déconnexion', 'Êtes-vous sûr de vouloir vous déconnecter ?', [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Déconnexion',
-        style: 'destructive',
-        onPress: () => {
-          dispatch(signOut());
-          onClose();
+  /**
+   * 🔧 CORRECTION: Déconnexion du profil actuel uniquement
+   * Ne supprime pas les données, permet de revenir se connecter plus tard
+   * La redirection vers l'écran de sélection de profil est gérée automatiquement par AppNavigator
+   */
+  const handleSignOut = async () => {
+    const roleLabels: Record<typeof activeRole, string> = {
+      producer: 'Producteur',
+      buyer: 'Acheteur',
+      veterinarian: 'Vétérinaire',
+      technician: 'Technicien',
+    };
+
+    Alert.alert(
+      'Déconnexion du profil',
+      `Êtes-vous sûr de vouloir vous déconnecter du profil "${roleLabels[activeRole]}" ?\n\nVous pourrez vous reconnecter plus tard.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Se déconnecter',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logoutRole();
+              onClose();
+              // La redirection vers l'écran de sélection de profil est gérée automatiquement
+              // par AppNavigator lorsque isAuthenticated devient false
+            } catch (error: any) {
+              Alert.alert('Erreur', error.message || 'Impossible de se déconnecter');
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   const handleRoleSwitch = async (role: typeof activeRole) => {
@@ -162,23 +184,6 @@ export default function HomeView({ onNavigateToSettings, onNavigateToMonProjet, 
           <TouchableOpacity
             style={[styles.menuItem, { borderBottomColor: colors.border }]}
             onPress={() => {
-              navigation.navigate(SCREENS.REPORTS);
-              onClose();
-            }}
-          >
-            <Ionicons name="stats-chart-outline" size={24} color={colors.primary} />
-            <View style={styles.menuItemContent}>
-              <Text style={[styles.menuItemTitle, { color: colors.text }]}>Mes statistiques</Text>
-              <Text style={[styles.menuItemSubtitle, { color: colors.textSecondary }]}>
-                Voir mes rapports
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.menuItem, { borderBottomColor: colors.border }]}
-            onPress={() => {
               navigation.navigate(SCREENS.DOCUMENTS);
               onClose();
             }}
@@ -239,16 +244,23 @@ export default function HomeView({ onNavigateToSettings, onNavigateToMonProjet, 
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
 
+          {/* 
+            🔧 CORRECTION BUG NAVIGATION FORMATION
+            Avant : Redirigeait vers l'ancien écran ParametresScreen (avec onglets Projet/Application/Formation)
+            Maintenant : Navigation directe vers TrainingScreen (écran de formation avec chapitres)
+            Les sections "Projet" et "Application" ont été déplacées ailleurs et n'ont plus rien à faire ici.
+          */}
           <TouchableOpacity
             style={[styles.menuItem, { borderBottomColor: colors.border }]}
             onPress={() => {
               onClose();
-              navigation.navigate('Main', { screen: SCREENS.PARAMETRES });
+              // Navigation directe vers l'écran de formation (sans passer par ParametresScreen)
+              navigation.navigate(SCREENS.TRAINING);
             }}
           >
             <Ionicons name="school-outline" size={24} color={colors.primary} />
             <View style={styles.menuItemContent}>
-              <Text style={[styles.menuItemTitle, { color: colors.text }]}>Formation & Configuration</Text>
+              <Text style={[styles.menuItemTitle, { color: colors.text }]}>Formations</Text>
               <Text style={[styles.menuItemSubtitle, { color: colors.textSecondary }]}>
                 Guide d'élevage, paramètres projet et application
               </Text>
@@ -277,6 +289,10 @@ export default function HomeView({ onNavigateToSettings, onNavigateToMonProjet, 
         onAddRole={() => {
           setRoleSwitcherVisible(false);
           setAddRoleModalVisible(true);
+        }}
+        onProfileDeleted={() => {
+          // Le profil a été supprimé, on peut fermer le modal
+          setRoleSwitcherVisible(false);
         }}
       />
       <AddRoleModal

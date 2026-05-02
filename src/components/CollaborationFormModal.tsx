@@ -117,8 +117,15 @@ export default function CollaborationFormModal({
       return;
     }
 
-    // Validation avec Yup
-    const { isValid, errors: validationErrors } = await validateCollaborateur(formData);
+    // Validation avec Yup - convertir undefined en null pour compatibilité
+    const validationData = {
+      ...formData,
+      telephone: formData.telephone ?? null,
+      notes: formData.notes ?? null,
+      permissions: formData.permissions ?? null,
+      statut: formData.statut ?? 'actif',
+    };
+    const { isValid, errors: validationErrors } = await validateCollaborateur(validationData as any);
     if (!isValid) {
       const firstError = Object.values(validationErrors)[0];
       Alert.alert('Erreur de validation', firstError || 'Veuillez corriger les erreurs du formulaire');

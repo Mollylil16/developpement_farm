@@ -7,7 +7,10 @@ import React, { createContext, useContext, useMemo, useCallback, useEffect, useS
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { User, RoleType } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { updateUser } from '../store/slices/authSlice';
+import { updateUser, signOut } from '../store/slices/authSlice';
+import { getDatabase } from '../services/database';
+import { UserRepository } from '../database/repositories/UserRepository';
+import { UserDataService } from '../services/UserDataService';
 
 const AUTH_STORAGE_KEY = '@fermier_pro:auth';
 
@@ -17,6 +20,8 @@ interface RoleContextType {
   availableRoles: RoleType[];
   switchRole: (role: RoleType) => Promise<void>;
   hasRole: (role: RoleType) => boolean;
+  logoutRole: () => Promise<void>;
+  deleteProfile: (role: RoleType) => Promise<void>;
   isProducer: boolean;
   isBuyer: boolean;
   isVeterinarian: boolean;
@@ -129,6 +134,104 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [hasRole, userFromRedux, dispatch]
   );
 
+  /**
+   * Déconnecte uniquement le profil actuel (retourne à l'écran de sélection de profil)
+   * Les données du profil sont préservées pour permettre une reconnexion ultérieure
+   * 
+   * 🔧 CORRECTION: Ne supprime pas les données, juste déconnecte la session actuelle
+   * L'utilisateur sera redirigé vers l'écran de sélection de profil où il pourra
+   * choisir un autre profil ou se reconnecter avec le même compte
+   */
+  const logoutRole = useCallback(async () => {
+    if (!userFromRedux) {
+      throw new Error('Aucun utilisateur connecté');
+    }
+
+    // Ne pas supprimer les données de la base de données, juste déconnecter la session
+    // L'utilisateur sera redirigé vers l'écran de sélection de profil
+    // Les données restent dans la base de données pour permettre une reconnexion
+    
+    // Utiliser signOut() qui réinitialise l'état d'authentification
+    // Cela déclenchera la redirection vers l'écran de sélection de profil via AppNavigator
+    await dispatch(signOut()).unwrap();
+  }, [userFromRedux, dispatch]);
+
+  /**
+   * Supprime un profil spécifique et toutes ses données associées
+   * ⚠️ ATTENTION: Cette opération est irréversible
+   */
+  const deleteProfile = useCallback(
+    async (role: RoleType) => {
+      if (!userFromRedux) {
+        throw new Error('Aucun utilisateur connecté');
+      }
+
+      if (!hasRole(role)) {
+        throw new Error(`Vous n'avez pas le rôle ${role}`);
+      }
+
+      // Si c'est le seul profil, on ne peut pas le supprimer
+      if (availableRoles.length === 1) {
+        throw new Error('Impossible de supprimer le dernier profil. Vous devez avoir au moins un profil.');
+      }
+
+      try {
+        const db = await getDatabase();
+        const userRepo = new UserRepository(db);
+
+        // Supprimer les données associées au rôle
+        if (role === 'producer') {
+          // Supprimer tous les projets et données associées du producteur
+          await UserDataService.clearUserData(userFromRedux.id);
+        }
+        // Pour les autres rôles (buyer, veterinarian, technician), 
+        // on pourrait ajouter une logique spécifique ici si nécessaire
+        // (ex: supprimer les commandes, consultations, etc.)
+
+        // Mettre à jour l'utilisateur : supprimer le rôle
+        const updatedRoles = { ...userFromRedux.roles };
+        delete updatedRoles[role];
+
+        // Si le rôle supprimé était le rôle actif, basculer vers un autre rôle disponible
+        let newActiveRole = activeRole;
+        if (activeRole === role) {
+          const remainingRoles = availableRoles.filter((r) => r !== role);
+          if (remainingRoles.length > 0) {
+            newActiveRole = remainingRoles[0];
+          }
+        }
+
+        // Mettre à jour dans la base de données
+        // 🔧 CORRECTION: userRepo.update() attend (id, updates) et non un objet User complet
+        await userRepo.update(userFromRedux.id, {
+          roles: updatedRoles,
+          activeRole: newActiveRole !== role ? newActiveRole : undefined,
+        });
+
+        // Récupérer l'utilisateur mis à jour depuis la base de données
+        const updatedUser = await userRepo.findById(userFromRedux.id);
+        if (!updatedUser) {
+          throw new Error('Impossible de récupérer l\'utilisateur mis à jour');
+        }
+
+        // Mettre à jour dans Redux
+        dispatch(updateUser(updatedUser));
+
+        // Mettre à jour dans AsyncStorage
+        await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+
+        // Mettre à jour le rôle actif local
+        if (newActiveRole !== role) {
+          setActiveRole(newActiveRole);
+        }
+      } catch (error) {
+        console.error('Erreur lors de la suppression du profil:', error);
+        throw error;
+      }
+    },
+    [userFromRedux, hasRole, availableRoles, activeRole, dispatch]
+  );
+
   // Valeurs calculées pour faciliter l'utilisation
   const isProducer = activeRole === 'producer';
   const isBuyer = activeRole === 'buyer';
@@ -143,12 +246,14 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
       availableRoles,
       switchRole,
       hasRole,
+      logoutRole,
+      deleteProfile,
       isProducer,
       isBuyer,
       isVeterinarian,
       isTechnician,
     }),
-    [userFromRedux, activeRole, availableRoles, switchRole, hasRole, isProducer, isBuyer, isVeterinarian, isTechnician]
+    [userFromRedux, activeRole, availableRoles, switchRole, hasRole, logoutRole, deleteProfile, isProducer, isBuyer, isVeterinarian, isTechnician]
   );
 
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
@@ -175,6 +280,12 @@ export const useRole = (): RoleContextType => {
         throw new Error('RoleProvider non disponible');
       },
       hasRole: () => false,
+      logoutRole: async () => {
+        throw new Error('RoleProvider non disponible');
+      },
+      deleteProfile: async () => {
+        throw new Error('RoleProvider non disponible');
+      },
       isProducer: true,
       isBuyer: false,
       isVeterinarian: false,

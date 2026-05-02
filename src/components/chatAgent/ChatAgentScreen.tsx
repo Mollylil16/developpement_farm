@@ -26,6 +26,9 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useAppSelector } from '../../store/hooks';
 import { Image } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { DiagnosticService, DiagnosticResult } from '../../services/chatAgent/DiagnosticService';
+import DiagnosticModal from './DiagnosticModal';
 
 interface ChatAgentScreenProps {
   onClose?: () => void;
@@ -50,9 +53,20 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
   const [isListening, setIsListening] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const voiceServiceRef = useRef<any>(null);
+  
+  // État pour le diagnostic
+  const [diagnosticService] = useState(() => new DiagnosticService());
+  const [diagnosticResult, setDiagnosticResult] = useState<DiagnosticResult | null>(null);
+  const [showDiagnosticModal, setShowDiagnosticModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Générer les initiales de l'utilisateur
   const userInitials = user?.prenom?.[0] || user?.nom?.[0] || 'U';
+
+  // Initialiser le service de diagnostic
+  useEffect(() => {
+    diagnosticService.initialize();
+  }, []);
 
   // Stocker la référence du service vocal
   useEffect(() => {
@@ -70,12 +84,119 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
     }
   }, [messages.length]);
 
+  /**
+   * Analyse les symptômes dans un message et détecte les maladies possibles
+   */
+  const analyzeSymptomsInMessage = (message: string): DiagnosticResult | null => {
+    // Mots-clés qui indiquent une description de symptômes
+    const symptomKeywords = [
+      'symptome', 'symptomes', 'malade', 'maladie', 'probleme',
+      'fièvre', 'fievre', 'diarrhée', 'diarrhee', 'vomir', 'tousse',
+      'plaques', 'rouge', 'lésion', 'lesion', 'grattait', 'boite',
+      'avorte', 'mort', 'meurt', 'saigne', 'hémorragie', 'hemorragie'
+    ];
+
+    const lowerMessage = message.toLowerCase();
+    const hasSymptomKeywords = symptomKeywords.some(keyword => lowerMessage.includes(keyword));
+
+    if (hasSymptomKeywords) {
+      const diagnostic = diagnosticService.analyzeSymptoms(message);
+      if (diagnostic.disease && diagnostic.confidence > 0.3) {
+        return diagnostic;
+      }
+    }
+
+    return null;
+  };
+
+  /**
+   * Gère la sélection d'une photo pour analyse
+   */
+  const handlePickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission requise', 'Nous avons besoin de l\'accès à vos photos pour analyser les images.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+        setSelectedImage(imageUri);
+        
+        // Analyser l'image (pour l'instant, on demande à l'utilisateur de décrire)
+        Alert.alert(
+          'Analyse d\'image',
+          'Pour une analyse précise, peux-tu décrire ce que tu vois sur la photo ? (plaques rouges, lésions, diarrhée visible, etc.)',
+          [
+            { text: 'Annuler', style: 'cancel' },
+            {
+              text: 'Décrire',
+              onPress: () => {
+                // L'utilisateur pourra décrire dans le message
+                setInputText(prev => prev + ' [Photo jointe] ');
+              },
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Erreur sélection image:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner une image.');
+    }
+  };
+
+  /**
+   * Gère la confirmation du diagnostic et l'enregistrement
+   */
+  const handleConfirmDiagnostic = async (diagnostic: DiagnosticResult) => {
+    if (!diagnostic.disease) return;
+
+    try {
+      // Envoyer un message pour enregistrer la maladie
+      const message = `Enregistre une maladie : ${diagnostic.disease.name}. Symptômes : ${diagnostic.matchedSymptoms.join(', ')}. Gravité : ${diagnostic.disease.gravity}.`;
+      await sendMessage(message);
+
+      // Si urgence critique, alerter
+      if (diagnostic.urgency === 'critique' || diagnostic.requiresVetAlert) {
+        Alert.alert(
+          '⚠️ URGENCE VÉTÉRINAIRE',
+          `Maladie grave détectée : ${diagnostic.disease.name}\n\nContacte un vétérinaire en urgence !`,
+          [{ text: 'Compris' }]
+        );
+      }
+    } catch (error) {
+      console.error('Erreur enregistrement diagnostic:', error);
+      Alert.alert('Erreur', 'Impossible d\'enregistrer le diagnostic.');
+    }
+  };
+
   const handleSend = async () => {
     const content = inputText.trim();
     if (!content || sending || !isInitialized) return;
 
     try {
       setSending(true);
+      
+      // Analyser les symptômes avant d'envoyer
+      const diagnostic = analyzeSymptomsInMessage(content);
+      
+      if (diagnostic && diagnostic.disease) {
+        // Afficher le modal de diagnostic
+        setDiagnosticResult(diagnostic);
+        setShowDiagnosticModal(true);
+        setInputText(''); // Vider l'input mais ne pas envoyer encore
+        setSending(false);
+        return;
+      }
+
+      // Si pas de diagnostic, envoyer normalement
       setInputText('');
       await sendMessage(content);
     } catch (error) {
@@ -385,6 +506,19 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
           )}
         </TouchableOpacity>
 
+        {/* Bouton photo pour diagnostic */}
+        <TouchableOpacity
+          style={styles.photoButton}
+          onPress={handlePickImage}
+          disabled={sending || !isInitialized}
+        >
+          <Ionicons
+            name="camera"
+            size={24}
+            color={COLORS.primary}
+          />
+        </TouchableOpacity>
+
         <TextInput
           style={styles.textInput}
           placeholder="Tapez votre message..."
@@ -414,6 +548,17 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Modal de diagnostic */}
+      <DiagnosticModal
+        visible={showDiagnosticModal}
+        diagnostic={diagnosticResult}
+        onClose={() => {
+          setShowDiagnosticModal(false);
+          setDiagnosticResult(null);
+        }}
+        onConfirm={handleConfirmDiagnostic}
+      />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -646,6 +791,12 @@ const styles = StyleSheet.create({
   },
   voiceButtonActive: {
     backgroundColor: COLORS.error + '20',
+  },
+  photoButton: {
+    padding: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
   },
   textInput: {
     flex: 1,

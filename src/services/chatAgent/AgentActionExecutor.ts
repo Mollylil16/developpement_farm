@@ -19,12 +19,23 @@ import {
   RappelVaccinationRepository,
   IngredientRepository,
   PlanificationRepository,
+  MortaliteRepository,
 } from '../../database/repositories';
 import { format } from 'date-fns';
-import { parseMontant, extractMontantFromText } from '../../utils/formatters';
+import { parseMontant, extractMontantFromText, formatMontantAvecDevise } from '../../utils/formatters';
+import { DiagnosticService } from './DiagnosticService';
+import { DiagnosticPromptEnricher, DiagnosticInput } from './DiagnosticPromptEnricher';
 
 export class AgentActionExecutor {
   private context: AgentContext | null = null;
+  private diagnosticService: DiagnosticService;
+  private promptEnricher: DiagnosticPromptEnricher;
+  
+  constructor() {
+    this.diagnosticService = new DiagnosticService();
+    this.diagnosticService.initialize();
+    this.promptEnricher = new DiagnosticPromptEnricher();
+  };
 
   async initialize(context: AgentContext): Promise<void> {
     this.context = context;
@@ -67,6 +78,10 @@ export class AgentActionExecutor {
           return await this.calculateCosts(action.params);
         case 'create_maladie':
           return await this.createMaladie(action.params);
+        case 'create_mortalite':
+          return await this.createMortalite(action.params);
+        case 'diagnose_symptoms':
+          return await this.diagnoseSymptoms(action.params);
         case 'search_lot':
           return await this.searchLot(action.params);
         case 'analyze_data':
@@ -88,7 +103,7 @@ export class AgentActionExecutor {
   }
 
   /**
-   * Crée un revenu (vente)
+   * Crée un revenu (vente) et met à jour automatiquement le statut des animaux vendus
    */
   private async createRevenu(params: any): Promise<AgentActionResult> {
     if (!this.context) {
@@ -97,6 +112,55 @@ export class AgentActionExecutor {
 
     const db = await getDatabase();
     const repo = new RevenuRepository(db);
+    const animalRepo = new AnimalRepository(db);
+
+    // Vérifier les informations manquantes et demander si nécessaire
+    const nombre = params.nombre || params.nombre_porcs || params.quantite;
+    if (!nombre || nombre <= 0) {
+      return {
+        success: false,
+        message: 'Combien de porcs exactement tu as vendus ? Donne-moi le nombre précis.',
+      };
+    }
+
+    // Pour les ventes, le poids est obligatoire (mais on peut continuer sans si vraiment pas fourni)
+    const poidsTotal = params.poids_total || params.poids || params.poids_kg;
+    const poidsMoyen = params.poids_moyen || params.poids_moyen_kg;
+    
+    // Si pas de poids, demander (mais on peut enregistrer la vente sans poids si vraiment nécessaire)
+    if (!poidsTotal && !poidsMoyen) {
+      // Vérifier si le poids peut être déduit du message utilisateur
+      if (params.userMessage) {
+        const poidsMatch = params.userMessage.match(/(\d+[.,]?\d*)\s*(?:kg|kilogramme|kilo)/i);
+        if (poidsMatch) {
+          const poidsExtrait = parseFloat(poidsMatch[1].replace(',', '.'));
+          if (!isNaN(poidsExtrait) && poidsExtrait > 0) {
+            // Poids trouvé dans le message, on continue
+          } else {
+            return {
+              success: false,
+              message: `Ok, tu as vendu ${nombre} porc${nombre > 1 ? 's' : ''}. C'est quel poids moyen ou poids total ? (ex: "85 kg chacun" ou "425 kg au total")`,
+            };
+          }
+        } else {
+          return {
+            success: false,
+            message: `Ok, tu as vendu ${nombre} porc${nombre > 1 ? 's' : ''}. C'est quel poids moyen ou poids total ? (ex: "85 kg chacun" ou "425 kg au total")`,
+          };
+        }
+      } else {
+        return {
+          success: false,
+          message: `Ok, tu as vendu ${nombre} porc${nombre > 1 ? 's' : ''}. C'est quel poids moyen ou poids total ? (ex: "85 kg chacun" ou "425 kg au total")`,
+        };
+      }
+    }
+
+    // Calculer le poids total si on a le poids moyen
+    let poidsTotalFinal = poidsTotal;
+    if (!poidsTotalFinal && poidsMoyen) {
+      poidsTotalFinal = poidsMoyen * nombre;
+    }
 
     // Extraire le montant (plusieurs méthodes)
     let montant = 0;
@@ -122,30 +186,185 @@ export class AgentActionExecutor {
       }
     }
 
+    // Le montant n'est pas obligatoire pour les ventes (peut être enregistré sans prix)
+    // Mais on préfère l'avoir si possible
     if (isNaN(montant) || montant <= 0) {
-      throw new Error('Le montant de la vente est requis. Veuillez préciser le montant (ex: "800 000 FCFA" ou "800000").');
+      // On peut continuer sans montant, mais on le note
+      console.log('[AgentActionExecutor] Vente sans montant spécifié');
     }
 
     const date = params.date || new Date().toISOString().split('T')[0];
-    const nombre = params.nombre || params.nombre_porcs || params.quantite || 1;
     const acheteur = params.acheteur || params.client || params.buyer || 'client';
 
+    // Identifier les animaux à marquer comme vendus
+    let animauxVendus: any[] = [];
+    
+    // Si des codes d'animaux sont fournis, les chercher
+    if (params.animal_codes && Array.isArray(params.animal_codes)) {
+      for (const code of params.animal_codes) {
+        const animal = await animalRepo.findByCode(code, this.context.projetId);
+        if (animal && animal.statut?.toLowerCase() === 'actif') {
+          animauxVendus.push(animal);
+        }
+      }
+    }
+
+    // Si pas assez d'animaux identifiés par code, chercher des animaux actifs
+    if (animauxVendus.length < nombre) {
+      const animauxActifs = await animalRepo.findByProjet(this.context.projetId);
+      const animauxDisponibles = animauxActifs.filter(a => a.statut?.toLowerCase() === 'actif');
+      
+      // Prendre les premiers animaux actifs disponibles
+      const nombreManquant = nombre - animauxVendus.length;
+      const animauxASelectionner = animauxDisponibles
+        .filter(a => !animauxVendus.find(av => av.id === a.id))
+        .slice(0, nombreManquant);
+      
+      animauxVendus = [...animauxVendus, ...animauxASelectionner];
+    }
+
+    // Mettre à jour le statut des animaux vendus
+    for (const animal of animauxVendus) {
+      await animalRepo.update(animal.id, {
+        statut: 'vendu',
+        actif: false,
+      });
+    }
+
+    // Créer le revenu
     const revenu = await repo.create({
       projet_id: this.context.projetId,
-      montant,
+      montant: montant || 0,
       categorie: params.categorie || 'vente_porc',
       date,
       description: params.description || `Vente de ${nombre} porc(s) à ${acheteur}`,
       commentaire: params.commentaire,
-      poids_kg: params.poids_total || params.poids || params.poids_kg,
-      animal_id: params.animal_id,
+      poids_kg: poidsTotalFinal,
+      animal_id: animauxVendus.length > 0 ? animauxVendus[0].id : undefined,
     });
 
-    const message = `Vente enregistrée : ${nombre} porc(s) vendu(s) à ${acheteur} pour ${montant.toLocaleString('fr-FR')} FCFA le ${format(new Date(date), 'dd/MM/yyyy')}.`;
+    // Message de confirmation avec ton ivoirien chaleureux
+    const poidsMoyenCalcule = poidsTotalFinal ? (poidsTotalFinal / nombre).toFixed(1) : '?';
+    let message = `C'est noté patron ! ${nombre} porc${nombre > 1 ? 's' : ''} `;
+    
+    if (poidsTotalFinal) {
+      message += `(poids moyen ${poidsMoyenCalcule} kg) `;
+    }
+    
+    message += `vendu${nombre > 1 ? 's' : ''} et marqué${nombre > 1 ? 's' : ''} comme vendu${nombre > 1 ? 's' : ''}. `;
+    
+    if (poidsTotalFinal) {
+      message += `Total enregistré : ${nombre} porc${nombre > 1 ? 's' : ''} × ${poidsMoyenCalcule} kg = ${poidsTotalFinal} kg. `;
+    }
+    
+    if (montant > 0) {
+      message += `Montant : ${formatMontantAvecDevise(montant)}. `;
+    }
+    
+    message += `Tu veux que je génère la facture ?`;
 
     return {
       success: true,
       data: revenu,
+      message,
+    };
+  }
+
+  /**
+   * Crée une mortalité et met à jour automatiquement le statut des animaux morts
+   */
+  private async createMortalite(params: any): Promise<AgentActionResult> {
+    if (!this.context) {
+      throw new Error('Contexte non initialisé');
+    }
+
+    const db = await getDatabase();
+    const mortaliteRepo = new MortaliteRepository(db);
+    const animalRepo = new AnimalRepository(db);
+
+    // Vérifier les informations manquantes
+    const nombrePorcs = params.nombre_porcs || params.nombre || 1;
+    
+    if (!nombrePorcs || nombrePorcs <= 0) {
+      return {
+        success: false,
+        message: 'Combien de porcs exactement sont morts ? Donne-moi le nombre précis.',
+      };
+    }
+
+    const date = params.date || new Date().toISOString().split('T')[0];
+    const cause = params.cause || null;
+    const categorie = params.categorie || 'autre';
+
+    // Identifier les animaux à marquer comme morts
+    let animauxMorts: any[] = [];
+    
+    // Si des codes d'animaux sont fournis, les chercher
+    if (params.animal_codes && Array.isArray(params.animal_codes)) {
+      for (const code of params.animal_codes) {
+        const animal = await animalRepo.findByCode(code, this.context.projetId);
+        if (animal && animal.statut?.toLowerCase() === 'actif') {
+          animauxMorts.push(animal);
+        }
+      }
+    }
+
+    // Si pas assez d'animaux identifiés par code, chercher des animaux actifs de la catégorie
+    if (animauxMorts.length < nombrePorcs) {
+      const animauxActifs = await animalRepo.findByProjet(this.context.projetId);
+      
+      // Filtrer selon la catégorie
+      let animauxDisponibles = animauxActifs.filter(a => a.statut?.toLowerCase() === 'actif');
+      
+      if (categorie !== 'autre') {
+        animauxDisponibles = animauxDisponibles.filter(a => {
+          if (categorie === 'truie') {
+            return a.sexe === 'femelle' && a.reproducteur === true;
+          } else if (categorie === 'verrat') {
+            return a.sexe === 'male' && a.reproducteur === true;
+          } else if (categorie === 'porcelet') {
+            return (a.sexe === 'male' && a.reproducteur === false) ||
+                   (a.sexe === 'femelle' && a.reproducteur === false) ||
+                   a.sexe === 'indetermine';
+          }
+          return true;
+        });
+      }
+      
+      // Prendre les premiers animaux actifs disponibles
+      const nombreManquant = nombrePorcs - animauxMorts.length;
+      const animauxASelectionner = animauxDisponibles
+        .filter(a => !animauxMorts.find(am => am.id === a.id))
+        .slice(0, nombreManquant);
+      
+      animauxMorts = [...animauxMorts, ...animauxASelectionner];
+    }
+
+    // Créer la mortalité (la méthode createWithAnimalUpdate mettra à jour les statuts automatiquement)
+    const mortalite = await mortaliteRepo.createWithAnimalUpdate({
+      projet_id: this.context.projetId,
+      nombre_porcs: nombrePorcs,
+      date,
+      cause: cause,
+      categorie: categorie,
+      animal_code: animauxMorts.length > 0 ? animauxMorts[0].code : null,
+      notes: params.notes || (animauxMorts.length > 0 ? `Animaux: ${animauxMorts.map(a => a.code).join(', ')}` : null),
+    });
+
+    // Message de confirmation avec ton ivoirien chaleureux et empathique
+    let message = `C'est une mauvaise nouvelle mon frère. `;
+    message += `J'ai enregistré ${nombrePorcs} porc${nombrePorcs > 1 ? 's' : ''} mort${nombrePorcs > 1 ? 's' : ''}. `;
+    message += `Ils sont retirés de l'élevage. `;
+    
+    if (!cause) {
+      message += `Tu veux que je note la cause ? Ça peut aider pour éviter que ça se reproduise.`;
+    } else {
+      message += `Cause enregistrée : ${cause}.`;
+    }
+
+    return {
+      success: true,
+      data: mortalite,
       message,
     };
   }
@@ -190,18 +409,31 @@ export class AgentActionExecutor {
     }
 
     // Mapper les catégories depuis le langage naturel
+    // Si aucune catégorie n'est détectée, on utilise "autre" mais on pourrait demander
     const categorie = this.mapCategorieDepense(params.categorie || params.type);
+    
+    // Si la catégorie est "autre" et qu'on a une description, essayer de détecter depuis la description
+    let finalCategorie = categorie;
+    if (categorie === 'autre' && (params.libelle || params.description)) {
+      const descText = (params.libelle || params.description || '').toLowerCase();
+      const detectedFromDesc = this.mapCategorieDepense(descText);
+      if (detectedFromDesc !== 'autre') {
+        finalCategorie = detectedFromDesc;
+      }
+    }
 
     const depense = await repo.create({
       projet_id: this.context.projetId,
       montant,
-      categorie: categorie as any, // Type assertion car mapCategorieDepense retourne toujours une valeur valide
-      libelle_categorie: params.libelle || params.description,
+      categorie: finalCategorie as any, // Type assertion car mapCategorieDepense retourne toujours une valeur valide
+      libelle_categorie: params.libelle || params.description || '',
       date: params.date || new Date().toISOString().split('T')[0],
-      commentaire: params.commentaire,
+      commentaire: params.commentaire || '',
     });
 
-    const message = `Enregistré ! Dépense de ${montant.toLocaleString('fr-FR')} FCFA en ${this.getCategorieLabel(categorie)} le ${format(new Date(depense.date), 'dd/MM/yyyy')}.`;
+    // Message avec catégorie détectée
+    const categorieLabel = this.getCategorieLabel(finalCategorie);
+    const message = `Enregistré ! Dépense de ${formatMontantAvecDevise(montant)} en ${categorieLabel}${params.libelle || params.description ? ` (${params.libelle || params.description})` : ''} le ${format(new Date(depense.date), 'dd/MM/yyyy')}.`;
 
     return {
       success: true,
@@ -708,39 +940,105 @@ export class AgentActionExecutor {
     throw new Error('Impossible de calculer le montant. Informations manquantes.');
   }
 
-  private mapCategorieDepense(categorie: string): string {
+  private mapCategorieDepense(categorie: string | undefined): string {
+    if (!categorie) {
+      return 'autre';
+    }
+
+    const normalized = categorie.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    
     const mapping: Record<string, string> = {
+      // Alimentation
       alimentation: 'alimentation',
       aliment: 'alimentation',
       provende: 'alimentation',
-      médicament: 'medicaments',
+      nourriture: 'alimentation',
+      ration: 'alimentation',
+      sac: 'alimentation',
+      sacs: 'alimentation',
+      mais: 'alimentation',
+      soja: 'alimentation',
+      grain: 'alimentation',
+      granule: 'alimentation',
+      
+      // Médicaments
       medicament: 'medicaments',
-      vaccin: 'vaccins',
-      vétérinaire: 'veterinaire',
+      medicaments: 'medicaments',
+      vaccin: 'medicaments',
+      vaccins: 'medicaments',
+      soin: 'medicaments',
+      antibiotique: 'medicaments',
+      antibiotiques: 'medicaments',
+      injection: 'medicaments',
+      piqure: 'medicaments',
+      traitement: 'medicaments',
+      vermifuge: 'medicaments',
+      vitamine: 'medicaments',
+      supplement: 'medicaments',
+      pharmacie: 'medicaments',
+      
+      // Vétérinaire
       veterinaire: 'veterinaire',
-      équipement: 'equipements',
+      veto: 'veterinaire',
+      consultation: 'veterinaire',
+      visite: 'veterinaire',
+      examen: 'veterinaire',
+      diagnostic: 'veterinaire',
+      
+      // Équipements
       equipement: 'equipements',
-      maintenance: 'entretien',
+      equipements: 'equipements',
+      materiel: 'equipements',
+      outil: 'equipements',
+      outils: 'equipements',
+      machine: 'equipements',
+      appareil: 'equipements',
+      engin: 'equipements',
+      bati: 'equipements',
+      construction: 'equipements',
+      cloture: 'equipements',
+      barriere: 'equipements',
+      enclos: 'equipements',
+      abri: 'equipements',
+      hangar: 'equipements',
+      
+      // Entretien
       entretien: 'entretien',
-      transport: 'autre',
-      eau: 'autre',
-      électricité: 'autre',
-      electricite: 'autre',
+      reparation: 'entretien',
+      maintenance: 'entretien',
+      nettoyage: 'entretien',
+      lavage: 'entretien',
+      desinfection: 'entretien',
+      desinfectant: 'entretien',
+      javel: 'entretien',
+      creyl: 'entretien',
     };
 
-    const lower = categorie?.toLowerCase() || '';
-    return mapping[lower] || 'autre';
+    // Vérifier d'abord le mapping exact
+    if (mapping[normalized]) {
+      return mapping[normalized];
+    }
+
+    // Vérifier les correspondances partielles
+    for (const [key, value] of Object.entries(mapping)) {
+      if (normalized.includes(key) || key.includes(normalized)) {
+        return value;
+      }
+    }
+
+    // Par défaut, retourner "autre" mais on pourrait aussi demander à l'utilisateur
+    return 'autre';
   }
 
   private getCategorieLabel(categorie: string): string {
     const labels: Record<string, string> = {
-      alimentation: 'alimentation',
-      medicaments: 'médicaments',
-      vaccins: 'vaccins',
-      veterinaire: 'vétérinaire',
-      equipements: 'équipements',
-      entretien: 'entretien',
-      autre: 'autre',
+      alimentation: 'Alimentation',
+      medicaments: 'Médicaments',
+      vaccins: 'Vaccins',
+      veterinaire: 'Vétérinaire',
+      equipements: 'Équipements',
+      entretien: 'Entretien',
+      autre: 'Autre',
     };
     return labels[categorie] || categorie;
   }
@@ -783,6 +1081,198 @@ export class AgentActionExecutor {
       data: maladie,
       message,
     };
+  }
+
+  /**
+   * Diagnostique les symptômes et enregistre automatiquement si maladie grave détectée
+   */
+  private async diagnoseSymptoms(params: any): Promise<AgentActionResult> {
+    if (!this.context) {
+      throw new Error('Contexte non initialisé');
+    }
+
+    const symptoms = params.symptoms || params.message || '';
+    if (!symptoms) {
+      throw new Error('Aucun symptôme fourni pour le diagnostic.');
+    }
+
+    // Construire le contexte enrichi pour le diagnostic
+    const diagnosticInput: DiagnosticInput = {
+      pig_info: {
+        animal_id: params.animal_id,
+        name: params.animal_name,
+        age: params.age,
+        race: params.race,
+        sex: params.sex,
+        weight: params.weight,
+      },
+      symptoms_text: symptoms,
+      photos: params.photos || [],
+      farm_context: {
+        total_pigs: params.total_pigs,
+        other_sick_pigs: params.other_sick_pigs,
+        new_animal_recently: params.new_animal_recently,
+        recent_changes: params.recent_changes,
+        last_vet_visit: params.last_vet_visit,
+      },
+    };
+
+    // Enrichir le prompt avec le contexte
+    const enrichedPrompt = await this.promptEnricher.buildEnrichedUserPrompt(diagnosticInput);
+    console.log('[AgentActionExecutor] Prompt enrichi généré (preview):', enrichedPrompt.substring(0, 300));
+    
+    // Stocker le prompt enrichi dans les métadonnées pour utilisation future avec API IA
+    const enrichedPromptMetadata = {
+      enrichedPrompt,
+      diagnosticInput,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Analyser les symptômes (analyse locale rapide)
+    const diagnostic = this.diagnosticService.analyzeSymptoms(symptoms);
+    
+    // Si une API IA est disponible, on pourrait l'utiliser ici avec enrichedPrompt
+    // Pour l'instant, on utilise l'analyse locale mais le prompt enrichi est prêt
+
+    // Log pour déboguer
+    console.log('[AgentActionExecutor] Diagnostic résultat:', {
+      hasDisease: !!diagnostic.disease,
+      diseaseName: diagnostic.disease?.name,
+      confidence: diagnostic.confidence,
+      matchedKeywords: diagnostic.matchedKeywords,
+      matchedSymptoms: diagnostic.matchedSymptoms,
+    });
+
+    // Réduire le seuil de confiance à 0.2 pour être plus permissif
+    if (!diagnostic.disease || diagnostic.confidence < 0.2) {
+      // Utiliser les questions contextuelles si disponibles
+      let message = 'Je n\'ai pas pu identifier de maladie spécifique avec les symptômes décrits.';
+      
+      if (diagnostic.contextualQuestions && diagnostic.contextualQuestions.length > 0) {
+        // Construire un message avec les questions contextuelles
+        message += '\n\nPour mieux t\'aider, peux-tu me donner plus d\'informations :\n\n';
+        diagnostic.contextualQuestions.forEach((question, index) => {
+          message += `${index + 1}. ${question}\n`;
+        });
+        message += '\nCes informations m\'aideront à faire un diagnostic plus précis.';
+      } else {
+        // Fallback : suggestions basées sur les mots-clés
+        const suggestions = this.generateSymptomSuggestions(symptoms);
+        message += ` ${suggestions}`;
+      }
+      
+      return {
+        success: false,
+        message,
+      };
+    }
+
+    // Si maladie grave détectée, alerter immédiatement et enregistrer automatiquement
+    if (diagnostic.urgency === 'critique' || diagnostic.requiresVetAlert) {
+      const alertMessage = `⚠️ **URGENCE VÉTÉRINAIRE**\n\nAu vu des symptômes, cela ressemble à la **${diagnostic.disease.name}** (confiance: ${Math.round(diagnostic.confidence * 100)}%).\n\n${diagnostic.recommendation}\n\nJ'enregistre ça dans le dossier santé et je te recommande de contacter un vétérinaire EN URGENCE !`;
+
+      // Enregistrer automatiquement la maladie
+      try {
+        const db = await getDatabase();
+        const repo = new MaladieRepository(db);
+        
+        const maladie = await repo.create({
+          projet_id: this.context.projetId,
+          animal_id: params.animal_id,
+          lot_id: params.lot_id,
+          type: 'autre',
+          nom_maladie: diagnostic.disease.name,
+          gravite: this.mapGravity(diagnostic.disease.gravity),
+          symptomes: diagnostic.matchedSymptoms.join(', ') || 'Symptômes non spécifiés',
+          diagnostic: `Diagnostic automatique (confiance: ${Math.round(diagnostic.confidence * 100)}%). ${diagnostic.disease.causes}`,
+          date_debut: params.date_debut || new Date().toISOString().split('T')[0],
+          gueri: false,
+          contagieux: diagnostic.disease.gravity === 'Haut' || diagnostic.disease.gravity === 'Moyen-Haut',
+          notes: `Diagnostic automatique par Kouakou. Symptômes détectés: ${diagnostic.matchedKeywords.join(', ')}. ${diagnostic.recommendation}`,
+        });
+
+        return {
+          success: true,
+          data: { maladie, diagnostic },
+          message: alertMessage,
+        };
+      } catch (error: any) {
+        console.error('[AgentActionExecutor] Erreur enregistrement maladie:', error);
+        return {
+          success: false,
+          message: `${alertMessage}\n\n⚠️ Erreur lors de l'enregistrement. Contacte un vétérinaire immédiatement !`,
+        };
+      }
+    }
+
+    // Pour les maladies moins graves, proposer l'enregistrement
+    let message = `Au vu des symptômes décrits, cela pourrait être la **${diagnostic.disease.name}** (confiance: ${Math.round(diagnostic.confidence * 100)}%).\n\n${diagnostic.recommendation}`;
+    
+    // Si la confiance est faible, ajouter des questions contextuelles
+    if (diagnostic.confidence < 0.5 && diagnostic.contextualQuestions && diagnostic.contextualQuestions.length > 0) {
+      message += '\n\nPour confirmer mon diagnostic, peux-tu me donner ces informations supplémentaires :\n\n';
+      diagnostic.contextualQuestions.forEach((question, index) => {
+        message += `${index + 1}. ${question}\n`;
+      });
+    }
+    
+    message += '\n\nVeux-tu que j\'enregistre ça dans le dossier santé ?';
+
+    return {
+      success: true,
+      data: diagnostic,
+      message,
+    };
+  }
+
+  /**
+   * Mappe la gravité du diagnostic vers la gravité de la maladie
+   */
+  private mapGravity(gravity: string): 'faible' | 'moderee' | 'grave' | 'critique' {
+    switch (gravity) {
+      case 'Haut':
+        return 'critique';
+      case 'Moyen-Haut':
+        return 'grave';
+      case 'Moyen':
+        return 'moderee';
+      case 'Bas-Moyen':
+        return 'faible';
+      default:
+        return 'moderee';
+    }
+  }
+
+  /**
+   * Génère des suggestions basées sur les mots-clés détectés dans le message
+   */
+  private generateSymptomSuggestions(message: string): string {
+    const lowerMessage = message.toLowerCase();
+    const suggestions: string[] = [];
+
+    if (lowerMessage.includes('plaques') || lowerMessage.includes('rouge')) {
+      suggestions.push('• Erysipélas (plaques rouges en losange)');
+      suggestions.push('• Fièvre porcine africaine (si hémorragies)');
+    }
+    if (lowerMessage.includes('gratte') || lowerMessage.includes('gratt')) {
+      suggestions.push('• Maladie d\'Aujeszky (démangeaisons intenses)');
+      suggestions.push('• Erysipélas (si plaques rouges)');
+    }
+    if (lowerMessage.includes('diarrhée') || lowerMessage.includes('diarrhee')) {
+      suggestions.push('• Dysenterie porcine');
+      suggestions.push('• Diarrhée épidémique porcine (PED)');
+      suggestions.push('• Coccidiose');
+    }
+    if (lowerMessage.includes('tousse') || lowerMessage.includes('toux')) {
+      suggestions.push('• Grippe porcine');
+      suggestions.push('• Pneumonie enzootique');
+    }
+
+    if (suggestions.length > 0) {
+      return `Cependant, cela pourrait être :\n${suggestions.join('\n')}\n\nPeux-tu donner plus de détails ? (fièvre, localisation des lésions, nombre d'animaux affectés, etc.)`;
+    }
+
+    return 'Peux-tu décrire :\n• La couleur et la forme des lésions\n• Le comportement de l\'animal\n• Si d\'autres animaux sont affectés\n• Depuis quand tu observes ces symptômes';
   }
 
   /**
@@ -1205,7 +1695,8 @@ ${recommandations.length > 0 ? '\nRecommandations :\n' + recommandations.map(r =
 
   /**
    * Parse un montant depuis différents formats
-   * Accepte: "5000", "5 000", "5,000", "5000 FCFA", "5 000 francs", etc.
+   * Accepte: "5000", "5 000", "5,000", "50.000", "5000 FCFA", "5 000 francs", etc.
+   * Gère le point comme séparateur de milliers (format ivoirien: "50.000" = 50000)
    */
   private parseMontant(value: string | number): number {
     if (typeof value === 'number') {
@@ -1217,10 +1708,35 @@ ${recommandations.length > 0 ? '\nRecommandations :\n' + recommandations.map(r =
     }
 
     // Retirer tous les caractères non numériques sauf les chiffres, espaces, virgules et points
-    const cleaned = value
-      .replace(/[^\d\s,.]/g, '') // Retirer tout sauf chiffres, espaces, virgules, points
-      .replace(/\s/g, '') // Retirer les espaces
-      .replace(/,/g, '.'); // Remplacer virgule par point
+    let cleaned = value.replace(/[^\d\s,.]/g, '').replace(/\s/g, '');
+    
+    // Gérer le point comme séparateur de milliers (format ivoirien/européen)
+    // Si le nombre contient un point et a 3+ chiffres après, c'est un séparateur de milliers
+    if (cleaned.includes('.')) {
+      const parts = cleaned.split('.');
+      if (parts.length === 2 && parts[1].length >= 3) {
+        // Format "50.000" = 50000 (séparateur de milliers)
+        cleaned = cleaned.replace(/\./g, '');
+      } else if (parts.length > 2) {
+        // Plusieurs points = séparateurs de milliers (ex: "1.234.567")
+        cleaned = cleaned.replace(/\./g, '');
+      } else {
+        // Un seul point avec moins de 3 chiffres après = décimal (ex: "50.5")
+        // On garde le point pour parseFloat
+      }
+    }
+    
+    // Gérer la virgule
+    if (cleaned.includes(',')) {
+      const parts = cleaned.split(',');
+      if (parts.length === 2 && parts[1].length >= 3) {
+        // Format "50,000" = 50000 (séparateur de milliers)
+        cleaned = cleaned.replace(/,/g, '');
+      } else {
+        // Format décimal (ex: "50,5")
+        cleaned = cleaned.replace(/,/g, '.');
+      }
+    }
 
     const parsed = parseFloat(cleaned);
     return isNaN(parsed) ? NaN : parsed;

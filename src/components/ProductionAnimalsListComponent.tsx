@@ -599,7 +599,12 @@ export default function ProductionAnimalsListComponent() {
         animauxAvecPesee++;
 
         // Calculer le GMQ moyen de l'animal
-        const gmqMoyen = calculerGMQMoyen(pesees);
+        // Mapper les pesées au format attendu par calculerGMQMoyen
+        const peseesFormatees = pesees.map(p => ({
+          date: p.date,
+          gmq: p.gmq || null,
+        }));
+        const gmqMoyen = calculerGMQMoyen(peseesFormatees);
         if (gmqMoyen > 0) {
           sommeGMQ += gmqMoyen;
           animauxAvecGMQ++;

@@ -565,6 +565,12 @@ export default function AppNavigator() {
             <LazyScreens.DocumentsScreen />
           )}
         </Stack.Screen>
+        {/* Écran de Formation - Navigation directe depuis le menu profil */}
+        <Stack.Screen name={SCREENS.TRAINING} options={{ headerShown: false }}>
+          {() => (
+            <LazyScreens.TrainingScreen />
+          )}
+        </Stack.Screen>
         <Stack.Screen name={SCREENS.ADMIN} options={{ headerShown: false }}>
           {() => (
             <LazyScreens.AdminScreen />

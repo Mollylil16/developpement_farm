@@ -2,7 +2,7 @@
  * Modal pour changer de rôle
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,10 +10,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { RoleType } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
+import { useRole } from '../contexts/RoleContext';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 
 interface RoleSwitcherModalProps {
@@ -23,6 +25,7 @@ interface RoleSwitcherModalProps {
   availableRoles: RoleType[];
   onRoleSelect: (role: RoleType) => void;
   onAddRole?: () => void;
+  onProfileDeleted?: () => void;
 }
 
 /**
@@ -68,8 +71,48 @@ const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
   availableRoles,
   onRoleSelect,
   onAddRole,
+  onProfileDeleted,
 }) => {
   const { colors, isDark } = useTheme();
+  const { deleteProfile } = useRole();
+  const [deletingRole, setDeletingRole] = useState<RoleType | null>(null);
+
+  /**
+   * 🔧 NOUVEAU: Supprimer un profil avec confirmation
+   */
+  const handleDeleteProfile = (role: RoleType) => {
+    const roleLabels: Record<RoleType, string> = {
+      producer: 'Producteur',
+      buyer: 'Acheteur',
+      veterinarian: 'Vétérinaire',
+      technician: 'Technicien',
+    };
+
+    Alert.alert(
+      'Supprimer ce profil',
+      `Es-tu sûr de vouloir supprimer le profil "${roleLabels[role]}" ?\n\nCette action est irréversible et supprimera toutes les données associées à ce profil.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Oui, supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setDeletingRole(role);
+              await deleteProfile(role);
+              setDeletingRole(null);
+              onClose();
+              onProfileDeleted?.();
+              Alert.alert('Succès', 'Le profil a été supprimé avec succès.');
+            } catch (error: any) {
+              setDeletingRole(null);
+              Alert.alert('Erreur', error.message || 'Impossible de supprimer le profil');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <Modal
@@ -115,66 +158,99 @@ const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
             {availableRoles.map((role) => {
               const config = getRoleConfig(role);
               const isActive = role === currentRole;
+              const isDeleting = deletingRole === role;
 
               return (
-                <TouchableOpacity
-                  key={role}
-                  style={[
-                    styles.roleOption,
-                    {
-                      borderColor: isActive ? config.color : colors.border,
-                      backgroundColor: isActive 
-                        ? `${config.color}10` 
-                        : 'transparent',
-                    },
-                  ]}
-                  onPress={() => onRoleSelect(role)}
-                  disabled={isActive}
-                  activeOpacity={0.7}
-                >
-                  <View
+                <View key={role} style={styles.roleItemContainer}>
+                  <TouchableOpacity
                     style={[
-                      styles.roleIcon,
-                      { backgroundColor: `${config.color}20` },
+                      styles.roleOption,
+                      {
+                        borderColor: isActive ? config.color : colors.border,
+                        backgroundColor: isActive 
+                          ? `${config.color}10` 
+                          : 'transparent',
+                        opacity: isDeleting ? 0.5 : 1,
+                      },
                     ]}
+                    onPress={() => onRoleSelect(role)}
+                    disabled={isActive || isDeleting}
+                    activeOpacity={0.7}
                   >
-                    <Ionicons 
-                      name={config.icon} 
-                      size={24} 
-                      color={config.color} 
-                    />
-                  </View>
-
-                  <View style={styles.roleInfo}>
-                    <Text 
-                      style={[
-                        styles.roleLabel,
-                        { color: colors.text }
-                      ]}
-                    >
-                      {config.label}
-                    </Text>
-                    <Text 
-                      style={[
-                        styles.roleDescription,
-                        { color: colors.textSecondary }
-                      ]}
-                    >
-                      {config.description}
-                    </Text>
-                  </View>
-
-                  {isActive && (
                     <View
                       style={[
-                        styles.activeIndicator,
-                        { backgroundColor: config.color },
+                        styles.roleIcon,
+                        { backgroundColor: `${config.color}20` },
                       ]}
                     >
-                      <Ionicons name="checkmark" size={16} color="#FFF" />
+                      <Ionicons 
+                        name={config.icon} 
+                        size={24} 
+                        color={config.color} 
+                      />
                     </View>
+
+                    <View style={styles.roleInfo}>
+                      <Text 
+                        style={[
+                          styles.roleLabel,
+                          { color: colors.text }
+                        ]}
+                      >
+                        {config.label}
+                      </Text>
+                      <Text 
+                        style={[
+                          styles.roleDescription,
+                          { color: colors.textSecondary }
+                        ]}
+                      >
+                        {config.description}
+                      </Text>
+                    </View>
+
+                    {isActive && (
+                      <View
+                        style={[
+                          styles.activeIndicator,
+                          { backgroundColor: config.color },
+                        ]}
+                      >
+                        <Ionicons name="checkmark" size={16} color="#FFF" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  {/* 🔧 NOUVEAU: Bouton "Supprimer ce profil" */}
+                  {!isActive && availableRoles.length > 1 && (
+                    <TouchableOpacity
+                      style={[
+                        styles.deleteButton,
+                        { 
+                          borderColor: colors.error + '40',
+                          backgroundColor: colors.error + '10',
+                        }
+                      ]}
+                      onPress={() => handleDeleteProfile(role)}
+                      disabled={isDeleting}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons 
+                        name="trash-outline" 
+                        size={18} 
+                        color={colors.error} 
+                      />
+                      <Text 
+                        style={[
+                          styles.deleteButtonText,
+                          { color: colors.error }
+                        ]}
+                      >
+                        {isDeleting ? 'Suppression...' : 'Supprimer'}
+                      </Text>
+                    </TouchableOpacity>
                   )}
-                </TouchableOpacity>
+                </View>
               );
             })}
           </ScrollView>
@@ -290,6 +366,23 @@ const styles = StyleSheet.create({
   addRoleText: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
+  },
+  roleItemContainer: {
+    marginBottom: SPACING.sm,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.xs,
+    marginTop: SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
+    borderWidth: 1,
+    gap: SPACING.xs,
+  },
+  deleteButtonText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: FONT_WEIGHTS.medium,
   },
 });
 

@@ -1,0 +1,203 @@
+[
+  {
+    "id": 1,
+    "name": "Fièvre porcine africaine (African Swine Fever)",
+    "symptoms": ["fièvre haute", "hémorragies cutanées", "vomissements", "mort subite"],
+    "causes": "Virus (ASFV), transmission par contact ou tiques",
+    "gravity": "Haut",
+    "keywords": ["fièvre", "hémorragie", "saigne", "mort subite", "rouge", "taches rouges"]
+  },
+  {
+    "id": 2,
+    "name": "Maladie d'Aujeszky (Pseudorage)",
+    "symptoms": ["démangeaisons intenses", "symptômes nerveux", "convulsions", "fièvre", "salivation excessive"],
+    "causes": "Virus herpes (PRV), via contact ou aliments contaminés",
+    "gravity": "Haut",
+    "keywords": ["grattait", "convulsion", "tremble", "bave", "démange"]
+  },
+  {
+    "id": 3,
+    "name": "Syndrome reproductif et respiratoire porcin (PRRS)",
+    "symptoms": ["fièvre", "léthargie", "avortements", "pneumonie chez les porcelets"],
+    "causes": "Virus PRRSV, transmission aérienne ou contact",
+    "gravity": "Moyen-Haut",
+    "keywords": ["avorte", "fausse couche", "respire mal", "toux", "porcelets faibles"]
+  },
+  {
+    "id": 4,
+    "name": "Dysenterie porcine (Swine Dysentery)",
+    "symptoms": ["diarrhée hémorragique", "déshydratation", "perte de poids"],
+    "causes": "Bactérie Brachyspira hyodysenteriae, via fèces",
+    "gravity": "Moyen",
+    "keywords": ["diarrhée rouge", "sang dans caca", "maigrit", "déshydraté"]
+  },
+  {
+    "id": 5,
+    "name": "Diarrhée épidémique porcine (PED)",
+    "symptoms": ["diarrhée aqueuse sévère", "vomissements", "mortalité >90% chez porcelets"],
+    "causes": "Coronavirus PEDV, via fèces/manure",
+    "gravity": "Haut",
+    "keywords": ["eau", "vomir", "porcelets meurent", "diarrhée liquide"]
+  },
+  {
+    "id": 6,
+    "name": "Coccidiose",
+    "symptoms": ["diarrhée sanglante", "abattement", "croissance ralentie"],
+    "causes": "Parasite Eimeria, dans l'intestin via aliments souillés",
+    "gravity": "Moyen",
+    "keywords": ["sang dans caca", "porcelets maigres", "abattu"]
+  },
+  {
+    "id": 7,
+    "name": "Salmonellose",
+    "symptoms": ["diarrhée", "fièvre", "septicémie", "pneumonie"],
+    "causes": "Bactérie Salmonella, via fèces ou eau contaminée",
+    "gravity": "Moyen",
+    "keywords": ["salmonelle", "fièvre", "diarrhée", "respire mal"]
+  },
+  {
+    "id": 8,
+    "name": "Erysipélas",
+    "symptoms": ["fièvre", "lésions cutanées en losange", "arthrite", "avortements"],
+    "causes": "Bactérie Erysipelothrix rhusiopathiae, via plaies ou aliments",
+    "gravity": "Moyen",
+    "keywords": ["losange", "plaques rouges", "plaques", "rouge", "rouges", "boite", "raideur", "grattait", "gratte", "se gratte", "gratter", "démange", "démangeaisons"]
+  },
+  {
+    "id": 9,
+    "name": "Parvovirose porcine",
+    "symptoms": ["avortements", "momification", "naissances de porcelets faibles"],
+    "causes": "Virus PPV, transmission verticale",
+    "gravity": "Moyen",
+    "keywords": ["momifié", "porcelets morts-nés", "faible à la naissance"]
+  },
+  {
+    "id": 10,
+    "name": "Grippe porcine (SIV)",
+    "symptoms": ["toux sèche", "fièvre", "léthargie", "respiration laborieuse"],
+    "causes": "Virus influenza A, aérien ou contact",
+    "gravity": "Moyen",
+    "keywords": ["grippe", "toux", "fièvre", "fatigué"]
+  },
+  {
+    "id": 11,
+    "name": "Pneumonie enzootique",
+    "symptoms": ["toux chronique", "croissance réduite", "dyspnée"],
+    "causes": "Bactérie Mycoplasma, transmission respiratoire",
+    "gravity": "Moyen",
+    "keywords": ["toux longue", "respire mal", "grandit pas"]
+  },
+  {
+    "id": 12,
+    "name": "Pléuropneumonie actinobacillaire",
+    "symptoms": ["fièvre aiguë", "hémorragies pulmonaires", "mort rapide"],
+    "causes": "Bactérie Actinobacillus pleuropneumoniae",
+    "gravity": "Haut",
+    "keywords": ["meurt vite", "sang poumon", "respiration difficile"]
+  },
+  {
+    "id": 13,
+    "name": "Streptococcus suis (Stomatite-Strépto)",
+    "symptoms": ["méningite", "arthrite", "septicémie chez porcelets"],
+    "causes": "Bactérie Streptococcus suis",
+    "gravity": "Haut",
+    "keywords": ["tête tournée", "boite", "porcelets tremblent"]
+  },
+  {
+    "id": 14,
+    "name": "Colibacillose (E. coli)",
+    "symptoms": ["diarrhée chez porcelets", "déshydratation", "mortalité"],
+    "causes": "Bactérie E. coli, via lait ou environnement",
+    "gravity": "Moyen",
+    "keywords": ["caca jaune", "porcelets déshydratés", "colibacillose"]
+  },
+  {
+    "id": 15,
+    "name": "Diarrhée rotavirale",
+    "symptoms": ["diarrhée chez jeunes porcelets", "vomissements"],
+    "causes": "Virus rotavirus",
+    "gravity": "Moyen",
+    "keywords": ["rotavirus", "vomir", "diarrhée porcelets"]
+  },
+  {
+    "id": 16,
+    "name": "Choléra porcin classique",
+    "symptoms": ["fièvre", "constipation", "hémorragies", "signes nerveux"],
+    "causes": "Virus CSFV",
+    "gravity": "Haut",
+    "keywords": ["choléra", "saigne", "constipé", "tremble"]
+  },
+  {
+    "id": 17,
+    "name": "Maladie du porc gras (Greasy Pig Disease)",
+    "symptoms": ["lésions cutanées grasses", "croûtes", "mortalité porcelets"],
+    "causes": "Bactérie Staphylococcus hyicus",
+    "gravity": "Moyen",
+    "keywords": ["gras", "croûtes", "peau huileuse"]
+  },
+  {
+    "id": 18,
+    "name": "Rhinite atrophique",
+    "symptoms": ["déformation du museau", "écoulements nasaux", "problèmes respiratoires"],
+    "causes": "Bactéries Bordetella/Pasteurella",
+    "gravity": "Moyen",
+    "keywords": ["museau tordu", "nez coule", "éternue"]
+  },
+  {
+    "id": 19,
+    "name": "Fièvre aphteuse",
+    "symptoms": ["vésicules sur museau/pattes", "fièvre", "boiterie"],
+    "causes": "Virus FMDV",
+    "gravity": "Haut",
+    "keywords": ["ampoules", "cloques", "boite", "bave"]
+  },
+  {
+    "id": 20,
+    "name": "Brucellose porcine",
+    "symptoms": ["avortements", "fièvre", "orchite chez mâles"],
+    "causes": "Bactérie Brucella suis",
+    "gravity": "Moyen",
+    "keywords": ["brucellose", "avorte", "testicules enflés"]
+  },
+  {
+    "id": 21,
+    "name": "Leptospirose",
+    "symptoms": ["avortements", "jaunisse", "fièvre chez truies"],
+    "causes": "Bactérie Leptospira",
+    "gravity": "Moyen",
+    "keywords": ["jaune", "yeux jaunes", "lepto"]
+  },
+  {
+    "id": 22,
+    "name": "Toxoplasmose",
+    "symptoms": ["avortements", "mortalité néonatale", "signes nerveux"],
+    "causes": "Parasite Toxoplasma gondii",
+    "gravity": "Moyen",
+    "keywords": ["toxo", "avorte", "chat"]
+  },
+  {
+    "id": 23,
+    "name": "Circovirose porcine (PCV2)",
+    "symptoms": ["perte de poids chronique", "problèmes immunitaires", "PDNS"],
+    "causes": "Virus PCV2",
+    "gravity": "Moyen",
+    "keywords": ["circovirus", "maigrit", "peau violette"]
+  },
+  {
+    "id": 24,
+    "name": "Peste porcine (Swine Pox)",
+    "symptoms": ["lésions cutanées", "papules", "problèmes respiratoires"],
+    "causes": "Virus pox, via insectes ou contact",
+    "gravity": "Bas-Moyen",
+    "keywords": ["boutons", "variole", "piqures"]
+  },
+  {
+    "id": 25,
+    "name": "Ulcères gastriques",
+    "symptoms": ["régurgitation", "vomissements", "pâleur", "mort subite"],
+    "causes": "Stress, alimentation fine, infections sous-jacentes",
+    "gravity": "Moyen",
+    "keywords": ["ulcère", "vomir sang", "pâle", "meurt sans raison"]
+  }
+]
+

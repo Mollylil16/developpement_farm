@@ -109,7 +109,7 @@ export default function RevenuFormModal({
           revenuSchema,
           fieldName,
           value,
-          { ...formData, poids_kg: poidsKg ? parseFloat(poidsKg) : null }
+          { ...formData, poids_kg: poidsKg ? parseFloat(poidsKg) : undefined }
         );
 
         setValidationErrors((prev) => {
@@ -159,7 +159,7 @@ export default function RevenuFormModal({
 
   // Trouver l'animal sélectionné
   const selectedAnimal = useMemo(() => {
-    return selectedAnimalId ? animaux.find((a) => a.id === selectedAnimalId) : null;
+    return selectedAnimalId ? animaux.find((a) => a.id === selectedAnimalId) : undefined;
   }, [animaux, selectedAnimalId]);
 
   const requestImagePermission = async () => {
@@ -256,7 +256,7 @@ export default function RevenuFormModal({
     // Validation Yup complète
     const dataToValidate = {
       ...formData,
-      poids_kg: poidsKg ? parseFloat(poidsKg) : null,
+      poids_kg: poidsKg ? parseFloat(poidsKg) : undefined,
     };
 
     const { isValid, errors } = await validateWithSchema(revenuSchema, dataToValidate);
@@ -304,7 +304,7 @@ export default function RevenuFormModal({
               commentaire: formData.commentaire,
               photos: formData.photos || [],
               animal_id: selectedAnimalId || animalId,
-              poids_kg: poidsKg ? parseFloat(poidsKg) : null,
+              poids_kg: poidsKg ? parseFloat(poidsKg) : undefined,
             },
           })
         ).unwrap();
@@ -329,7 +329,7 @@ export default function RevenuFormModal({
             ...formData, 
             projet_id: projetActif.id, 
             animal_id: selectedAnimalId || animalId,
-            poids_kg: poidsKg ? parseFloat(poidsKg) : null
+            poids_kg: poidsKg ? parseFloat(poidsKg) : undefined
           })
         ).unwrap();
         

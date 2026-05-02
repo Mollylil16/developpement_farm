@@ -264,7 +264,7 @@ export default function FinanceBilanComptableComponent() {
 
       {/* Note sur la rentabilité */}
       {amortissementsParCategorie.length > 0 && (
-        <Card style={[styles.noteCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Card style={StyleSheet.flatten([styles.noteCard, { backgroundColor: colors.surface, borderColor: colors.border }])}>
           <View style={styles.noteHeader}>
             <Ionicons name="bulb-outline" size={20} color={colors.warning} />
             <Text style={[styles.noteTitle, { color: colors.text }]}>

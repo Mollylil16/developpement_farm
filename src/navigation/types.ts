@@ -19,6 +19,7 @@ export const SCREENS = {
   REPORTS: 'Reports',
   PLANIFICATION: 'Planification',
   PARAMETRES: 'Parametres',
+  TRAINING: 'Training',
   COLLABORATION: 'Collaboration',
   MORTALITES: 'Mortalites',
   ADMIN: 'Admin',

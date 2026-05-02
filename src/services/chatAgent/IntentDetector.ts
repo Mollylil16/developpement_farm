@@ -22,6 +22,13 @@ export class IntentDetector {
     // Normaliser le message (supprimer accents, caractères spéciaux)
     const normalized = this.normalizeText(lowerMessage);
 
+    // PRIORITÉ ABSOLUE : Détecter les descriptions de symptômes AVANT tout le reste
+    // C'est critique pour la santé des animaux
+    const symptomIntent = this.detectSymptomDescription(normalized, lowerMessage);
+    if (symptomIntent) {
+      return symptomIntent;
+    }
+
     // Détecter les requêtes d'information (priorité haute)
     const infoIntent = this.detectInfoRequest(normalized, lowerMessage);
     if (infoIntent) {
@@ -58,30 +65,88 @@ export class IntentDetector {
   }
 
   /**
+   * Détecte les descriptions de symptômes (PRIORITÉ ABSOLUE)
+   * Cette détection doit être faite AVANT les autres pour éviter les faux positifs
+   */
+  private static detectSymptomDescription(normalized: string, original: string): DetectedIntent | null {
+    // Mots-clés qui indiquent clairement une description de symptômes
+    const symptomIndicators = [
+      'a des', 'a de', 'presente', 'montre', 'a le', 'a la',
+      'se gratte', 'gratte', 'grattait', 'se gratte',
+      'plaques', 'plaques rouges', 'taches', 'taches rouges',
+      'lesions', 'lesion', 'boutons', 'croûtes', 'croûte',
+      'boite', 'boite', 'tousse', 'tousse', 'vomir', 'vomit',
+      'diarrhee', 'diarrhée', 'saigne', 'saignait',
+      'fièvre', 'fievre', 'malade', 'maladie',
+      'respire mal', 'respiration', 'respire difficilement',
+      'avorte', 'avortement', 'mort', 'meurt',
+    ];
+
+    // Patterns qui indiquent une description de symptômes
+    const symptomPatterns = [
+      /(?:mon|le|un|mes)\s+porc.*?(?:a|presente|montre|se gratte|gratte|boite|tousse|vomit|saigne|a des|a de)/i,
+      /porc.*?(?:plaques|taches|lesions|boutons|croûtes|symptomes|malade)/i,
+      /(?:qui|qu il|qu'elle).*?(?:a|presente|montre|se gratte|gratte|boite|tousse|vomit|saigne)/i,
+    ];
+
+    // Vérifier les patterns
+    const matchesPattern = symptomPatterns.some(pattern => pattern.test(original));
+    
+    // Vérifier les indicateurs de symptômes
+    const hasSymptomIndicators = symptomIndicators.some(indicator => normalized.includes(indicator));
+
+    // Si on a un pattern OU des indicateurs + mention d'un animal
+    if (matchesPattern || (hasSymptomIndicators && (normalized.includes('porc') || normalized.includes('animal')))) {
+      return {
+        action: 'diagnose_symptoms',
+        confidence: 0.9,
+        params: {
+          symptoms: original,
+        },
+      };
+    }
+
+    return null;
+  }
+
+  /**
    * Détecte les requêtes d'information
    */
   private static detectInfoRequest(normalized: string, original: string): DetectedIntent | null {
     // Statistiques / Bilan
-    const statsKeywords = [
-      'statistique', 'statistiques', 'bilan', 'bilans',
-      'combien de porc', 'nombre de porc', 'nombre porc',
-      'combien porc', 'nombre porcs', 'combien porcs',
-      'porc actif', 'porcs actifs', 'actif', 'actifs',
-      'cheptel', 'elevage', 'elevages',
-      'resume', 'resumes', 'apercu', 'apercus',
-      'donnees', 'donnee', 'data', 'chiffres',
-      'total', 'totaux', 'compte', 'comptage',
-      'combien ai je', 'ai je combien', 'j ai combien',
-      'mon cheptel', 'mes animaux', 'mes porcs',
-      'etat du cheptel', 'situation du cheptel',
+    // EXCLURE si le message contient des descriptions de symptômes
+    const symptomExclusionKeywords = [
+      'a des', 'a de', 'presente', 'montre', 'se gratte', 'gratte',
+      'plaques', 'taches', 'lesions', 'boutons', 'boite', 'tousse',
+      'vomir', 'saigne', 'malade', 'symptomes',
     ];
+    
+    const hasSymptomKeywords = symptomExclusionKeywords.some(keyword => normalized.includes(keyword));
+    
+    // Si le message contient des mots de symptômes, ne pas le traiter comme statistiques
+    if (!hasSymptomKeywords) {
+      const statsKeywords = [
+        'statistique', 'statistiques', 'bilan', 'bilans',
+        'combien de porc', 'nombre de porc', 'nombre porc',
+        'combien porc', 'nombre porcs', 'combien porcs',
+        'porc actif', 'porcs actifs', 'actif', 'actifs',
+        'cheptel', 'elevage', 'elevages',
+        'resume', 'resumes', 'apercu', 'apercus',
+        'donnees', 'donnee', 'data', 'chiffres',
+        'total', 'totaux', 'compte', 'comptage',
+        'combien ai je', 'ai je combien', 'j ai combien',
+        'mon cheptel', 'mes animaux', 'mes porcs',
+        'etat du cheptel', 'situation du cheptel',
+        'apercu financier', 'apercu', 'donne moi', 'donne-moi',
+      ];
 
-    if (this.matchesKeywords(normalized, statsKeywords)) {
-      return {
-        action: 'get_statistics',
-        confidence: 0.9,
-        params: {},
-      };
+      if (this.matchesKeywords(normalized, statsKeywords)) {
+        return {
+          action: 'get_statistics',
+          confidence: 0.9,
+          params: {},
+        };
+      }
     }
 
     // Stocks
@@ -183,6 +248,24 @@ export class IntentDetector {
    * Détecte les requêtes de création/enregistrement
    */
   private static detectCreateRequest(normalized: string, original: string): DetectedIntent | null {
+    // Mortalité (priorité haute - détecter avant vente pour éviter confusion)
+    if (this.matchesKeywords(normalized, [
+      'mort', 'morts', 'mortes', 'morte',
+      'creve', 'creves', 'crevee', 'crevees',
+      'decede', 'decedes', 'decedee', 'decedees',
+      'mortali', 'mortalites',
+      'un porc est mort', 'des porcs sont morts',
+      'j ai eu', 'j ai eu des morts', 'j ai eu une mort',
+      'il est mort', 'ils sont morts', 'elle est morte',
+      'perdu', 'perdus', 'perdue', 'perdues',
+    ])) {
+      return {
+        action: 'create_mortalite',
+        confidence: 0.9,
+        params: this.extractMortaliteParams(original),
+      };
+    }
+
     // Vente
     if (this.matchesKeywords(normalized, [
       'j ai vendu', 'j ai venu', 'je vends', 'je vend',
@@ -300,12 +383,36 @@ export class IntentDetector {
       };
     }
 
-    // Maladie
-    if (this.matchesKeywords(normalized, [
+    // Maladie / Diagnostic de symptômes
+    const maladieKeywords = [
       'maladie', 'maladies', 'malade', 'malades',
       'symptome', 'symptomes', 'tousse', 'tousse',
       'fievre', 'diarrhee', 'probleme de sante',
-    ])) {
+      'plaques rouges', 'grattait', 'boite', 'vomir',
+      'saigne', 'hemorragie', 'lesion', 'lesions',
+      'diagnostic', 'diagnostiquer', 'analyser',
+    ];
+    
+    if (this.matchesKeywords(normalized, maladieKeywords)) {
+      // Vérifier si c'est une description de symptômes (plus spécifique)
+      const symptomDescriptionKeywords = [
+        'mon porc', 'le porc', 'un porc', 'mes porcs',
+        'a des', 'a de', 'presente', 'montre',
+        'symptomes', 'symptome', 'malade',
+      ];
+      
+      const hasSymptomDescription = symptomDescriptionKeywords.some(keyword => normalized.includes(keyword));
+      
+      if (hasSymptomDescription) {
+        return {
+          action: 'diagnose_symptoms',
+          confidence: 0.85,
+          params: {
+            symptoms: original,
+          },
+        };
+      }
+      
       return {
         action: 'create_maladie',
         confidence: 0.8,
@@ -374,9 +481,29 @@ export class IntentDetector {
     }
 
     // Extraire le poids si mentionné (AVANT le montant pour l'exclure)
-    const poidsMatch = text.match(/(\d+[.,]?\d*)\s*(?:kg|kilogramme|kilo)/i);
-    if (poidsMatch) {
-      params.poids_kg = parseFloat(poidsMatch[1].replace(',', '.'));
+    // Pattern 1: "85 kg chacun", "85 kg par porc" → poids moyen
+    const poidsMoyenMatch = text.match(/(\d+[.,]?\d*)\s*(?:kg|kilogramme|kilo)\s*(?:chacun|par porc|par tete|par tete|moyen)/i);
+    if (poidsMoyenMatch) {
+      params.poids_moyen = parseFloat(poidsMoyenMatch[1].replace(',', '.'));
+      params.poids_moyen_kg = params.poids_moyen;
+    } else {
+      // Pattern 2: "425 kg au total", "425 kg total" → poids total
+      const poidsTotalMatch = text.match(/(\d+[.,]?\d*)\s*(?:kg|kilogramme|kilo)\s*(?:au total|total|en tout)/i);
+      if (poidsTotalMatch) {
+        params.poids_total = parseFloat(poidsTotalMatch[1].replace(',', '.'));
+        params.poids_kg = params.poids_total;
+      } else {
+        // Pattern 3: "85 kg" simple → considérer comme poids moyen si nombre de porcs mentionné
+        const poidsSimpleMatch = text.match(/(\d+[.,]?\d*)\s*(?:kg|kilogramme|kilo)/i);
+        if (poidsSimpleMatch && nombreMatch) {
+          // Si on a un nombre de porcs, on considère que c'est le poids moyen
+          params.poids_moyen = parseFloat(poidsSimpleMatch[1].replace(',', '.'));
+          params.poids_moyen_kg = params.poids_moyen;
+        } else if (poidsSimpleMatch) {
+          // Sinon, on met dans poids_kg (sera interprété selon le contexte)
+          params.poids_kg = parseFloat(poidsSimpleMatch[1].replace(',', '.'));
+        }
+      }
     }
 
     // Extraire le montant (plusieurs patterns, en PRIORITÉ après "à", "pour", "montant", "prix")
@@ -437,6 +564,77 @@ export class IntentDetector {
       }
     }
 
+    // Extraire les codes d'identification des animaux (ex: "P001", "P002", "les porcs du bâtiment rouge")
+    // Pattern pour codes: P001, P002, etc.
+    const codeMatches = text.match(/\b([A-Z]?\d{3,})\b/g);
+    if (codeMatches) {
+      params.animal_codes = codeMatches;
+    }
+
+    // Pattern pour descriptions: "du bâtiment rouge", "les 5 porcs de l'enclos A"
+    const descriptionMatch = text.match(/(?:du|de|les?)\s+([a-z\s]+?)(?:\s+(?:porc|porcs|tete|tetes)|\s+\d|$)/i);
+    if (descriptionMatch && descriptionMatch[1]) {
+      params.description_location = descriptionMatch[1].trim();
+    }
+
+    return params;
+  }
+
+  /**
+   * Extrait les paramètres d'une mortalité
+   * Méthode statique publique pour utilisation contextuelle
+   */
+  static extractMortaliteParams(text: string): Record<string, any> {
+    const params: Record<string, any> = {};
+    
+    // Extraire le nombre (plusieurs patterns)
+    const nombreMatch = text.match(/(\d+)\s*(?:porc|porcs|tete|tetes|sujet|sujets|mort|morts|morte|mortes)/i);
+    if (nombreMatch) {
+      params.nombre_porcs = parseInt(nombreMatch[1]);
+    } else {
+      // Si pas de nombre explicite, chercher "un porc", "une mort", etc.
+      if (text.match(/\b(un|une)\s+(?:porc|mort|morte|creve|decede)/i)) {
+        params.nombre_porcs = 1;
+      }
+    }
+
+    // Extraire la cause si mentionnée
+    const causePatterns = [
+      /cause[:\s]+([^,\.]+)/i,
+      /(?:a cause de|du a|du au|du aux)\s+([^,\.]+)/i,
+      /(?:parce que|car)\s+([^,\.]+)/i,
+      /mort\s+(?:de|du|des?)\s+([^,\.]+)/i,
+    ];
+    
+    for (const pattern of causePatterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        params.cause = match[1].trim();
+        break;
+      }
+    }
+
+    // Extraire les codes d'identification des animaux (ex: "P001", "P002")
+    const codeMatches = text.match(/\b([A-Z]?\d{3,})\b/g);
+    if (codeMatches) {
+      params.animal_codes = codeMatches;
+    }
+
+    // Extraire la catégorie si mentionnée (truie, verrat, porcelet)
+    if (text.match(/\b(truie|truies)\b/i)) {
+      params.categorie = 'truie';
+    } else if (text.match(/\b(verrat|verrats)\b/i)) {
+      params.categorie = 'verrat';
+    } else if (text.match(/\b(porcelet|porcelets)\b/i)) {
+      params.categorie = 'porcelet';
+    }
+
+    // Extraire la date si mentionnée
+    const dateMatch = text.match(/(?:aujourd\'hui|aujourd hui|hier|demain|ce matin|cette semaine)/i);
+    if (dateMatch) {
+      params.date_mention = dateMatch[0];
+    }
+
     return params;
   }
 
@@ -446,29 +644,61 @@ export class IntentDetector {
   private static extractDepenseParams(text: string): Record<string, any> {
     const params: Record<string, any> = {};
     
+    // Fonction helper pour parser un montant avec différents formats
+    const parseMontantString = (montantStr: string): number => {
+      // Gérer les formats : "50.000", "50 000", "50,000", "50000"
+      // Le point peut être séparateur de milliers (format européen) ou décimal
+      // En Côte d'Ivoire, on utilise souvent l'espace ou le point comme séparateur de milliers
+      
+      // Si le nombre contient un point et a plus de 3 chiffres après le point, c'est probablement un séparateur de milliers
+      if (montantStr.includes('.') && montantStr.split('.')[1]?.length >= 3) {
+        // Format "50.000" = 50000 (séparateur de milliers)
+        return parseInt(montantStr.replace(/\./g, ''));
+      }
+      
+      // Si le nombre contient une virgule, c'est probablement un séparateur décimal (format français)
+      if (montantStr.includes(',')) {
+        // Format "50,5" = 50.5 (décimal) ou "50,000" = 50000 (séparateur de milliers)
+        const parts = montantStr.split(',');
+        if (parts[1] && parts[1].length >= 3) {
+          // Plus de 3 chiffres après la virgule = séparateur de milliers
+          return parseInt(montantStr.replace(/,/g, ''));
+        } else {
+          // Format décimal
+          return parseFloat(montantStr.replace(/,/g, '.'));
+        }
+      }
+      
+      // Sinon, retirer espaces et points (séparateurs de milliers)
+      const cleaned = montantStr.replace(/[\s\.]/g, '');
+      return parseInt(cleaned) || 0;
+    };
+    
     // Extraire le montant (plusieurs patterns, en PRIORITÉ après "de", "pour", "à", "montant")
     // Pattern 1: Montant après "de", "pour", "à", "montant", "prix", "coût" (le plus fiable)
-    let montantMatch = text.match(/(?:de|pour|a|montant|prix|cout|depense|achete|paye|payee)[:\s]+(\d[\d\s,]+)(?:\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*))?/i);
+    // Gérer les formats avec points, espaces, virgules
+    let montantMatch = text.match(/(?:de|pour|a|montant|prix|cout|depense|achete|paye|payee|j'ai depense|j'ai paye)[:\s]+(\d[\d\s,\.]+)(?:\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*))?/i);
     
     if (!montantMatch) {
-      // Pattern 2: "50 000 FCFA", "50000 FCFA" (mais pas si c'est une quantité)
-      montantMatch = text.match(/(\d[\d\s,]{3,})\s*(?:f\s*c\s*f\s*a|f\s*c\s*f\s*a|fcfa|f\s*cfa|francs?|f\s*)/i);
+      // Pattern 2: "50.000 FCFA", "50 000 FCFA", "50000 FCFA" (avec devise)
+      montantMatch = text.match(/(\d[\d\s,\.]{3,})\s*(?:f\s*c\s*f\s*a|f\s*c\s*f\s*a|fcfa|f\s*cfa|francs?|f\s*)/i);
     }
     
     if (!montantMatch) {
       // Pattern 3: Calcul si quantité × prix unitaire mentionnés
-      const calculMatch = text.match(/(\d+)\s*(?:x|\*|fois|par)\s*(\d[\d\s,]+)/i);
+      const calculMatch = text.match(/(\d+)\s*(?:x|\*|fois|par)\s*(\d[\d\s,\.]+)/i);
       if (calculMatch) {
         const qte = parseInt(calculMatch[1]);
-        const prix = parseInt(calculMatch[2].replace(/[\s,]/g, ''));
+        const prix = parseMontantString(calculMatch[2]);
         params.montant = qte * prix;
       } else {
         // Pattern 4: Chercher le plus grand nombre qui n'est pas une quantité
-        const allNumbers = text.match(/\b(\d[\d\s,]{3,})\b/g);
+        // Gérer les formats avec points et espaces
+        const allNumbers = text.match(/\b(\d[\d\s,\.]{3,})\b/g);
         if (allNumbers) {
           const validNumbers = allNumbers
-            .map(n => parseInt(n.replace(/[\s,]/g, '')))
-            .filter(n => n > 100); // Ignorer les petits montants
+            .map(n => parseMontantString(n))
+            .filter(n => n >= 1000 && n < 100000000); // Montants raisonnables entre 1000 et 100 millions
           
           if (validNumbers.length > 0) {
             params.montant = Math.max(...validNumbers);
@@ -476,30 +706,61 @@ export class IntentDetector {
         }
       }
     } else {
-      const montantStr = montantMatch[1].replace(/[\s,]/g, '');
-      const montant = parseInt(montantStr);
+      const montant = parseMontantString(montantMatch[1]);
       if (!isNaN(montant) && montant > 0) {
         params.montant = montant;
       }
     }
 
-    // Détecter la catégorie (plus de patterns)
-    if (text.match(/aliment|provende|nourriture|ration|sacs?|mais|soja/i)) {
+    // Détecter la catégorie avec beaucoup plus de patterns et mots-clés
+    const normalizedText = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    
+    // Alimentation - beaucoup plus de mots-clés
+    if (normalizedText.match(/aliment|provende|nourriture|ration|sacs?|mais|soja|maize|grain|granule|alimentaire|feed|patee|mangeoire|abreuvoir|eau pour|eau de/i)) {
       params.categorie = 'alimentation';
-    } else if (text.match(/medicament|vaccin|soin|antibiotique/i)) {
+    } 
+    // Médicaments - patterns améliorés
+    else if (normalizedText.match(/medicament|vaccin|soin|antibiotique|antibio|injection|piqure|piqure|traitement|vermifuge|vitamine|supplement|pharmacie|pharma/i)) {
       params.categorie = 'medicaments';
-    } else if (text.match(/veterinaire|veto|consultation|visite vet/i)) {
+    } 
+    // Vétérinaire - patterns améliorés
+    else if (normalizedText.match(/veterinaire|veto|consultation|visite vet|visite veterinaire|rdv vet|rdv veterinaire|examen|diagnostic vet|soins vet/i)) {
       params.categorie = 'veterinaire';
-    } else if (text.match(/entretien|reparation|maintenance/i)) {
+    } 
+    // Entretien - patterns améliorés
+    else if (normalizedText.match(/entretien|reparation|maintenance|reparer|nettoyage|lavage|desinfection|desinfectant|javel|creyl|eau de javel|outil de nettoyage/i)) {
       params.categorie = 'entretien';
-    } else if (text.match(/equipement|materiel|outil/i)) {
+    } 
+    // Équipements - patterns améliorés
+    else if (normalizedText.match(/equipement|materiel|outil|machine|appareil|engin|bati|construction|cloture|barriere|enclos|abri|hangar/i)) {
       params.categorie = 'equipements';
     }
+    // Transport
+    else if (normalizedText.match(/transport|carburant|essence|diesel|gasoil|vehicule|camion|moto|deplacement|frais de transport/i)) {
+      params.categorie = 'autre'; // Transport n'est pas une catégorie spécifique, on met "autre"
+    }
+    // Salaires/Main d'œuvre
+    else if (normalizedText.match(/salaire|main d.oeuvre|ouvrier|employe|travailleur|paye|paie|remuneration/i)) {
+      params.categorie = 'autre';
+    }
+    // Si aucune catégorie détectée, on laisse undefined pour que le système demande
 
-    // Extraire la description/libellé
-    const descMatch = text.match(/(?:pour|de|depense|achat)\s+(.+?)(?:\s+\d|$)/i);
-    if (descMatch && !descMatch[1].match(/^\d/)) {
-      params.description = descMatch[1].trim();
+    // Extraire la description/libellé (amélioré)
+    const descPatterns = [
+      /(?:pour|de|depense|achat|j'ai achete|j'ai paye)\s+(.+?)(?:\s+\d|$)/i,
+      /(?:en|sur)\s+(.+?)(?:\s+\d|$)/i,
+    ];
+    
+    for (const pattern of descPatterns) {
+      const descMatch = text.match(pattern);
+      if (descMatch && descMatch[1] && !descMatch[1].match(/^\d/)) {
+        const description = descMatch[1].trim();
+        // Ne pas prendre la description si c'est juste un nombre
+        if (!description.match(/^\d+$/)) {
+          params.description = description;
+          break;
+        }
+      }
     }
 
     return params;

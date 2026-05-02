@@ -249,7 +249,7 @@ const AnimalCard = React.memo(function AnimalCard({
                     </Text>
                     {vaccinationsAnimal.slice(0, 5).map((v) => {
                       const categorieLabel = v.type_prophylaxie
-                        ? TYPE_PROPHYLAXIE_LABELS[v.type_prophylaxie] || v.type_prophylaxie
+                        ? (TYPE_PROPHYLAXIE_LABELS[v.type_prophylaxie as keyof typeof TYPE_PROPHYLAXIE_LABELS] || v.type_prophylaxie)
                         : 'Non spécifié';
                       return (
                         <View key={v.id} style={[styles.historiqueItem, { backgroundColor: colors.success + '08', borderLeftColor: colors.success }]}>

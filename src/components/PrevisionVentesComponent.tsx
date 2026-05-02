@@ -544,7 +544,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
 
         <TouchableOpacity
           style={styles.deleteButton}
-          onPress={() => handleSupprimerPrevision(item.id)}
+          onPress={() => handleSupprimerPrevision(item.animal_id)}
         >
           <Ionicons name="trash-outline" size={18} color={colors.error} />
         </TouchableOpacity>

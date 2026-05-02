@@ -8,7 +8,7 @@ import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '..
 import { useTheme } from '../contexts/ThemeContext';
 import { useShakeToCancel } from '../hooks/useShakeToCancel';
 
-interface CustomModalProps {
+export interface CustomModalProps {
   visible: boolean;
   onClose: () => void;
   title: string;

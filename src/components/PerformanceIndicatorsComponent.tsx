@@ -43,6 +43,7 @@ import { calculatePoidsTotalAnimauxActifs } from '../utils/animalUtils';
 import { exportRapportCompletPDF } from '../services/pdf/rapportCompletPDF';
 import { getDatabase } from '../services/database';
 import PerformanceGlobaleService from '../services/PerformanceGlobaleService';
+import { Ration, IngredientRation } from '../types/nutrition';
 
 const areIndicatorsEqual = (
   a: IndicateursPerformance | null | undefined,
@@ -248,24 +249,174 @@ export default function PerformanceIndicatorsComponent() {
         ? (sevrages.length / gestationsTerminees.length) * 100
         : 0;
 
-    // Calculer l'efficacité alimentaire (ratio poids_gain / alimentation_consommee)
-    // On utilise le poids réel basé sur les pesées si disponible
-    const alimentationTotale = coutAlimentationTotal; // En CFA, à convertir en kg si nécessaire
+    // ============================================
+    // CALCUL AMÉLIORÉ DE L'EFFICACITÉ ALIMENTAIRE
+    // ============================================
+    // Basé sur les améliorations du document CALCUL_EFFICACITE_ALIMENTAIRE.md
+    // 
+    // Formule idéale : Efficacité = Gain de poids (kg) / Aliment consommé (kg)
+    // Au lieu de : Poids actuel / (Coût / 1000) (approximation)
 
-    // Calculer le poids réel pour l'efficacité alimentaire (dernières pesées des animaux actifs)
-    let poidsReelPourEfficacite = calculatePoidsTotalAnimauxActifs(
-      animauxProjet,
-      peseesParAnimal,
-      projetActif.poids_moyen_actuel || 0
-    );
+    /**
+     * Convertit une quantité d'ingrédient en kg selon son unité
+     */
+    const convertToKg = (quantite: number, unite?: string): number => {
+      if (!unite) return quantite; // Par défaut, supposer que c'est déjà en kg
+      
+      switch (unite.toLowerCase()) {
+        case 'kg':
+          return quantite;
+        case 'g':
+          return quantite / 1000;
+        case 'l':
+        case 'ml':
+          // Pour les liquides, on suppose 1L = 1kg (approximation pour l'eau et la plupart des liquides)
+          return unite.toLowerCase() === 'ml' ? quantite / 1000 : quantite;
+        case 'sac':
+          // Un sac standard = 50 kg
+          return quantite * 50;
+        default:
+          return quantite; // Par défaut, supposer kg
+      }
+    };
 
-    // Si pas de pesées, utiliser l'approximation
-    if (poidsReelPourEfficacite === 0) {
-      poidsReelPourEfficacite = poidsTotal;
+    // 1. Calculer la quantité totale d'aliment en kg depuis les rations
+    let quantiteAlimentTotaleKg = 0;
+    
+    rations.forEach((ration: Ration) => {
+      if (ration.ingredients && ration.ingredients.length > 0) {
+        ration.ingredients.forEach((ingRation: IngredientRation) => {
+          const unite = ingRation.ingredient?.unite || 'kg';
+          const quantiteKg = convertToKg(ingRation.quantite, unite);
+          quantiteAlimentTotaleKg += quantiteKg;
+        });
+      }
+    });
+
+    // 2. Inclure les dépenses ponctuelles "alimentation" si disponibles
+    // On estime la quantité en utilisant un prix moyen d'aliment
+    // Accepter toutes les variantes : "alimentation", "aliment", "alimentations"
+    // Vérifier aussi dans le libellé de catégorie pour les cas "autre"
+    const depensesAlimentation = depensesPonctuelles.filter((dp: DepensePonctuelle) => {
+      const categorieNormalisee = dp.categorie?.toLowerCase().trim() || '';
+      const libelleNormalise = dp.libelle_categorie?.toLowerCase().trim() || '';
+      
+      // Vérifier la catégorie exacte ou les variantes
+      const estCategorieAliment = 
+        categorieNormalisee === 'alimentation' ||
+        categorieNormalisee === 'aliment' ||
+        categorieNormalisee === 'alimentations';
+      
+      // Vérifier aussi dans le libellé si la catégorie est "autre" ou si le libellé contient "aliment"
+      const estLibelleAliment = 
+        (categorieNormalisee === 'autre' && libelleNormalise && /aliment/i.test(libelleNormalise)) ||
+        (libelleNormalise && /^(aliment|alimentation|alimentations)$/i.test(libelleNormalise));
+      
+      return estCategorieAliment || estLibelleAliment;
+    });
+    
+    if (depensesAlimentation.length > 0 && quantiteAlimentTotaleKg > 0 && coutAlimentationTotal > 0) {
+      // Calculer le prix moyen par kg d'aliment depuis les rations
+      const prixMoyenAlimentKg = coutAlimentationTotal / quantiteAlimentTotaleKg;
+      
+      // Estimer la quantité d'aliment depuis les dépenses ponctuelles
+      const quantiteDepensesKg = depensesAlimentation.reduce(
+        (sum: number, dep: DepensePonctuelle) => {
+          // Utiliser le prix moyen calculé, avec un fallback de 200 FCFA/kg si pas de rations
+          const prixEstime = prixMoyenAlimentKg > 0 ? prixMoyenAlimentKg : 200;
+          return sum + (dep.montant / prixEstime);
+        },
+        0
+      );
+      
+      quantiteAlimentTotaleKg += quantiteDepensesKg;
+    } else if (depensesAlimentation.length > 0 && quantiteAlimentTotaleKg === 0) {
+      // Si pas de rations mais des dépenses, utiliser un prix moyen par défaut
+      const prixMoyenParDefaut = 200; // FCFA/kg (prix moyen estimé)
+      const quantiteDepensesKg = depensesAlimentation.reduce(
+        (sum: number, dep: DepensePonctuelle) => sum + (dep.montant / prixMoyenParDefaut),
+        0
+      );
+      quantiteAlimentTotaleKg = quantiteDepensesKg;
     }
 
-    const efficaciteAlimentaire =
-      alimentationTotale > 0 ? poidsReelPourEfficacite / (alimentationTotale / 1000) : 0; // Approximation
+    // 3. Calculer le gain de poids réel (poids actuel - poids initial)
+    let gainPoidsTotal = 0;
+    const animauxActifs = animauxProjet.filter(
+      (animal) => animal.statut?.toLowerCase() === 'actif'
+    );
+
+    animauxActifs.forEach((animal) => {
+      // Poids actuel : dernière pesée ou poids moyen du projet
+      const pesees = peseesParAnimal[animal.id] || [];
+      let poidsActuel = 0;
+      
+      if (pesees.length > 0) {
+        // Trier les pesées par date (la plus récente en premier)
+        const peseesTriees = [...pesees].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+        poidsActuel = peseesTriees[0].poids_kg;
+      } else if (animal.poids_initial) {
+        poidsActuel = animal.poids_initial;
+      } else {
+        poidsActuel = projetActif.poids_moyen_actuel || 0;
+      }
+
+      // Poids initial
+      const poidsInitial = animal.poids_initial || 0;
+
+      // Gain de poids (ne peut pas être négatif)
+      const gain = Math.max(0, poidsActuel - poidsInitial);
+      gainPoidsTotal += gain;
+    });
+
+    // 4. Calculer l'efficacité alimentaire améliorée
+    // Efficacité = Gain de poids (kg) / Aliment consommé (kg)
+    // Si pas de gain de poids calculable, utiliser le poids actuel comme approximation
+    let efficaciteAlimentaire = 0;
+    
+    if (quantiteAlimentTotaleKg > 0) {
+      if (gainPoidsTotal > 0) {
+        // Utiliser le gain de poids réel
+        efficaciteAlimentaire = gainPoidsTotal / quantiteAlimentTotaleKg;
+      } else {
+        // Fallback : utiliser le poids actuel si pas de gain calculable
+        // (cas où les animaux n'ont pas de poids initial enregistré)
+        let poidsActuelTotal = calculatePoidsTotalAnimauxActifs(
+          animauxProjet,
+          peseesParAnimal,
+          projetActif.poids_moyen_actuel || 0
+        );
+        
+        if (poidsActuelTotal === 0) {
+          poidsActuelTotal = poidsTotal;
+        }
+        
+        efficaciteAlimentaire = poidsActuelTotal / quantiteAlimentTotaleKg;
+      }
+    } else if (coutAlimentationTotal > 0) {
+      // Fallback : si pas de quantité en kg calculable, utiliser l'ancienne méthode
+      // mais avec un commentaire explicite
+      let poidsReelPourEfficacite = calculatePoidsTotalAnimauxActifs(
+        animauxProjet,
+        peseesParAnimal,
+        projetActif.poids_moyen_actuel || 0
+      );
+      
+      if (poidsReelPourEfficacite === 0) {
+        poidsReelPourEfficacite = poidsTotal;
+      }
+      
+      // Approximation : supposant 1 kg = 1000 FCFA (ancienne méthode)
+      efficaciteAlimentaire = poidsReelPourEfficacite / (coutAlimentationTotal / 1000);
+    }
+
+    // Stocker la quantité totale d'aliment pour l'affichage
+    // Si on a calculé en kg, utiliser ça, sinon convertir le coût en kg estimé
+    const alimentationTotale = quantiteAlimentTotaleKg > 0 
+      ? quantiteAlimentTotaleKg 
+      : (coutAlimentationTotal / 1000); // Fallback : estimation
 
     // Calculer le coût de production par kg sur TOUTE la période de production
     // 1. Trouver la période de production (date d'entrée la plus ancienne jusqu'à aujourd'hui)
@@ -470,12 +621,14 @@ export default function PerformanceIndicatorsComponent() {
     }
 
     // Recommandation sur l'efficacité alimentaire
-    if (calculatedIndicators.efficacite_alimentaire < 2) {
+    // Seuils basés sur la nouvelle formule : Efficacité = Gain de poids (kg) / Aliment consommé (kg)
+    // < 0.2 : Très faible, 0.2-0.25 : Faible, 0.25-0.3 : Moyen, 0.3-0.4 : Bon, > 0.4 : Excellent
+    if (calculatedIndicators.efficacite_alimentaire < 0.25) {
       recs.push({
         id: 'rec_efficacite',
         type: 'avertissement',
         titre: 'Efficacité alimentaire faible',
-        message: `L'efficacité alimentaire est de ${calculatedIndicators.efficacite_alimentaire.toFixed(2)}. Pensez à ajuster les rations.`,
+        message: `L'efficacité alimentaire est de ${calculatedIndicators.efficacite_alimentaire.toFixed(2)} (ratio gain/aliment). Pensez à ajuster les rations et vérifier la qualité de l'alimentation.`,
         action: 'Optimiser les rations dans le module Nutrition',
       });
     }
@@ -492,9 +645,10 @@ export default function PerformanceIndicatorsComponent() {
     }
 
     // Recommandation positive si tout va bien
+    // Seuils mis à jour : efficacité > 0.35 (bon) au lieu de > 2.5
     if (
       calculatedIndicators.taux_mortalite < 3 &&
-      calculatedIndicators.efficacite_alimentaire > 2.5 &&
+      calculatedIndicators.efficacite_alimentaire > 0.35 &&
       calculatedIndicators.cout_production_kg < 1500
     ) {
       recs.push({
@@ -570,9 +724,9 @@ export default function PerformanceIndicatorsComponent() {
       const gestationsTerminees = gestations.filter((g) => g.statut === 'terminee').length;
       const gestationsEnCours = gestations.filter((g) => g.statut === 'en_cours').length;
       const porceletsNes = gestations
-        .filter((g) => g.statut === 'terminee' && g.nombre_porcelets_sevre_reel)
-        .reduce((sum, g) => sum + (g.nombre_porcelets_sevre_reel || 0), 0);
-      const porceletsSevres = sevrages.reduce((sum, s) => sum + s.nombre_porcelets_sevre, 0);
+        .filter((g) => g.statut === 'terminee' && g.nombre_porcelets_reel)
+        .reduce((sum, g) => sum + (g.nombre_porcelets_reel || 0), 0);
+      const porceletsSevres = sevrages.reduce((sum, s) => sum + (s.nombre_porcelets_sevres || 0), 0);
       const tauxSurvie = porceletsNes > 0 ? (porceletsSevres / porceletsNes) * 100 : 0;
 
       // Sevrages récents (30 derniers jours)
@@ -783,9 +937,11 @@ export default function PerformanceIndicatorsComponent() {
                 value={calculatedIndicators.efficacite_alimentaire.toFixed(2)}
                 label="Efficacité alimentaire"
                 valueColor={
-                  calculatedIndicators.efficacite_alimentaire > 2.5
+                  calculatedIndicators.efficacite_alimentaire > 0.35
                     ? colors.success
-                    : colors.warning
+                    : calculatedIndicators.efficacite_alimentaire > 0.25
+                    ? colors.warning
+                    : colors.error
                 }
               />
             </View>

@@ -14,6 +14,10 @@ export interface ChatMessage {
     actionResult?: any;
     requiresConfirmation?: boolean;
     voiceTranscription?: string;
+    // Gestion contextuelle : relier les messages entre eux
+    contextId?: string; // ID du contexte conversationnel (pour relier les réponses aux questions)
+    pendingAction?: AgentAction; // Action en attente de clarification
+    isClarificationQuestion?: boolean; // Indique si ce message est une question de clarification
   };
 }
 
@@ -33,6 +37,8 @@ export type AgentActionType =
   | 'create_vaccination'
   | 'create_traitement'
   | 'create_maladie'
+  | 'create_mortalite'
+  | 'diagnose_symptoms'
   | 'create_pesee'
   | 'create_ingredient'
   | 'create_planification'
