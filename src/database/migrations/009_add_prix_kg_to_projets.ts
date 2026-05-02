@@ -1,7 +1,7 @@
 /**
  * Migration 9 : Ajouter prix_kg_vif et prix_kg_carcasse à la table projets
  * Permet de définir les prix de référence pour les calculs financiers
- * 
+ *
  * Version: 9
  */
 
@@ -38,4 +38,3 @@ export async function addPrixKgToProjets(db: SQLiteDatabase): Promise<void> {
     console.log('✅ Migration: Colonne prix_kg_carcasse ajoutée à projets');
   }
 }
-

@@ -26,4 +26,3 @@ export async function createProductionPeseesTable(db: SQLite.SQLiteDatabase): Pr
     );
   `);
 }
-

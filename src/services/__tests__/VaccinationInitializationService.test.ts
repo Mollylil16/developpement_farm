@@ -55,7 +55,9 @@ describe('VaccinationInitializationService', () => {
       await service.initProtocolesVaccinationStandard(projetId);
 
       // Vérifier que tous les protocoles sont créés
-      expect(mockCalendrierRepo.create).toHaveBeenCalledTimes(PROTOCOLES_VACCINATION_STANDARD.length);
+      expect(mockCalendrierRepo.create).toHaveBeenCalledTimes(
+        PROTOCOLES_VACCINATION_STANDARD.length
+      );
 
       // Vérifier que chaque protocole est créé avec le bon projet_id
       PROTOCOLES_VACCINATION_STANDARD.forEach((protocole, index) => {
@@ -71,7 +73,7 @@ describe('VaccinationInitializationService', () => {
       });
     });
 
-    it('devrait créer les protocoles dans l\'ordre', async () => {
+    it("devrait créer les protocoles dans l'ordre", async () => {
       mockCalendrierRepo.create.mockResolvedValue({} as any);
 
       await service.initProtocolesVaccinationStandard(projetId);
@@ -85,9 +87,9 @@ describe('VaccinationInitializationService', () => {
       const error = new Error('Erreur de création');
       mockCalendrierRepo.create.mockRejectedValue(error);
 
-      await expect(
-        service.initProtocolesVaccinationStandard(projetId)
-      ).rejects.toThrow('Erreur de création');
+      await expect(service.initProtocolesVaccinationStandard(projetId)).rejects.toThrow(
+        'Erreur de création'
+      );
     });
 
     it('devrait créer un nouveau repository pour chaque appel', async () => {
@@ -115,4 +117,3 @@ describe('VaccinationInitializationService', () => {
     });
   });
 });
-

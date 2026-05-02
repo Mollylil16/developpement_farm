@@ -1,74 +1,18 @@
 /**
  * TraitementRepository - Gestion des traitements médicaux
- * 
- * Responsabilités:
- * - CRUD des traitements
- * - Recherche par projet, maladie, animal
- * - Filtrage par statut (terminés, en cours)
+ *
+ * Utilise maintenant l'API REST du backend (PostgreSQL)
  */
 
-import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
 import { Traitement, CreateTraitementInput } from '../../types/sante';
-import uuid from 'react-native-uuid';
 
 export class TraitementRepository extends BaseRepository<Traitement> {
-  constructor(db: SQLite.SQLiteDatabase) {
-    super(db, 'traitements');
+  constructor() {
+    super('traitements', '/sante/traitements');
   }
 
-  /**
-   * Créer un nouveau traitement
-   */
-  async create(input: CreateTraitementInput): Promise<Traitement> {
-    const id = uuid.v4().toString();
-    const now = new Date().toISOString();
-
-    await this.execute(
-      `INSERT INTO traitements (
-        id, projet_id, maladie_id, animal_id, lot_id, type, nom_medicament,
-        voie_administration, dosage, frequence, date_debut, date_fin,
-        duree_jours, temps_attente_jours, veterinaire, cout, termine,
-        efficace, effets_secondaires, notes,
-        date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        input.projet_id,
-        input.maladie_id || null,
-        input.animal_id || null,
-        input.lot_id || null,
-        input.type,
-        input.nom_medicament,
-        input.voie_administration,
-        input.dosage,
-        input.frequence,
-        input.date_debut,
-        input.date_fin || null,
-        input.duree_jours || null,
-        input.temps_attente_jours || null,
-        input.veterinaire || null,
-        input.cout || null,
-        input.termine ? 1 : 0,
-        input.efficace !== undefined ? (input.efficace ? 1 : 0) : null,
-        input.effets_secondaires || null,
-        input.notes || null,
-        now,
-        now,
-      ]
-    );
-
-    const created = await this.findById(id);
-    if (!created) {
-      throw new Error('Impossible de créer le traitement');
-    }
-    return created;
-  }
-
-  /**
-   * Mapper une ligne de la base vers Traitement
-   */
-  private mapRow(row: any): Traitement {
+  private mapRow(row: unknown): Traitement {
     return {
       id: row.id,
       projet_id: row.projet_id,
@@ -95,140 +39,106 @@ export class TraitementRepository extends BaseRepository<Traitement> {
     };
   }
 
-  /**
-   * Override findById pour mapper correctement
-   */
+  async create(input: CreateTraitementInput): Promise<Traitement> {
+    const traitementData = {
+      projet_id: input.projet_id,
+      maladie_id: input.maladie_id || null,
+      animal_id: input.animal_id || null,
+      lot_id: input.lot_id || null,
+      type: input.type,
+      nom_medicament: input.nom_medicament,
+      voie_administration: input.voie_administration,
+      dosage: input.dosage,
+      frequence: input.frequence,
+      date_debut: input.date_debut,
+      date_fin: input.date_fin || null,
+      duree_jours: input.duree_jours || null,
+      temps_attente_jours: input.temps_attente_jours || null,
+      veterinaire: input.veterinaire || null,
+      cout: input.cout || null,
+      termine: input.termine || false,
+      efficace: input.efficace !== undefined ? input.efficace : null,
+      effets_secondaires: input.effets_secondaires || null,
+      notes: input.notes || null,
+    };
+
+    const created = await this.executePost<unknown>('/sante/traitements', traitementData);
+    return this.mapRow(created);
+  }
+
   async findById(id: string): Promise<Traitement | null> {
-    const row = await this.queryOne<any>(`SELECT * FROM ${this.tableName} WHERE id = ?`, [id]);
-    return row ? this.mapRow(row) : null;
+    try {
+      const row = await this.queryOne<unknown>(`/sante/traitements/${id}`);
+      return row ? this.mapRow(row) : null;
+    } catch (error) {
+      console.error('Error finding traitement by id:', error);
+      return null;
+    }
   }
 
-  /**
-   * Récupérer tous les traitements d'un projet
-   */
   async findByProjet(projetId: string): Promise<Traitement[]> {
-    const rows = await this.query<any>(
-      `SELECT * FROM traitements WHERE projet_id = ? ORDER BY date_debut DESC`,
-      [projetId]
-    );
-    return rows.map((row) => this.mapRow(row));
+    try {
+      const rows = await this.query<unknown>('/sante/traitements', { projet_id: projetId });
+      return rows.map(this.mapRow);
+    } catch (error) {
+      console.error('Error finding traitements by projet:', error);
+      return [];
+    }
   }
 
-  /**
-   * Récupérer les traitements d'une maladie
-   */
   async findByMaladie(maladieId: string): Promise<Traitement[]> {
-    const rows = await this.query<any>(
-      `SELECT * FROM traitements WHERE maladie_id = ? ORDER BY date_debut DESC`,
-      [maladieId]
-    );
-    return rows.map((row) => this.mapRow(row));
+    try {
+      const rows = await this.query<unknown>('/sante/traitements', { maladie_id: maladieId });
+      return rows.map(this.mapRow);
+    } catch (error) {
+      console.error('Error finding traitements by maladie:', error);
+      return [];
+    }
   }
 
-  /**
-   * Récupérer les traitements d'un animal
-   */
   async findByAnimal(animalId: string): Promise<Traitement[]> {
-    const rows = await this.query<any>(
-      `SELECT * FROM traitements WHERE animal_id = ? ORDER BY date_debut DESC`,
-      [animalId]
-    );
-    return rows.map((row) => this.mapRow(row));
+    try {
+      const rows = await this.query<unknown>('/sante/traitements', { animal_id: animalId });
+      return rows.map(this.mapRow);
+    } catch (error) {
+      console.error('Error finding traitements by animal:', error);
+      return [];
+    }
   }
 
-  /**
-   * Récupérer les traitements en cours (non terminés)
-   */
   async findEnCours(projetId: string): Promise<Traitement[]> {
-    const rows = await this.query<any>(
-      `SELECT * FROM traitements WHERE projet_id = ? AND termine = 0 ORDER BY date_debut DESC`,
-      [projetId]
-    );
-    return rows.map((row) => this.mapRow(row));
+    try {
+      const traitements = await this.findByProjet(projetId);
+      return traitements.filter(t => !t.termine);
+    } catch (error) {
+      console.error('Error finding traitements en cours:', error);
+      return [];
+    }
   }
 
-  /**
-   * Mettre à jour un traitement
-   */
   async update(id: string, updates: Partial<CreateTraitementInput>): Promise<Traitement> {
-    const now = new Date().toISOString();
-    const fields: string[] = [];
-    const values: any[] = [];
+    const updateData: Record<string, unknown> = {};
 
-    if (updates.maladie_id !== undefined) {
-      fields.push('maladie_id = ?');
-      values.push(updates.maladie_id || null);
-    }
-    if (updates.animal_id !== undefined) {
-      fields.push('animal_id = ?');
-      values.push(updates.animal_id || null);
-    }
-    if (updates.lot_id !== undefined) {
-      fields.push('lot_id = ?');
-      values.push(updates.lot_id || null);
-    }
-    if (updates.type !== undefined) {
-      fields.push('type = ?');
-      values.push(updates.type);
-    }
-    if (updates.nom_medicament !== undefined) {
-      fields.push('nom_medicament = ?');
-      values.push(updates.nom_medicament);
-    }
-    if (updates.voie_administration !== undefined) {
-      fields.push('voie_administration = ?');
-      values.push(updates.voie_administration);
-    }
-    if (updates.dosage !== undefined) {
-      fields.push('dosage = ?');
-      values.push(updates.dosage);
-    }
-    if (updates.frequence !== undefined) {
-      fields.push('frequence = ?');
-      values.push(updates.frequence);
-    }
-    if (updates.date_debut !== undefined) {
-      fields.push('date_debut = ?');
-      values.push(updates.date_debut);
-    }
-    if (updates.date_fin !== undefined) {
-      fields.push('date_fin = ?');
-      values.push(updates.date_fin || null);
-    }
-    if (updates.duree_jours !== undefined) {
-      fields.push('duree_jours = ?');
-      values.push(updates.duree_jours || null);
-    }
-    if (updates.temps_attente_jours !== undefined) {
-      fields.push('temps_attente_jours = ?');
-      values.push(updates.temps_attente_jours || null);
-    }
-    if (updates.veterinaire !== undefined) {
-      fields.push('veterinaire = ?');
-      values.push(updates.veterinaire || null);
-    }
-    if (updates.cout !== undefined) {
-      fields.push('cout = ?');
-      values.push(updates.cout || null);
-    }
-    if (updates.termine !== undefined) {
-      fields.push('termine = ?');
-      values.push(updates.termine ? 1 : 0);
-    }
-    if (updates.efficace !== undefined) {
-      fields.push('efficace = ?');
-      values.push(updates.efficace !== undefined ? (updates.efficace ? 1 : 0) : null);
-    }
-    if (updates.effets_secondaires !== undefined) {
-      fields.push('effets_secondaires = ?');
-      values.push(updates.effets_secondaires || null);
-    }
-    if (updates.notes !== undefined) {
-      fields.push('notes = ?');
-      values.push(updates.notes || null);
-    }
+    if (updates.maladie_id !== undefined) updateData.maladie_id = updates.maladie_id || null;
+    if (updates.animal_id !== undefined) updateData.animal_id = updates.animal_id || null;
+    if (updates.lot_id !== undefined) updateData.lot_id = updates.lot_id || null;
+    if (updates.type !== undefined) updateData.type = updates.type;
+    if (updates.nom_medicament !== undefined) updateData.nom_medicament = updates.nom_medicament;
+    if (updates.voie_administration !== undefined) updateData.voie_administration = updates.voie_administration;
+    if (updates.dosage !== undefined) updateData.dosage = updates.dosage;
+    if (updates.frequence !== undefined) updateData.frequence = updates.frequence;
+    if (updates.date_debut !== undefined) updateData.date_debut = updates.date_debut;
+    if (updates.date_fin !== undefined) updateData.date_fin = updates.date_fin || null;
+    if (updates.duree_jours !== undefined) updateData.duree_jours = updates.duree_jours || null;
+    if (updates.temps_attente_jours !== undefined) updateData.temps_attente_jours = updates.temps_attente_jours || null;
+    if (updates.veterinaire !== undefined) updateData.veterinaire = updates.veterinaire || null;
+    if (updates.cout !== undefined) updateData.cout = updates.cout || null;
+    if (updates.termine !== undefined) updateData.termine = updates.termine;
+    if (updates.efficace !== undefined) updateData.efficace = updates.efficace !== undefined ? updates.efficace : null;
+    if (updates.effets_secondaires !== undefined) updateData.effets_secondaires = updates.effets_secondaires || null;
+    if (updates.notes !== undefined) updateData.notes = updates.notes || null;
 
-    if (fields.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       const existing = await this.findById(id);
       if (!existing) {
         throw new Error('Traitement introuvable');
@@ -236,22 +146,10 @@ export class TraitementRepository extends BaseRepository<Traitement> {
       return existing;
     }
 
-    fields.push('derniere_modification = ?');
-    values.push(now);
-    values.push(id);
-
-    await this.execute(`UPDATE traitements SET ${fields.join(', ')} WHERE id = ?`, values);
-
-    const updated = await this.findById(id);
-    if (!updated) {
-      throw new Error('Traitement introuvable après mise à jour');
-    }
-    return updated;
+    const updated = await this.executePatch<unknown>(`/sante/traitements/${id}`, updateData);
+    return this.mapRow(updated);
   }
 
-  /**
-   * Obtenir les statistiques de traitements
-   */
   async getStatistiquesTraitements(projetId: string): Promise<{
     total: number;
     enCours: number;
@@ -259,38 +157,34 @@ export class TraitementRepository extends BaseRepository<Traitement> {
     coutTotal: number;
     efficaciteMoyenne: number;
   }> {
-    const total = await this.queryOne<{ count: number }>(
-      'SELECT COUNT(*) as count FROM traitements WHERE projet_id = ?',
-      [projetId]
-    );
+    try {
+      const traitements = await this.findByProjet(projetId);
+      const total = traitements.length;
+      const enCours = traitements.filter(t => !t.termine).length;
+      const termines = traitements.filter(t => t.termine).length;
+      const coutTotal = traitements.reduce((sum, t) => sum + (t.cout || 0), 0);
+      
+      const traitementsEfficaces = traitements.filter(t => t.efficace !== undefined && t.efficace !== null);
+      const efficaciteMoyenne = traitementsEfficaces.length > 0
+        ? traitementsEfficaces.filter(t => t.efficace).length / traitementsEfficaces.length
+        : 0;
 
-    const enCours = await this.queryOne<{ count: number }>(
-      'SELECT COUNT(*) as count FROM traitements WHERE projet_id = ? AND termine = 0',
-      [projetId]
-    );
-
-    const termines = await this.queryOne<{ count: number }>(
-      'SELECT COUNT(*) as count FROM traitements WHERE projet_id = ? AND termine = 1',
-      [projetId]
-    );
-
-    const cout = await this.queryOne<{ total: number }>(
-      'SELECT COALESCE(SUM(cout), 0) as total FROM traitements WHERE projet_id = ?',
-      [projetId]
-    );
-
-    const efficacite = await this.queryOne<{ avg: number }>(
-      'SELECT COALESCE(AVG(efficace), 0) as avg FROM traitements WHERE projet_id = ? AND efficace IS NOT NULL',
-      [projetId]
-    );
-
-    return {
-      total: total?.count || 0,
-      enCours: enCours?.count || 0,
-      termines: termines?.count || 0,
-      coutTotal: cout?.total || 0,
-      efficaciteMoyenne: efficacite?.avg || 0,
-    };
+      return {
+        total,
+        enCours,
+        termines,
+        coutTotal,
+        efficaciteMoyenne,
+      };
+    } catch (error) {
+      console.error('Error getting statistiques traitements:', error);
+      return {
+        total: 0,
+        enCours: 0,
+        termines: 0,
+        coutTotal: 0,
+        efficaciteMoyenne: 0,
+      };
+    }
   }
 }
-

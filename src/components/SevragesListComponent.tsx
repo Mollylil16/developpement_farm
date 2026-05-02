@@ -17,7 +17,9 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadSevrages, deleteSevrage, createSevrage } from '../store/slices/reproductionSlice';
-import { Sevrage, Gestation } from '../types';
+import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
+import { selectProjetActif } from '../store/selectors/projetSelectors';
+import type { Sevrage, Gestation } from '../types/reproduction';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
@@ -31,17 +33,17 @@ export default function SevragesListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canDelete } = useActionPermissions();
-  const gestations = useAppSelector((state) => {
-    const reproState = state.reproduction;
-    if (!reproState?.entities?.gestations || !reproState?.ids?.gestations) return [];
-    return reproState.ids.gestations.map((id) => reproState.entities.gestations[id]).filter(Boolean);
-  });
-  const sevrages = useAppSelector((state) => {
-    const reproState = state.reproduction;
-    if (!reproState?.entities?.sevrages || !reproState?.ids?.sevrages) return [];
-    return reproState.ids.sevrages.map((id) => reproState.entities.sevrages[id]).filter(Boolean);
-  });
+  // ✅ Utiliser les selectors mémorisés pour éviter les rerenders inutiles
+  const gestations = useAppSelector(selectAllGestations);
+  const sevrages = useAppSelector(selectAllSevrages);
   const [loading, setLoading] = useState(false);
+  
+  // Détecter le mode de gestion (individuel ou bande)
+  const projetActif = useAppSelector(selectProjetActif);
+  const isModeBatch = projetActif?.management_method === 'batch';
+  
+  // État pour les bandes (mode bande uniquement)
+  const [batches, setBatches] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedGestation, setSelectedGestation] = useState<Gestation | null>(null);
   const [displayedSevrages, setDisplayedSevrages] = useState<Sevrage[]>([]);
@@ -56,7 +58,25 @@ export default function SevragesListComponent() {
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Charger les bandes en mode batch
+  useEffect(() => {
+    if (!projetActif?.id || !isModeBatch) return;
+
+    const loadBatches = async () => {
+      try {
+        const apiClient = (await import('../services/api/apiClient')).default;
+        const batchesData = await apiClient.get<any[]>(`/batch-pigs/projet/${projetActif.id}`);
+        // Filtrer uniquement les bandes de truies reproductrices
+        const truiesBatches = batchesData.filter((b) => b.category === 'truie_reproductrice');
+        setBatches(truiesBatches);
+      } catch (error) {
+        console.error('Erreur lors du chargement des bandes:', error);
+        setBatches([]);
+      }
+    };
+
+    loadBatches();
+  }, [projetActif?.id, isModeBatch]);
 
   // ✅ MÉMOÏSER les lengths pour éviter les boucles infinies
   const gestationsLength = Array.isArray(gestations) ? gestations.length : 0;
@@ -87,7 +107,7 @@ export default function SevragesListComponent() {
 
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;
-    
+
     setRefreshing(true);
     try {
       await dispatch(loadSevrages(projetActif.id)).unwrap();
@@ -175,8 +195,9 @@ export default function SevragesListComponent() {
       if (projetActif) {
         dispatch(loadSevrages(projetActif.id));
       }
-    } catch (error: any) {
-      Alert.alert('Erreur', error || 'Erreur lors de la création du sevrage');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error) || 'Erreur lors de la création du sevrage';
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -199,7 +220,14 @@ export default function SevragesListComponent() {
 
   const getGestationNom = (gestationId: string) => {
     const gestation = gestations.find((g) => g.id === gestationId);
-    return gestation?.truie_nom || gestation?.truie_id || 'Inconnue';
+    if (!gestation) return 'Inconnue';
+    
+    // En mode batch, indiquer que c'est une bande
+    if (isModeBatch) {
+      return `${gestation.truie_nom || gestation.truie_id} (Bande)`;
+    }
+    
+    return gestation.truie_nom || gestation.truie_id || 'Inconnue';
   };
 
   const formatDate = (dateString: string) => {
@@ -304,7 +332,9 @@ export default function SevragesListComponent() {
                 onPress={() => handleCreateSevrage(gestation)}
               >
                 <Text style={[styles.gestationCardTitle, { color: colors.text }]}>
-                  {gestation.truie_nom || gestation.truie_id}
+                  {isModeBatch 
+                    ? `${gestation.truie_nom || gestation.truie_id} (Bande)`
+                    : (gestation.truie_nom || gestation.truie_id)}
                 </Text>
                 <Text style={[styles.gestationCardSubtitle, { color: colors.textSecondary }]}>
                   {gestation.nombre_porcelets_reel || gestation.nombre_porcelets_prevu} porcelets
@@ -463,7 +493,8 @@ export default function SevragesListComponent() {
                 Informations de la gestation
               </Text>
               <Text style={[styles.infoBoxText, { color: colors.text }]}>
-                Truie: {selectedGestation.truie_nom || selectedGestation.truie_id}
+                {isModeBatch ? 'Bande' : 'Truie'}: {selectedGestation.truie_nom || selectedGestation.truie_id}
+                {isModeBatch && ' (Bande)'}
               </Text>
               <Text style={[styles.infoBoxText, { color: colors.text }]}>
                 Porcelets nés:{' '}

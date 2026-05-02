@@ -57,4 +57,3 @@ export function useNutritionWidget(projetId?: string): NutritionWidgetData | nul
     };
   }, [projetId, rations, rationsBudget]);
 }
-

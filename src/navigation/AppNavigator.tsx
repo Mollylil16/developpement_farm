@@ -3,9 +3,10 @@
  */
 
 import React, { useEffect } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
+import type { ParamListBase } from '@react-navigation/native';
 import { Text, TouchableOpacity, Dimensions, ActivityIndicator, View } from 'react-native';
 import { SCREENS } from './types';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
@@ -14,6 +15,7 @@ import {
   loadCollaborateurActuel,
   clearCollaborateurActuel,
   loadInvitationsEnAttente,
+  loadCollaborationsActives,
 } from '../store/slices/collaborationSlice';
 import { loadUserFromStorageThunk } from '../store/slices/authSlice';
 import { useRole } from '../contexts/RoleContext';
@@ -21,9 +23,10 @@ import { useRolePermissions } from '../hooks/useRolePermissions';
 import LoadingSpinner from '../components/LoadingSpinner';
 import NotificationsManager from '../components/NotificationsManager';
 // Import direct des écrans (React.lazy() n'est pas supporté par React Native)
-import * as LazyScreens from './lazyScreens';
+import * as LazyScreens from './LazyScreens';
 
-import { COLORS } from '../constants/theme';
+import { COLORS, FONT_WEIGHTS } from '../constants/theme';
+import { logger } from '../utils/logger';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -38,19 +41,29 @@ const TAB_WIDTH = SCREEN_WIDTH / 5;
 function MainTabs() {
   const { activeRole, availableRoles } = useRole();
   const rolePermissions = useRolePermissions();
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
-  const currentUser = useAppSelector((state) => state.auth.user);
-  const collaborateurActuel = useAppSelector((state) => state.collaboration.collaborateurActuel);
-  
+  const projetActif = useAppSelector((state) => state.projet?.projetActif);
+  const currentUser = useAppSelector((state) => state.auth?.user);
+  const collaborateurActuel = useAppSelector((state) => state.collaboration?.collaborateurActuel);
+  // 🆕 Projet collaboratif pour vétérinaires/techniciens
+  const projetCollaboratifActif = useAppSelector((state) => state.collaboration?.projetCollaboratifActif);
+
+  // Pour vétérinaires/techniciens, utiliser le projet collaboratif s'il est sélectionné
+  const projetEffectif = (activeRole === 'veterinarian' || activeRole === 'technician')
+    ? projetCollaboratifActif
+    : projetActif;
+
   // Helper pour vérifier les permissions par module (compatibilité avec l'ancien système)
   const hasPermission = (module: string): boolean => {
     if (activeRole === 'producer') {
       // Pour les producteurs, tous les modules sont accessibles
       return true;
     }
-    
+
     // Pour technicien et vétérinaire, vérifier les permissions de collaboration
-    if ((activeRole === 'technician' || activeRole === 'veterinarian') && collaborateurActuel?.permissions) {
+    if (
+      (activeRole === 'technician' || activeRole === 'veterinarian') &&
+      collaborateurActuel?.permissions
+    ) {
       // Vérifier les permissions spécifiques à la ferme via la collaboration
       switch (module) {
         case 'reproduction':
@@ -71,7 +84,7 @@ function MainTabs() {
           return false;
       }
     }
-    
+
     // Pour les autres rôles, utiliser les permissions spécifiques
     switch (module) {
       case 'reproduction':
@@ -89,12 +102,14 @@ function MainTabs() {
         return false;
     }
   };
-  
+
   // Vérifier si l'utilisateur est propriétaire du projet actif
-  const isProprietaire = activeRole === 'producer' && 
-    projetActif && 
-    currentUser && 
-    (projetActif.proprietaire_id === currentUser.id || (projetActif as any).user_id === currentUser.id);
+  const isProprietaire =
+    activeRole === 'producer' &&
+    projetActif &&
+    currentUser &&
+    (projetActif.proprietaire_id === currentUser.id ||
+      ('user_id' in projetActif && (projetActif as { user_id?: string }).user_id === currentUser.id));
 
   return (
     <Tab.Navigator
@@ -168,9 +183,7 @@ function MainTabs() {
             tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>🏠</Text>,
           }}
         >
-          {() => (
-            <LazyScreens.DashboardBuyerScreen />
-          )}
+          {() => <LazyScreens.DashboardBuyerScreen />}
         </Tab.Screen>
       )}
       {activeRole === 'veterinarian' && (
@@ -181,9 +194,7 @@ function MainTabs() {
             tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>🏠</Text>,
           }}
         >
-          {() => (
-            <LazyScreens.DashboardVetScreen />
-          )}
+          {() => <LazyScreens.DashboardVetScreen />}
         </Tab.Screen>
       )}
       {activeRole === 'technician' && (
@@ -194,14 +205,12 @@ function MainTabs() {
             tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>🏠</Text>,
           }}
         >
-          {() => (
-            <LazyScreens.DashboardTechScreen />
-          )}
+          {() => <LazyScreens.DashboardTechScreen />}
         </Tab.Screen>
       )}
 
-      {/* Reproduction - Visible si permission reproduction */}
-      {hasPermission('reproduction') && (
+      {/* Reproduction - Visible si permission reproduction (sauf pour vétérinaires) */}
+      {hasPermission('reproduction') && activeRole !== 'veterinarian' && (
         <Tab.Screen
           name={SCREENS.REPRODUCTION}
           options={{
@@ -209,9 +218,7 @@ function MainTabs() {
             tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>🤰</Text>,
           }}
         >
-          {() => (
-            <LazyScreens.ReproductionScreen />
-          )}
+          {() => <LazyScreens.ReproductionScreen />}
         </Tab.Screen>
       )}
 
@@ -224,14 +231,12 @@ function MainTabs() {
             tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>💰</Text>,
           }}
         >
-          {() => (
-            <LazyScreens.FinanceScreen />
-          )}
+          {() => <LazyScreens.FinanceScreen />}
         </Tab.Screen>
       )}
 
-      {/* Rapports - Visible si permission rapports */}
-      {hasPermission('rapports') && (
+      {/* Rapports - Visible si permission rapports (sauf pour vétérinaires) */}
+      {hasPermission('rapports') && activeRole !== 'veterinarian' && (
         <Tab.Screen
           name={SCREENS.REPORTS}
           options={{
@@ -239,9 +244,33 @@ function MainTabs() {
             tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>📊</Text>,
           }}
         >
-          {() => (
-            <LazyScreens.ReportsScreen />
-          )}
+          {() => <LazyScreens.ReportsScreen />}
+        </Tab.Screen>
+      )}
+
+      {/* Mes Projets - Visible pour les vétérinaires et techniciens */}
+      {(activeRole === 'veterinarian' || activeRole === 'technician') && (
+        <Tab.Screen
+          name={SCREENS.MY_PROJECTS}
+          options={{
+            tabBarLabel: 'Mes Projets',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>🏢</Text>,
+          }}
+        >
+          {() => <LazyScreens.MyProjectsScreen />}
+        </Tab.Screen>
+      )}
+
+      {/* Statistiques - Visible uniquement pour les vétérinaires */}
+      {activeRole === 'veterinarian' && (
+        <Tab.Screen
+          name={SCREENS.STATISTICS}
+          options={{
+            tabBarLabel: 'Stats',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>📈</Text>,
+          }}
+        >
+          {() => <LazyScreens.StatisticsScreen />}
         </Tab.Screen>
       )}
 
@@ -254,9 +283,7 @@ function MainTabs() {
             tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>🏪</Text>,
           }}
         >
-          {() => (
-            <LazyScreens.MarketplaceScreen />
-          )}
+          {() => <LazyScreens.MarketplaceScreen />}
         </Tab.Screen>
       )}
       {/* Modules accessibles via Dashboard : Nutrition, Planning, Collaboration, Mortalités, Production */}
@@ -270,9 +297,7 @@ function MainTabs() {
             tabBarButton: () => <></>, // Caché de la barre mais accessible via navigation
           }}
         >
-          {() => (
-            <LazyScreens.NutritionScreen />
-          )}
+          {() => <LazyScreens.NutritionScreen />}
         </Tab.Screen>
       )}
 
@@ -284,13 +309,11 @@ function MainTabs() {
             tabBarButton: () => <></>,
           }}
         >
-          {() => (
-            <LazyScreens.PlanningProductionScreen />
-          )}
+          {() => <LazyScreens.PlanningProductionScreen />}
         </Tab.Screen>
       )}
 
-      {/* Collaboration - Accessible seulement au propriétaire */}
+      {/* Collaboration - Accessible seulement au propriétaire (caché de la barre) */}
       {isProprietaire && (
         <Tab.Screen
           name={SCREENS.COLLABORATION}
@@ -298,9 +321,20 @@ function MainTabs() {
             tabBarButton: () => <></>,
           }}
         >
-          {() => (
-            <LazyScreens.CollaborationScreen />
-          )}
+          {() => <LazyScreens.CollaborationScreen />}
+        </Tab.Screen>
+      )}
+
+      {/* Collaboration - Accessible aux profils vétérinaire et technicien (visible dans la barre) */}
+      {(activeRole === 'veterinarian' || activeRole === 'technician') && (
+        <Tab.Screen
+          name={SCREENS.COLLABORATION_VET_TECH}
+          options={{
+            tabBarLabel: 'Collaboration',
+            tabBarIcon: ({ color }) => <Text style={{ fontSize: 22 }}>👥</Text>,
+          }}
+        >
+          {() => <LazyScreens.CollaborationVetTechScreen />}
         </Tab.Screen>
       )}
 
@@ -312,9 +346,7 @@ function MainTabs() {
             tabBarButton: () => <></>,
           }}
         >
-          {() => (
-            <LazyScreens.MortalitesScreen />
-          )}
+          {() => <LazyScreens.MortalitesScreen />}
         </Tab.Screen>
       )}
 
@@ -325,9 +357,7 @@ function MainTabs() {
           tabBarButton: () => <></>,
         }}
       >
-        {() => (
-          <LazyScreens.ProductionScreen />
-        )}
+        {() => <LazyScreens.ProductionScreen />}
       </Tab.Screen>
 
       {/* Santé - Accessible si permission sante */}
@@ -338,35 +368,29 @@ function MainTabs() {
             tabBarButton: () => <></>,
           }}
         >
-          {() => (
-            <LazyScreens.SanteScreen />
-          )}
+          {() => <LazyScreens.SanteScreen />}
         </Tab.Screen>
       )}
 
-      {/* Paramètres - Accessible via menu profil (caché de la barre) */}
+      {/* Formation - Accessible via menu profil (caché de la barre) */}
       <Tab.Screen
-        name={SCREENS.PARAMETRES}
+        name={SCREENS.TRAINING}
         options={{
           tabBarButton: () => <></>,
         }}
       >
-        {() => (
-          <LazyScreens.ParametresScreen />
-        )}
+        {() => <LazyScreens.TrainingScreen />}
       </Tab.Screen>
 
       {/* Marketplace Chat - Accessible via navigation */}
+      {/* Note: ChatScreen nécessite des props via route params, pas via Tab.Screen */}
       <Tab.Screen
         name={SCREENS.MARKETPLACE_CHAT}
         options={{
           tabBarButton: () => <></>,
         }}
-      >
-        {() => (
-          <LazyScreens.ChatScreen />
-        )}
-      </Tab.Screen>
+        component={LazyScreens.ChatScreen}
+      />
     </Tab.Navigator>
   );
 }
@@ -374,10 +398,12 @@ function MainTabs() {
 // Navigation principale avec stack pour gestion du projet
 export default function AppNavigator() {
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
-  const { isAuthenticated, isLoading: authLoading, user } = useAppSelector((state) => state.auth);
-  const { invitationsEnAttente } = useAppSelector((state) => state.collaboration);
-  const navigationRef = React.useRef<any>(null);
+  const projetActif = useAppSelector((state) => state.projet?.projetActif);
+  const isAuthenticated = useAppSelector((state) => state.auth?.isAuthenticated);
+  const authLoading = useAppSelector((state) => state.auth?.isLoading);
+  const user = useAppSelector((state) => state.auth?.user);
+  const invitationsEnAttente = useAppSelector((state) => state.collaboration?.invitationsEnAttente || []);
+  const navigationRef = React.useRef<NavigationContainerRef<ParamListBase> | null>(null);
   const lastRouteRef = React.useRef<string | null>(null);
 
   // Note: usePreloadScreens() supprimé car React.lazy() n'est pas supporté par React Native
@@ -398,20 +424,62 @@ export default function AppNavigator() {
   // Utiliser useRef pour éviter de charger plusieurs fois le collaborateur
   const collaborateurChargeRef = React.useRef<string | null>(null);
 
+  // Utiliser useRef pour éviter de charger plusieurs fois les collaborations actives
+  const collaborationsActivesChargeesRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    // 🆕 Pour les vétérinaires/techniciens, charger leurs collaborations actives
+    // (les projets des producteurs auxquels ils ont accès)
+    if (isAuthenticated && user) {
+      const activeRole = user.activeRole || 
+        (user.roles?.producer ? 'producer' : 
+         user.roles?.buyer ? 'buyer' : 
+         user.roles?.veterinarian ? 'veterinarian' : 
+         user.roles?.technician ? 'technician' : 'producer');
+
+      if (activeRole === 'veterinarian' || activeRole === 'technician') {
+        const cle = `${user.id}-${activeRole}`;
+        if (collaborationsActivesChargeesRef.current !== cle) {
+          dispatch(
+            loadCollaborationsActives({
+              userId: user.id,
+              email: user.email || undefined,
+              telephone: user.telephone || undefined,
+            })
+          );
+          collaborationsActivesChargeesRef.current = cle;
+        }
+      }
+    } else {
+      collaborationsActivesChargeesRef.current = null;
+    }
+  }, [dispatch, isAuthenticated, user?.id, user?.activeRole]);
+
   useEffect(() => {
     // Charger le collaborateur actuel quand le projet actif change
+    // Pour les producteurs, utiliser projetActif
+    // Pour les vétérinaires/techniciens, le collaborateurActuel est chargé via selectProjetCollaboratif
     if (isAuthenticated && user && projetActif) {
-      const cle = `${user.id}-${projetActif.id}`;
-      if (collaborateurChargeRef.current !== cle) {
-        dispatch(loadCollaborateurActuel({ userId: user.id, projetId: projetActif.id }));
-        collaborateurChargeRef.current = cle;
+      const activeRole = user.activeRole || 
+        (user.roles?.producer ? 'producer' : 
+         user.roles?.buyer ? 'buyer' : 
+         user.roles?.veterinarian ? 'veterinarian' : 
+         user.roles?.technician ? 'technician' : 'producer');
+
+      // Pour les producteurs uniquement (ou si pas de projet collaboratif sélectionné pour vet/tech)
+      if (activeRole === 'producer') {
+        const cle = `${user.id}-${projetActif.id}`;
+        if (collaborateurChargeRef.current !== cle) {
+          dispatch(loadCollaborateurActuel({ userId: user.id, projetId: projetActif.id }));
+          collaborateurChargeRef.current = cle;
+        }
       }
     } else if (!projetActif) {
       // Si pas de projet actif, effacer le collaborateur actuel
       dispatch(clearCollaborateurActuel());
       collaborateurChargeRef.current = null;
     }
-  }, [dispatch, isAuthenticated, user?.id, projetActif?.id]);
+  }, [dispatch, isAuthenticated, user?.id, user?.activeRole, projetActif?.id]);
 
   // Utiliser useRef pour éviter de charger plusieurs fois les invitations
   const invitationsChargeesRef = React.useRef<string | null>(null);
@@ -425,6 +493,7 @@ export default function AppNavigator() {
           loadInvitationsEnAttente({
             userId: user.id,
             email: user.email || undefined,
+            telephone: user.telephone || undefined,
           })
         );
         invitationsChargeesRef.current = cle;
@@ -441,18 +510,48 @@ export default function AppNavigator() {
 
     let targetRoute: string;
     if (isAuthenticated && user) {
+      // Déterminer le rôle actif de l'utilisateur
+      const activeRole = user.activeRole || 
+        (user.roles?.producer ? 'producer' : 
+         user.roles?.buyer ? 'buyer' : 
+         user.roles?.veterinarian ? 'veterinarian' : 
+         user.roles?.technician ? 'technician' : 'producer');
+      
+      const isProducer = activeRole === 'producer';
+      
       // Si l'utilisateur a un projet actif, aller au Dashboard
       if (projetActif) {
         targetRoute = 'Main';
       }
-      // Si l'utilisateur a des invitations en attente, aller à CreateProjectScreen
-      // (qui affichera le modal d'invitations)
-      else if (invitationsEnAttente.length > 0) {
-        targetRoute = SCREENS.CREATE_PROJECT;
+      // Si l'utilisateur est producteur et n'a pas de projet, rediriger vers création de projet
+      else if (isProducer) {
+        // Si l'utilisateur a des invitations en attente, aller à CreateProjectScreen
+        // (qui affichera le modal d'invitations)
+        if (invitationsEnAttente.length > 0) {
+          targetRoute = SCREENS.CREATE_PROJECT;
+        }
+        // Sinon, créer un projet (obligatoire pour producteur)
+        else {
+          targetRoute = SCREENS.CREATE_PROJECT;
+        }
       }
-      // Sinon, créer un projet
+      // Si l'utilisateur n'est PAS producteur (acheteur, vétérinaire, technicien)
+      // → Accès direct à l'app sans projet
       else {
-        targetRoute = SCREENS.CREATE_PROJECT;
+        // Rediriger vers le dashboard approprié selon le rôle
+        switch (activeRole) {
+          case 'buyer':
+            targetRoute = 'Main'; // Dashboard acheteur
+            break;
+          case 'veterinarian':
+            targetRoute = 'Main'; // Dashboard vétérinaire
+            break;
+          case 'technician':
+            targetRoute = 'Main'; // Dashboard technicien
+            break;
+          default:
+            targetRoute = 'Main';
+        }
       }
     } else if (isAuthenticated && !user) {
       // Utilisateur authentifié mais pas encore chargé - ne rien faire, attendre
@@ -469,13 +568,16 @@ export default function AppNavigator() {
       (currentRoute === SCREENS.AUTH && targetRoute !== SCREENS.AUTH);
 
     if (shouldNavigate) {
-      console.log(
-        '🚀 Navigation vers:',
-        targetRoute,
-        '(depuis:',
-        lastRouteRef.current || currentRoute,
-        ')'
-      );
+      if (process.env.NODE_ENV === 'development') {
+        // Logger uniquement en développement pour éviter les ralentissements en production
+        logger.debug(
+          'Navigation vers:',
+          targetRoute,
+          '(depuis:',
+          lastRouteRef.current || currentRoute,
+          ')'
+        );
+      }
       try {
         navigationRef.current.reset({
           index: 0,
@@ -483,12 +585,10 @@ export default function AppNavigator() {
         });
         lastRouteRef.current = targetRoute;
       } catch (error) {
-        console.error('❌ Erreur lors de la navigation:', error);
+        logger.error('Erreur lors de la navigation:', error);
       }
-    } else {
-      console.log('⏸️ Pas de changement de route nécessaire');
     }
-  }, [isAuthenticated, user, projetActif?.id, authLoading, invitationsEnAttente.length]);
+  }, [isAuthenticated, user, user?.activeRole, user?.roles, projetActif?.id, authLoading, invitationsEnAttente.length]);
 
   return (
     <NavigationContainer ref={navigationRef}>
@@ -496,6 +596,11 @@ export default function AppNavigator() {
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
+          // ✅ S'assurer que le geste de retour fonctionne correctement
+          gestureEnabled: true, // Activer le geste de retour (swipe)
+          gestureDirection: 'horizontal', // Direction du geste
+          // ✅ Comportement par défaut : retour vers l'écran précédent dans la pile
+          headerBackTitleVisible: false, // Masquer le titre du bouton retour (iOS)
           cardStyleInterpolator: ({ current, next, layouts }) => {
             return {
               cardStyle: {
@@ -540,30 +645,57 @@ export default function AppNavigator() {
           },
         }}
       >
-        <Stack.Screen name={SCREENS.WELCOME}>
-          {() => (
-            <LazyScreens.WelcomeScreen />
-          )}
-        </Stack.Screen>
-        <Stack.Screen name={SCREENS.AUTH}>
-          {() => (
-            <LazyScreens.AuthScreen />
-          )}
-        </Stack.Screen>
+        <Stack.Screen name={SCREENS.WELCOME}>{() => <LazyScreens.WelcomeScreen />}</Stack.Screen>
+        <Stack.Screen name={SCREENS.AUTH}>{() => <LazyScreens.AuthScreen />}</Stack.Screen>
         <Stack.Screen name={SCREENS.CREATE_PROJECT}>
-          {() => (
-            <LazyScreens.CreateProjectScreen />
-          )}
+          {() => <LazyScreens.CreateProjectScreen />}
         </Stack.Screen>
-        <Stack.Screen name={SCREENS.PROFIL}>
-          {() => (
-            <LazyScreens.ProfilScreen />
-          )}
+        <Stack.Screen name={SCREENS.PROFIL}>{() => <LazyScreens.ProfilScreen />}</Stack.Screen>
+        <Stack.Screen name={SCREENS.MANAGE_PROFILES}>
+          {() => <LazyScreens.ManageProfilesScreen />}
+        </Stack.Screen>
+        {/* Écrans Collaborations - QR Code */}
+        <Stack.Screen 
+          name={SCREENS.MY_QR_CODE} 
+          options={{ 
+            title: 'Mon QR Code Professionnel',
+            headerShown: true,
+            presentation: 'modal', // Animation modale sur iOS
+            headerStyle: {
+              backgroundColor: COLORS.primary,
+            },
+            headerTintColor: '#FFFFFF',
+            headerTitleStyle: {
+              fontWeight: FONT_WEIGHTS.bold,
+            },
+          }}
+        >
+          {() => <LazyScreens.MyQRCodeScreen />}
+        </Stack.Screen>
+        <Stack.Screen
+          name={SCREENS.SCAN_QR_COLLABORATEUR} 
+          options={{ 
+            headerShown: false, // Fullscreen pour la caméra
+            presentation: 'fullScreenModal', // Plein écran sur iOS
+            gestureEnabled: false, // Désactiver le swipe back pour éviter de fermer la caméra
+          }}
+        >
+          {() => <LazyScreens.ScanQRCollaborateurScreen />}
+        </Stack.Screen>
+        <Stack.Screen
+          name={SCREENS.QR_INVITATION_CONFIG}
+          options={{
+            headerShown: false,
+            presentation: 'card',
+          }}
+        >
+          {() => <LazyScreens.QRInvitationConfigScreen />}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.DOCUMENTS}>
-          {() => (
-            <LazyScreens.DocumentsScreen />
-          )}
+          {() => <LazyScreens.DocumentsScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.LOGIN_LOGS}>
+          {() => <LazyScreens.LoginLogsScreen />}
         </Stack.Screen>
         {/* Écran de Formation - Navigation directe depuis le menu profil */}
         <Stack.Screen name={SCREENS.TRAINING} options={{ headerShown: false }}>
@@ -572,85 +704,100 @@ export default function AppNavigator() {
           )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.ADMIN} options={{ headerShown: false }}>
-          {() => (
-            <LazyScreens.AdminScreen />
-          )}
+          {() => <LazyScreens.AdminScreen />}
         </Stack.Screen>
-        {/* 🆕 Écrans d'onboarding */}
+        {/* 🆕 Écrans d'onboarding - NOUVELLE ARCHITECTURE AUTH */}
         <Stack.Screen name={SCREENS.ONBOARDING_AUTH}>
-          {() => (
-            <LazyScreens.OnboardingAuthScreen />
-          )}
+          {() => <LazyScreens.OnboardingAuthScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.SIGN_UP_METHOD} options={{ headerShown: false }}>
+          {() => <LazyScreens.SignUpMethodScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.PHONE_SIGN_UP} options={{ headerShown: false }}>
+          {() => <LazyScreens.PhoneSignUpScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.USER_INFO} options={{ headerShown: false }}>
+          {() => <LazyScreens.UserInfoScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.SIGN_IN} options={{ headerShown: false }}>
+          {() => <LazyScreens.SignInScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.FORGOT_PASSWORD}>
+          {() => <LazyScreens.ForgotPasswordScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.RESET_PASSWORD}>
+          {() => <LazyScreens.ResetPasswordScreen />}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.PROFILE_SELECTION}>
-          {() => (
-            <LazyScreens.ProfileSelectionScreen />
-          )}
+          {() => <LazyScreens.ProfileSelectionScreen />}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.BUYER_INFO_COMPLETION}>
-          {() => (
-            <LazyScreens.BuyerInfoCompletionScreen />
-          )}
+          {() => <LazyScreens.BuyerInfoCompletionScreen />}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.VETERINARIAN_INFO_COMPLETION}>
-          {() => (
-            <LazyScreens.VeterinarianInfoCompletionScreen />
-          )}
+          {() => <LazyScreens.VeterinarianInfoCompletionScreen />}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.VET_PROPOSE_FARMS}>
-          {() => (
-            <LazyScreens.VetProposeFarmsScreen />
-          )}
+          {() => <LazyScreens.VetProposeFarmsScreen />}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.SERVICE_PROPOSAL_NOTIFICATIONS}>
-          {() => (
-            <LazyScreens.ServiceProposalNotificationsScreen />
-          )}
+          {() => <LazyScreens.ServiceProposalNotificationsScreen />}
         </Stack.Screen>
         {/* 🆕 Écrans spécifiques aux rôles */}
         <Stack.Screen name={SCREENS.MY_PURCHASES}>
-          {() => (
-            <LazyScreens.MyPurchasesScreen />
-          )}
+          {() => <LazyScreens.MyPurchasesScreen />}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.MY_CLIENTS}>
-          {() => (
-            <LazyScreens.MyClientsScreen />
-          )}
+          {() => <LazyScreens.MyClientsScreen />}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.CONSULTATIONS}>
-          {() => (
-            <LazyScreens.ConsultationsScreen />
-          )}
+          {() => <LazyScreens.ConsultationsScreen />}
         </Stack.Screen>
-        <Stack.Screen name={SCREENS.MY_FARMS}>
-          {() => (
-            <LazyScreens.MyFarmsScreen />
-          )}
-        </Stack.Screen>
-        <Stack.Screen name={SCREENS.TASKS}>
-          {() => (
-            <LazyScreens.TasksScreen />
-          )}
-        </Stack.Screen>
-        <Stack.Screen name={SCREENS.RECORDS}>
-          {() => (
-            <LazyScreens.RecordsScreen />
-          )}
-        </Stack.Screen>
-        <Stack.Screen name={SCREENS.OFFERS}>
-          {() => (
-            <LazyScreens.MarketplaceScreen />
-          )}
-        </Stack.Screen>
+        <Stack.Screen name={SCREENS.MY_FARMS}>{() => <LazyScreens.MyFarmsScreen />}</Stack.Screen>
+        <Stack.Screen name={SCREENS.TASKS}>{() => <LazyScreens.TasksScreen />}</Stack.Screen>
+        <Stack.Screen name={SCREENS.RECORDS}>{() => <LazyScreens.RecordsScreen />}</Stack.Screen>
+        <Stack.Screen name={SCREENS.OFFERS}>{() => <LazyScreens.MarketplaceScreen />}</Stack.Screen>
         <Stack.Screen name={SCREENS.CHAT_AGENT}>
-          {() => (
-            <LazyScreens.ChatAgentScreen />
-          )}
+          {() => <LazyScreens.ChatAgentScreen />}
+        </Stack.Screen>
+        {/* Écrans unifiés (supportent les deux modes : individuel et batch) */}
+        <Stack.Screen name={SCREENS.VACCINATION}>
+          {() => <LazyScreens.VaccinationScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.WEIGHING}>
+          {() => <LazyScreens.WeighingScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.SALE}>
+          {() => <LazyScreens.SaleScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.MORTALITY}>
+          {() => <LazyScreens.MortalityScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.DISEASE}>
+          {() => <LazyScreens.DiseaseScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.GESTATION}>
+          {() => <LazyScreens.GestationScreen />}
+        </Stack.Screen>
+        {/* Écrans de détails */}
+        <Stack.Screen name={SCREENS.SUJET_PESEE_DETAIL}>
+          {() => <LazyScreens.SujetPeseeDetailScreen />}
+        </Stack.Screen>
+        {/* 🆕 Écrans pour vétérinaires et techniciens */}
+        <Stack.Screen name={SCREENS.VET_PROJECT_DETAIL}>
+          {() => <LazyScreens.VetProjectDetailScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.VET_CONSULTATIONS}>
+          {() => <LazyScreens.VetConsultationsScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.VET_REPORTS}>
+          {() => <LazyScreens.VetReportsScreen />}
+        </Stack.Screen>
+        <Stack.Screen name={SCREENS.VET_TREATMENTS}>
+          {() => <LazyScreens.VetTreatmentsScreen />}
         </Stack.Screen>
         <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
-

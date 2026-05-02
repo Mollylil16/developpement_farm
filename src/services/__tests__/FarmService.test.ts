@@ -17,7 +17,10 @@ jest.mock('../../database/repositories/CollaborateurRepository');
 jest.mock('../ServiceProposalNotificationService');
 
 const mockGetDatabase = getDatabase as jest.MockedFunction<typeof getDatabase>;
-const mockGetServiceProposalNotificationService = getServiceProposalNotificationService as jest.MockedFunction<typeof getServiceProposalNotificationService>;
+const mockGetServiceProposalNotificationService =
+  getServiceProposalNotificationService as jest.MockedFunction<
+    typeof getServiceProposalNotificationService
+  >;
 
 describe('FarmService', () => {
   let service: FarmService;
@@ -165,7 +168,9 @@ describe('FarmService', () => {
         user_id: 'producer-1',
       } as any;
 
-      mockUserRepo.findById.mockResolvedValueOnce(mockVet).mockResolvedValueOnce({ id: 'producer-1' } as any);
+      mockUserRepo.findById
+        .mockResolvedValueOnce(mockVet)
+        .mockResolvedValueOnce({ id: 'producer-1' } as any);
       mockProjetRepo.findById.mockResolvedValue(mockFarm);
       mockNotificationService.notifyProducerOfProposal.mockResolvedValue(undefined);
 
@@ -178,7 +183,9 @@ describe('FarmService', () => {
     it('devrait lancer une erreur si vétérinaire non trouvé', async () => {
       mockUserRepo.findById.mockResolvedValue(null);
 
-      await expect(service.proposeServiceToFarm('vet-1', 'farm-1', 'Message')).rejects.toThrow('Vétérinaire non trouvé');
+      await expect(service.proposeServiceToFarm('vet-1', 'farm-1', 'Message')).rejects.toThrow(
+        'Vétérinaire non trouvé'
+      );
     });
 
     it('devrait lancer une erreur si profil non validé', async () => {
@@ -193,7 +200,9 @@ describe('FarmService', () => {
 
       mockUserRepo.findById.mockResolvedValue(mockVet);
 
-      await expect(service.proposeServiceToFarm('vet-1', 'farm-1', 'Message')).rejects.toThrow('profil doit être validé');
+      await expect(service.proposeServiceToFarm('vet-1', 'farm-1', 'Message')).rejects.toThrow(
+        'profil doit être validé'
+      );
     });
   });
 
@@ -203,9 +212,7 @@ describe('FarmService', () => {
         id: 'vet-1',
         roles: {
           veterinarian: {
-            serviceProposals: [
-              { farmId: 'farm-1', status: 'pending' },
-            ],
+            serviceProposals: [{ farmId: 'farm-1', status: 'pending' }],
             clients: [],
           },
         },
@@ -217,7 +224,9 @@ describe('FarmService', () => {
         user_id: 'producer-1',
       } as any;
 
-      mockUserRepo.findById.mockResolvedValueOnce(mockVet).mockResolvedValueOnce({ id: 'producer-1' } as any);
+      mockUserRepo.findById
+        .mockResolvedValueOnce(mockVet)
+        .mockResolvedValueOnce({ id: 'producer-1' } as any);
       mockProjetRepo.findById.mockResolvedValue(mockFarm);
       mockCollaborateurRepo.findByProjet = jest.fn().mockResolvedValue([]);
       mockCollaborateurRepo.create.mockResolvedValue({
@@ -237,9 +246,7 @@ describe('FarmService', () => {
         id: 'vet-1',
         roles: {
           veterinarian: {
-            serviceProposals: [
-              { farmId: 'farm-1', status: 'pending' },
-            ],
+            serviceProposals: [{ farmId: 'farm-1', status: 'pending' }],
             clients: [],
           },
         },
@@ -251,7 +258,9 @@ describe('FarmService', () => {
         user_id: 'producer-1',
       } as any;
 
-      mockUserRepo.findById.mockResolvedValueOnce(mockVet).mockResolvedValueOnce({ id: 'producer-1' } as any);
+      mockUserRepo.findById
+        .mockResolvedValueOnce(mockVet)
+        .mockResolvedValueOnce({ id: 'producer-1' } as any);
       mockProjetRepo.findById.mockResolvedValue(mockFarm);
 
       await service.respondToServiceProposal('proposal-1', 'farm-1', 'vet-1', 'rejected');
@@ -283,4 +292,3 @@ describe('FarmService', () => {
     });
   });
 });
-

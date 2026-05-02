@@ -16,6 +16,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { LineChart, PieChart } from 'react-native-chart-kit';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 // Les animaux sont chargés automatiquement par useAnimauxActifs dans LivestockStatsCard
 import {
@@ -37,6 +38,7 @@ import LivestockStatsCard from './finance/LivestockStatsCard';
 import RevenueProjectionsCard from './finance/RevenueProjectionsCard';
 // OpexCapexChart déplacé dans FinanceBilanComptableComponent
 import { exportFinancePDF } from '../services/pdf/financePDF';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -49,17 +51,78 @@ export default function FinanceGraphiquesComponent() {
   const chargesFixes = useAppSelector(selectAllChargesFixes);
   const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
   const revenus = useAppSelector(selectAllRevenus);
-  const financeLoading = useAppSelector((state) => state.finance.loading);
-  const { projetActif } = useAppSelector((state) => state.projet);
-  // Charger les données financières uniquement
-  // Les animaux sont chargés automatiquement par useAnimauxActifs dans LivestockStatsCard
-  useEffect(() => {
-    if (projetActif) {
-      dispatch(loadRevenus(projetActif.id));
-      dispatch(loadChargesFixes(projetActif.id));
-      dispatch(loadDepensesPonctuelles(projetActif.id));
-    }
-  }, [dispatch, projetActif?.id]);
+  const financeLoading = useAppSelector((state) => state.finance?.loading ?? false);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
+  
+  // Référence pour le dernier chargement (éviter les appels excessifs)
+  const lastLoadRef = useRef<{ projetId: string | null; timestamp: number }>({ projetId: null, timestamp: 0 });
+  const MIN_RELOAD_INTERVAL = 120000; // 2 minutes minimum entre rechargements automatiques
+  
+  // Charger les données financières uniquement quand l'écran est visible (useFocusEffect)
+  // AVEC condition de temps pour éviter les appels excessifs
+  useFocusEffect(
+    useCallback(() => {
+      if (!projetActif?.id) {
+        return;
+      }
+
+      const now = Date.now();
+      const sameProject = lastLoadRef.current.projetId === projetActif.id;
+      const recentLoad = sameProject && (now - lastLoadRef.current.timestamp) < MIN_RELOAD_INTERVAL;
+
+      // Ne pas recharger si données récentes (< 2 min) pour le même projet
+      if (recentLoad) {
+        if (__DEV__) {
+          console.log(`[FinanceGraphiquesComponent] Skip reload - données récentes (${Math.round((now - lastLoadRef.current.timestamp) / 1000)}s)`);
+        }
+        return;
+      }
+
+      lastLoadRef.current = { projetId: projetActif.id, timestamp: now };
+      
+      if (__DEV__) {
+        console.log(`[FinanceGraphiquesComponent] Chargement des données financières pour projet: ${projetActif.id}`);
+      }
+      
+      // Charger les données financières uniquement quand l'écran est visible
+      dispatch(loadRevenus(projetActif.id))
+        .then((result) => {
+          if (loadRevenus.fulfilled.match(result)) {
+            console.log(`[FinanceGraphiquesComponent] ${result.payload.length} revenus chargés`);
+          } else {
+            console.error('[FinanceGraphiquesComponent] Erreur chargement revenus:', result.payload);
+          }
+        })
+        .catch((error) => {
+          console.error('[FinanceGraphiquesComponent] Erreur lors du chargement des revenus:', error);
+        });
+      
+      dispatch(loadChargesFixes(projetActif.id))
+        .then((result) => {
+          if (loadChargesFixes.fulfilled.match(result)) {
+            console.log(`[FinanceGraphiquesComponent] ${result.payload.length} charges fixes chargées`);
+          } else {
+            console.error('[FinanceGraphiquesComponent] Erreur chargement charges fixes:', result.payload);
+          }
+        })
+        .catch((error) => {
+          console.error('[FinanceGraphiquesComponent] Erreur lors du chargement des charges fixes:', error);
+        });
+      
+      dispatch(loadDepensesPonctuelles(projetActif.id))
+        .then((result) => {
+          if (loadDepensesPonctuelles.fulfilled.match(result)) {
+            console.log(`[FinanceGraphiquesComponent] ${result.payload.length} dépenses ponctuelles chargées`);
+          } else {
+            console.error('[FinanceGraphiquesComponent] Erreur chargement dépenses ponctuelles:', result.payload);
+          }
+        })
+        .catch((error) => {
+          console.error('[FinanceGraphiquesComponent] Erreur lors du chargement des dépenses ponctuelles:', error);
+        });
+    }, [dispatch, projetActif?.id])
+  );
 
   // Fonction de rafraîchissement
   const onRefresh = useCallback(async () => {
@@ -102,10 +165,15 @@ export default function FinanceGraphiquesComponent() {
 
     setExportingPDF(true);
     try {
+      // Filtrer les données par projet pour l'export
+      const chargesFixesProjet = chargesFixes.filter((cf) => cf.projet_id === projetActif.id);
+      const depensesPonctuellesProjet = depensesPonctuelles.filter((dp) => dp.projet_id === projetActif.id);
+      const revenusProjet = revenus.filter((r) => r.projet_id === projetActif.id);
+
       // Calculer les totaux
-      const totalCharges = chargesFixes.reduce((sum, c) => sum + c.montant, 0);
-      const totalDepenses = depensesPonctuelles.reduce((sum, d) => sum + d.montant, 0);
-      const totalRevenus = revenus.reduce((sum, r) => sum + r.montant, 0);
+      const totalCharges = chargesFixesProjet.reduce((sum, c) => sum + c.montant, 0);
+      const totalDepenses = depensesPonctuellesProjet.reduce((sum, d) => sum + d.montant, 0);
+      const totalRevenus = revenusProjet.reduce((sum, r) => sum + r.montant, 0);
       const solde = totalRevenus - (totalCharges + totalDepenses);
 
       // Calculer les moyennes mensuelles (basé sur les 6 derniers mois)
@@ -113,12 +181,36 @@ export default function FinanceGraphiquesComponent() {
       const depensesMensuelle = (totalCharges + totalDepenses) / nombreMois;
       const revenusMensuel = totalRevenus / nombreMois;
 
+      // Déterminer la période pour la performance globale
+      // Utiliser les 6 derniers mois ou toute la période disponible
+      const dateFin = new Date();
+      const dateDebut = subMonths(dateFin, nombreMois);
+      
+      // Ajuster la date de début si le projet est plus récent
+      const dateCreationProjet = projetActif.date_creation ? new Date(projetActif.date_creation) : null;
+      const dateDebutFinal = dateCreationProjet && dateCreationProjet > dateDebut ? dateCreationProjet : dateDebut;
+
+      // Récupérer les données de performance globale pour la période
+      let performanceGlobale = null;
+      try {
+        const { default: PerformanceGlobaleService } = await import('../services/PerformanceGlobaleService');
+        performanceGlobale = await PerformanceGlobaleService.calculatePerformanceGlobalePeriode(
+          projetActif.id,
+          dateDebutFinal,
+          dateFin,
+          projetActif
+        );
+      } catch (error) {
+        console.warn("Erreur lors de la récupération de la performance globale:", error);
+        // Continuer sans les données de performance globale
+      }
+
       // Préparer les données pour le PDF
       const financeData = {
         projet: projetActif,
-        chargesFixes: chargesFixes,
-        depensesPonctuelles: depensesPonctuelles,
-        revenus: revenus,
+        chargesFixes: chargesFixesProjet,
+        depensesPonctuelles: depensesPonctuellesProjet,
+        revenus: revenusProjet,
         totaux: {
           chargesFixes: totalCharges,
           depensesPonctuelles: totalDepenses,
@@ -130,6 +222,9 @@ export default function FinanceGraphiquesComponent() {
           depensesMensuelle: depensesMensuelle,
           revenusMensuel: revenusMensuel,
         },
+        performanceGlobale: performanceGlobale,
+        dateDebut: dateDebutFinal,
+        dateFin: dateFin,
       };
 
       // Générer et partager le PDF
@@ -148,10 +243,59 @@ export default function FinanceGraphiquesComponent() {
     } finally {
       setExportingPDF(false);
     }
-  }, [projetActif, chargesFixes, depensesPonctuelles, revenus]);
+  }, [projetActif, chargesFixes, depensesPonctuelles, revenus, dispatch]);
+
+  // Filtrer les données par projet actif
+  const chargesFixesProjet = useMemo(() => {
+    if (!projetActif?.id) {
+      console.log('[FinanceGraphiquesComponent] Pas de projet actif pour filtrer les charges fixes');
+      return [];
+    }
+    const filtered = chargesFixes.filter((cf) => cf.projet_id === projetActif.id);
+    console.log(`[FinanceGraphiquesComponent] ${chargesFixes.length} charges fixes totales, ${filtered.length} pour projet ${projetActif.id}`);
+    if (chargesFixes.length > 0 && filtered.length === 0) {
+      console.warn('[FinanceGraphiquesComponent] Aucune charge fixe ne correspond au projet actif. IDs projets dans chargesFixes:', chargesFixes.map(cf => cf.projet_id));
+    }
+    return filtered;
+  }, [chargesFixes, projetActif?.id]);
+
+  const depensesPonctuellesProjet = useMemo(() => {
+    if (!projetActif?.id) {
+      console.log('[FinanceGraphiquesComponent] Pas de projet actif pour filtrer les dépenses ponctuelles');
+      return [];
+    }
+    const filtered = depensesPonctuelles.filter((dp) => dp.projet_id === projetActif.id);
+    console.log(`[FinanceGraphiquesComponent] ${depensesPonctuelles.length} dépenses ponctuelles totales, ${filtered.length} pour projet ${projetActif.id}`);
+    if (depensesPonctuelles.length > 0 && filtered.length === 0) {
+      console.warn('[FinanceGraphiquesComponent] Aucune dépense ponctuelle ne correspond au projet actif. IDs projets dans depensesPonctuelles:', depensesPonctuelles.map(dp => dp.projet_id));
+    }
+    return filtered;
+  }, [depensesPonctuelles, projetActif?.id]);
+
+  const revenusProjet = useMemo(() => {
+    if (!projetActif?.id) {
+      console.log('[FinanceGraphiquesComponent] Pas de projet actif pour filtrer les revenus');
+      return [];
+    }
+    const filtered = revenus.filter((r) => r.projet_id === projetActif.id);
+    console.log(`[FinanceGraphiquesComponent] ${revenus.length} revenus totaux, ${filtered.length} pour projet ${projetActif.id}`);
+    if (revenus.length > 0 && filtered.length === 0) {
+      console.warn('[FinanceGraphiquesComponent] Aucun revenu ne correspond au projet actif. IDs projets dans revenus:', revenus.map(r => r.projet_id));
+    }
+    return filtered;
+  }, [revenus, projetActif?.id]);
 
   // Calcul des données pour les graphiques
   const graphData = useMemo(() => {
+    if (!projetActif?.id) {
+      return {
+        lineChartData: { labels: [], datasets: [{ data: [] }] },
+        pieChartData: [],
+        revenusPieChartData: [],
+        monthsData: [],
+      };
+    }
+
     const now = new Date();
 
     // Calculer les dépenses planifiées et réelles pour les 6 derniers mois
@@ -162,9 +306,9 @@ export default function FinanceGraphiquesComponent() {
       const monthEnd = endOfMonth(monthDate);
       const monthKey = format(monthDate, 'MMM');
 
-      // Dépenses planifiées (charges fixes actives)
+      // Dépenses planifiées (charges fixes actives du projet)
       let planifie = 0;
-      chargesFixes
+      chargesFixesProjet
         .filter((cf) => cf.statut === 'actif')
         .forEach((cf) => {
           const cfDate = parseISO(cf.date_debut);
@@ -179,16 +323,16 @@ export default function FinanceGraphiquesComponent() {
           }
         });
 
-      // Dépenses réelles (dépenses ponctuelles du mois)
-      const reel = depensesPonctuelles
+      // Dépenses réelles (dépenses ponctuelles du mois du projet)
+      const reel = depensesPonctuellesProjet
         .filter((dp) => {
           const dpDate = parseISO(dp.date);
           return dpDate >= monthStart && dpDate <= monthEnd;
         })
         .reduce((sum, dp) => sum + dp.montant, 0);
 
-      // Revenus du mois
-      const revenusMois = revenus
+      // Revenus du mois du projet
+      const revenusMois = revenusProjet
         .filter((r) => {
           const rDate = parseISO(r.date);
           return rDate >= monthStart && rDate <= monthEnd;
@@ -203,16 +347,16 @@ export default function FinanceGraphiquesComponent() {
       });
     }
 
-    // Données pour le graphique par catégorie de dépenses
+    // Données pour le graphique par catégorie de dépenses (du projet)
     const categoryData: Record<string, number> = {};
-    depensesPonctuelles.forEach((dp) => {
+    depensesPonctuellesProjet.forEach((dp) => {
       const category = dp.categorie;
       categoryData[category] = (categoryData[category] || 0) + dp.montant;
     });
 
-    // Données pour le graphique par catégorie de revenus
+    // Données pour le graphique par catégorie de revenus (du projet)
     const revenusCategoryData: Record<string, number> = {};
-    revenus.forEach((r) => {
+    revenusProjet.forEach((r) => {
       const category = r.categorie;
       revenusCategoryData[category] = (revenusCategoryData[category] || 0) + r.montant;
     });
@@ -268,8 +412,8 @@ export default function FinanceGraphiquesComponent() {
     const revenusMois = currentMonth.revenus;
     const ecart = budgetMois - depensesReelles;
     const solde = revenusMois - depensesReelles;
-    const depensesTotal = depensesPonctuelles.reduce((sum, dp) => sum + dp.montant, 0);
-    const revenusTotal = revenus.reduce((sum, r) => sum + r.montant, 0);
+    const depensesTotal = depensesPonctuellesProjet.reduce((sum, dp) => sum + dp.montant, 0);
+    const revenusTotal = revenusProjet.reduce((sum, r) => sum + r.montant, 0);
     const soldeTotal = revenusTotal - depensesTotal;
 
     // Calculer les tendances (comparaison avec le mois précédent)
@@ -309,7 +453,7 @@ export default function FinanceGraphiquesComponent() {
       tauxEpargne: Math.max(0, Math.min(100, tauxEpargne)), // S'assurer que le taux est entre 0 et 100
       currentMonthName: format(now, 'MMMM yyyy', { locale: fr }),
     };
-  }, [chargesFixes, depensesPonctuelles, revenus]);
+  }, [chargesFixesProjet, depensesPonctuellesProjet, revenusProjet, projetActif?.id]);
 
   const chartConfig = useMemo(
     () => ({
@@ -333,6 +477,8 @@ export default function FinanceGraphiquesComponent() {
 
   // Calculer les données pour le graphique réel et revenus (utilisé dans le rendu)
   const monthsDataForReel = useMemo(() => {
+    if (!projetActif?.id) return [];
+
     const now = new Date();
     const data = [];
     for (let i = 5; i >= 0; i--) {
@@ -340,14 +486,14 @@ export default function FinanceGraphiquesComponent() {
       const monthStart = startOfMonth(monthDate);
       const monthEnd = endOfMonth(monthDate);
 
-      const reel = depensesPonctuelles
+      const reel = depensesPonctuellesProjet
         .filter((dp) => {
           const dpDate = parseISO(dp.date);
           return dpDate >= monthStart && dpDate <= monthEnd;
         })
         .reduce((sum, dp) => sum + dp.montant, 0);
 
-      const revenusMois = revenus
+      const revenusMois = revenusProjet
         .filter((r) => {
           const rDate = parseISO(r.date);
           return rDate >= monthStart && rDate <= monthEnd;
@@ -357,21 +503,21 @@ export default function FinanceGraphiquesComponent() {
       data.push({ reel, revenus: revenusMois });
     }
     return data;
-  }, [depensesPonctuelles, revenus]);
+  }, [depensesPonctuellesProjet, revenusProjet, projetActif?.id]);
 
-  const formatAmount = (amount: number) => {
+  const formatAmount = (amount: number | undefined) => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'XOF',
       minimumFractionDigits: 0,
-    }).format(amount);
+    }).format(amount ?? 0);
   };
 
-  const formatAmountParts = (amount: number) => {
+  const formatAmountParts = (amount: number | undefined) => {
     const formatted = new Intl.NumberFormat('fr-FR', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(amount ?? 0);
     return { number: formatted, currency: 'F' };
   };
 
@@ -420,7 +566,7 @@ export default function FinanceGraphiquesComponent() {
             <View
               style={styles.column}
               accessible={true}
-              accessibilityLabel={`Revenus: ${formatAmount(graphData.revenusMois)}${graphData.revenusTrend !== null ? `, ${graphData.revenusTrend >= 0 ? 'augmentation' : 'diminution'} de ${Math.abs(graphData.revenusTrend).toFixed(1)}%` : ''}`}
+              accessibilityLabel={`Revenus: ${formatAmount(graphData.revenusMois)}${graphData.revenusTrend != null ? `, ${graphData.revenusTrend >= 0 ? 'augmentation' : 'diminution'} de ${Math.abs(graphData.revenusTrend).toFixed(1)}%` : ''}`}
               accessibilityRole="text"
             >
               <Text style={styles.columnIcon}>💰</Text>
@@ -437,7 +583,7 @@ export default function FinanceGraphiquesComponent() {
                   {formatAmountParts(graphData.revenusMois).currency}
                 </Text>
               </View>
-              {graphData.revenusTrend !== null && (
+              {graphData.revenusTrend != null && (
                 <Text
                   style={[
                     styles.columnTrend,
@@ -462,7 +608,7 @@ export default function FinanceGraphiquesComponent() {
             <View
               style={styles.column}
               accessible={true}
-              accessibilityLabel={`Dépenses: ${formatAmount(graphData.depensesReelles)}${graphData.depensesTrend !== null ? `, ${graphData.depensesTrend >= 0 ? 'augmentation' : 'diminution'} de ${Math.abs(graphData.depensesTrend).toFixed(1)}%` : ''}`}
+              accessibilityLabel={`Dépenses: ${formatAmount(graphData.depensesReelles)}${graphData.depensesTrend != null ? `, ${graphData.depensesTrend >= 0 ? 'augmentation' : 'diminution'} de ${Math.abs(graphData.depensesTrend).toFixed(1)}%` : ''}`}
               accessibilityRole="text"
             >
               <Text style={styles.columnIcon}>💸</Text>
@@ -479,7 +625,7 @@ export default function FinanceGraphiquesComponent() {
                   {formatAmountParts(graphData.depensesReelles).currency}
                 </Text>
               </View>
-              {graphData.depensesTrend !== null && (
+              {graphData.depensesTrend != null && (
                 <Text
                   style={[
                     styles.columnTrend,
@@ -504,7 +650,7 @@ export default function FinanceGraphiquesComponent() {
             <View
               style={styles.column}
               accessible={true}
-              accessibilityLabel={`Solde: ${formatAmount(graphData.solde)}, ${graphData.solde >= 0 ? 'positif' : 'négatif'}`}
+              accessibilityLabel={`Solde: ${formatAmount(graphData.solde)}, ${(graphData.solde ?? 0) >= 0 ? 'positif' : 'négatif'}`}
               accessibilityRole="text"
             >
               <Text style={styles.columnIcon}>💳</Text>
@@ -515,7 +661,7 @@ export default function FinanceGraphiquesComponent() {
                     styles.columnAmount,
                     {
                       color:
-                        graphData.solde >= 0
+                        (graphData.solde ?? 0) >= 0
                           ? colors.primary || '#3B82F6'
                           : colors.error || '#EF4444',
                     },
@@ -530,7 +676,7 @@ export default function FinanceGraphiquesComponent() {
                     styles.columnCurrency,
                     {
                       color:
-                        graphData.solde >= 0
+                        (graphData.solde ?? 0) >= 0
                           ? colors.primary || '#3B82F6'
                           : colors.error || '#EF4444',
                     },
@@ -544,13 +690,13 @@ export default function FinanceGraphiquesComponent() {
                   styles.columnStatus,
                   {
                     color:
-                      graphData.solde >= 0
+                      (graphData.solde ?? 0) >= 0
                         ? colors.success || '#10B981'
                         : colors.error || '#EF4444',
                   },
                 ]}
               >
-                {graphData.solde >= 0 ? 'Positif' : 'Négatif'}
+                {(graphData.solde ?? 0) >= 0 ? 'Positif' : 'Négatif'}
               </Text>
             </View>
           </View>
@@ -558,20 +704,20 @@ export default function FinanceGraphiquesComponent() {
           {/* Recommandation */}
           {(() => {
             const pourcentageDepenses =
-              graphData.revenusMois > 0
-                ? (graphData.depensesReelles / graphData.revenusMois) * 100
+              (graphData.revenusMois ?? 0) > 0
+                ? ((graphData.depensesReelles ?? 0) / (graphData.revenusMois ?? 1)) * 100
                 : 0;
 
             let recommandation = '';
             let icon = '';
             let color = colors.primary;
 
-            if (graphData.solde < 0) {
+            if ((graphData.solde ?? 0) < 0) {
               icon = '⚠️';
               color = colors.error;
               recommandation =
                 'Attention : Vos dépenses dépassent vos revenus. Réduisez les dépenses ou augmentez vos revenus.';
-            } else if (graphData.solde === 0) {
+            } else if ((graphData.solde ?? 0) === 0) {
               icon = '⚖️';
               color = colors.warning;
               recommandation =
@@ -764,7 +910,7 @@ export default function FinanceGraphiquesComponent() {
               style={[
                 styles.summaryValue,
                 {
-                  color: graphData.soldeTotal >= 0 ? colors.success : colors.error,
+                  color: (graphData.soldeTotal ?? 0) >= 0 ? colors.success : colors.error,
                   fontWeight: 'bold',
                 },
               ]}

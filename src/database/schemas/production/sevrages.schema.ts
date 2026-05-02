@@ -24,4 +24,3 @@ export async function createSevragesTable(db: SQLite.SQLiteDatabase): Promise<vo
     );
   `);
 }
-

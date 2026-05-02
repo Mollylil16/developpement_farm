@@ -1,7 +1,7 @@
 /**
  * Migration 21 : Synchroniser actif avec statut pour production_animaux
  * Assure la cohérence entre les deux colonnes
- * 
+ *
  * Version: 21
  */
 
@@ -25,4 +25,3 @@ export async function syncActifStatut(db: SQLiteDatabase): Promise<void> {
     console.log('✅ Migration: Colonne actif synchronisée avec statut');
   }
 }
-

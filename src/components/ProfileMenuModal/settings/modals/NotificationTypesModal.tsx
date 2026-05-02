@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../../../../constants/theme';
 import CustomModal from '../../../CustomModal';
+import { logger } from '../../../../utils/logger';
 
 const NOTIFICATION_TYPES_KEY = '@fermier_pro:notification_types';
 
@@ -39,7 +40,7 @@ export default function NotificationTypesModal({
         setEnabled(settings[type] !== false);
       }
     } catch (error) {
-      console.error('Erreur chargement notifications:', error);
+      logger.error('Erreur chargement notifications:', error);
     }
   };
 
@@ -51,7 +52,7 @@ export default function NotificationTypesModal({
       await AsyncStorage.setItem(NOTIFICATION_TYPES_KEY, JSON.stringify(settings));
       onClose();
     } catch (error) {
-      console.error('Erreur sauvegarde notifications:', error);
+      logger.error('Erreur sauvegarde notifications:', error);
     }
   };
 
@@ -77,16 +78,11 @@ export default function NotificationTypesModal({
     >
       <ScrollView style={styles.content}>
         <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
+          style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
         >
           <View style={styles.switchRow}>
             <View style={styles.switchContent}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {typeLabels[type]}
-              </Text>
+              <Text style={[styles.label, { color: colors.text }]}>{typeLabels[type]}</Text>
               <Text style={[styles.description, { color: colors.textSecondary }]}>
                 {typeDescriptions[type]}
               </Text>
@@ -132,4 +128,3 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
-

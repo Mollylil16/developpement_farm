@@ -51,4 +51,3 @@ export interface UpdateVeterinarianInput {
   reviewsCount?: number;
   verified?: boolean;
 }
-

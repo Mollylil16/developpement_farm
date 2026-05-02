@@ -36,10 +36,7 @@ export function formatMontantAvecDevise(montant: number | undefined | null): str
  * @param decimales - Nombre de décimales (défaut: 2)
  * @returns Chaîne formatée (ex: "123.45")
  */
-export function formatNombre(
-  nombre: number | undefined | null,
-  decimales: number = 2
-): string {
+export function formatNombre(nombre: number | undefined | null, decimales: number = 2): string {
   if (nombre === undefined || nombre === null || isNaN(nombre)) {
     return '0';
   }
@@ -57,10 +54,7 @@ export function formatNombre(
  * @param decimales - Nombre de décimales (défaut: 1)
  * @returns Chaîne formatée (ex: "120.5 kg")
  */
-export function formatPoids(
-  poids: number | undefined | null,
-  decimales: number = 1
-): string {
+export function formatPoids(poids: number | undefined | null, decimales: number = 1): string {
   if (poids === undefined || poids === null || isNaN(poids)) {
     return '0 kg';
   }
@@ -122,7 +116,6 @@ export function parseNombre(
   return isNaN(parsed) ? defaultValue : parsed;
 }
 
-
 /**
  * Calcule un pourcentage (partie / total * 100)
  * @param partie - Partie
@@ -182,7 +175,7 @@ export function formatDate(
       const diffDay = Math.floor(diffHour / 24);
 
       if (diffSec < 60) {
-        return 'À l\'instant';
+        return "À l'instant";
       } else if (diffMin < 60) {
         return `Il y a ${diffMin} min`;
       } else if (diffHour < 24) {
@@ -246,10 +239,7 @@ export function formatDateCourt(date: string | Date | undefined | null): string 
  * @param decimales - Nombre de décimales (défaut: 2)
  * @returns Nombre arrondi
  */
-export function roundTo(
-  nombre: number | undefined | null,
-  decimales: number = 2
-): number {
+export function roundTo(nombre: number | undefined | null, decimales: number = 2): number {
   if (nombre === undefined || nombre === null || isNaN(nombre)) {
     return 0;
   }
@@ -265,11 +255,7 @@ export function roundTo(
  * @param max - Valeur maximale
  * @returns Nombre limité
  */
-export function clamp(
-  nombre: number | undefined | null,
-  min: number,
-  max: number
-): number {
+export function clamp(nombre: number | undefined | null, min: number, max: number): number {
   const n = nombre ?? 0;
   return Math.min(Math.max(n, min), max);
 }
@@ -279,7 +265,7 @@ export function clamp(
  * @param valeur - Valeur à vérifier
  * @returns true si valide
  */
-export function isValidNumber(valeur: any): valeur is number {
+export function isValidNumber(valeur: unknown): valeur is number {
   return typeof valeur === 'number' && !isNaN(valeur) && isFinite(valeur);
 }
 
@@ -289,10 +275,7 @@ export function isValidNumber(valeur: any): valeur is number {
  * @param defaultValue - Valeur par défaut (défaut: 0)
  * @returns Nombre sécurisé
  */
-export function toSafeNumber(
-  valeur: any,
-  defaultValue: number = 0
-): number {
+export function toSafeNumber(valeur: unknown, defaultValue: number = 0): number {
   if (isValidNumber(valeur)) {
     return valeur;
   }
@@ -305,3 +288,43 @@ export function toSafeNumber(
   return defaultValue;
 }
 
+/**
+ * Extrait un montant depuis un texte
+ * @deprecated Utiliser MontantExtractor.extract() à la place
+ * Conservé pour compatibilité avec le code existant
+ * @param text - Texte à analyser
+ * @returns Montant extrait ou null si non trouvé
+ */
+export function extractMontantFromText(text: string): number | null {
+  // Déléguer à MontantExtractor (import dynamique pour éviter les dépendances circulaires)
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { MontantExtractor } = require('../services/chatAgent/core/extractors/MontantExtractor');
+    return MontantExtractor.extract(text) || null;
+  } catch (error) {
+    // Fallback sur l'ancienne implémentation si import échoue
+    console.warn('[formatters] Fallback sur ancienne implémentation extractMontantFromText');
+    if (!text || typeof text !== 'string') {
+      return null;
+    }
+
+    // Patterns prioritaires (plus fiables)
+    const priorityPatterns = [
+      /(?:a|pour|de|montant|prix|cout|vendu a|vendu pour|depense|achete|paye)[:\s]+(\d[\d\s,]{3,})(?:\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*))?/i,
+      /(\d[\d\s,]{3,})\s*(?:FCFA|CFA|francs?|F\s*)/i,
+    ];
+
+    for (const pattern of priorityPatterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        const montantStr = match[1].replace(/[\s,]/g, '');
+        const montant = parseInt(montantStr);
+        if (!isNaN(montant) && montant > 100) {
+          return montant;
+        }
+      }
+    }
+
+    return null;
+  }
+}

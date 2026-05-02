@@ -20,7 +20,7 @@ import {
   selectMaladiesCritiques,
   selectSanteStatistics,
 } from '../store/selectors/santeSelectors';
-import { TYPE_MALADIE_LABELS, GRAVITE_MALADIE_LABELS } from '../types/sante';
+import { TYPE_MALADIE_LABELS, GRAVITE_MALADIE_LABELS, Maladie } from '../types/sante';
 import MaladieFormModal from './MaladieFormModal';
 
 interface Props {
@@ -85,7 +85,7 @@ export default function MaladiesComponent({ refreshControl }: Props) {
     );
   };
 
-  const renderMaladieCard = (maladie: any) => {
+  const renderMaladieCard = (maladie: Maladie) => {
     const dateDebut = new Date(maladie.date_debut);
 
     const graviteColor =

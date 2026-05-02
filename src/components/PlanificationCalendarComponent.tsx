@@ -6,8 +6,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { loadPlanificationsParProjet } from '../store/slices/planificationSlice';
-import { Planification, TypeTache } from '../types';
+import type { Planification, TypeTache } from '../types/planification';
 import { SPACING, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { format, addMonths, subMonths, parseISO, isAfter } from 'date-fns';
@@ -16,7 +17,8 @@ import { fr } from 'date-fns/locale';
 export default function PlanificationCalendarComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { planifications } = useAppSelector((state) => state.planification);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -28,7 +30,7 @@ export default function PlanificationCalendarComponent() {
 
   // Préparer les dates marquées pour le calendrier
   const markedDates = useMemo(() => {
-    const marked: any = {};
+    const marked: { [key: string]: any } = {};
 
     planifications.forEach((planification) => {
       const datePrevue = planification.date_prevue.split('T')[0];
@@ -85,7 +87,7 @@ export default function PlanificationCalendarComponent() {
     console.log(`Tâches pour ${day.dateString}:`, taches.length);
   };
 
-  const onMonthChange = (month: any) => {
+  const onMonthChange = (month: DateData) => {
     const newDate = new Date(month.year, month.month - 1, 1);
     setCurrentMonth(newDate);
   };

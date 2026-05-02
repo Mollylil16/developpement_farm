@@ -8,20 +8,20 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createPlanification, updatePlanification } from '../store/slices/planificationSlice';
-import {
+import type {
   Planification,
   CreatePlanificationInput,
   TypeTache,
-  TYPE_TACHE_LABELS,
   StatutTache,
-  STATUT_TACHE_LABELS,
-} from '../types';
+} from '../types/planification';
+import { TYPE_TACHE_LABELS, STATUT_TACHE_LABELS } from '../types/planification';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 // Fonction helper pour convertir une date en format local YYYY-MM-DD
 const formatDateToLocal = (date: Date): string => {
@@ -55,7 +55,8 @@ export default function PlanificationFormModal({
 }: PlanificationFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const gestations = useAppSelector(selectAllGestations);
   const sevrages = useAppSelector(selectAllSevrages);
   const { canCreate, canUpdate } = useActionPermissions();
@@ -176,8 +177,9 @@ export default function PlanificationFormModal({
         await dispatch(createPlanification(formData)).unwrap();
       }
       onSuccess();
-    } catch (error: any) {
-      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'enregistrement";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -187,7 +189,7 @@ export default function PlanificationFormModal({
     // Sur iOS avec 'default', le picker se ferme automatiquement
     // Sur Android, il se ferme aussi automatiquement
     setShowDatePicker(false);
-    if (selectedDate && event.type !== 'dismissed') {
+    if (selectedDate && event?.type !== 'dismissed') {
       const dateStr = formatDateToLocal(selectedDate);
       setFormData({ ...formData, [datePickerField]: dateStr });
     }

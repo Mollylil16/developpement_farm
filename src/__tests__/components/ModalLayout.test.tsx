@@ -27,4 +27,3 @@ describe('ModalLayout', () => {
     expect(typeof ModalLayout).toBe('function');
   });
 });
-

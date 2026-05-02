@@ -4,8 +4,9 @@
  */
 
 import { useState, useCallback } from 'react';
-import { getDatabase } from '../services/database';
+import apiClient from '../services/api/apiClient';
 import type { MarketplaceStatus } from '../types/marketplace';
+import { logger } from '../utils/logger';
 
 export interface SubjectSaleStatus {
   inMarketplace: boolean;
@@ -33,29 +34,26 @@ export function useSaleStatus(subjectId: string) {
       setLoading(true);
       setError(null);
 
-      const db = await getDatabase();
-      
-      // Récupérer les colonnes marketplace du sujet
-      const result = await db.getFirstAsync<{
-        marketplace_status: string | null;
-        marketplace_listing_id: string | null;
-      }>(
-        `SELECT marketplace_status, marketplace_listing_id 
-         FROM production_animaux 
-         WHERE id = ?`,
-        [subjectId]
-      );
+      // Charger l'animal depuis l'API backend
+      // ✅ Utiliser la route marketplace dédiée qui ne vérifie pas l'appartenance
+      const { AnimalRepository } = await import('../database/repositories');
+      const animalRepo = new AnimalRepository();
+      const animal = await animalRepo.findMarketplaceAnimal(subjectId);
 
-      if (result) {
+      if (animal) {
+        // Les champs marketplace_status et marketplace_listing_id peuvent être dans les données supplémentaires
+        const marketplaceStatus = animal.marketplace_status;
+        const marketplaceListingId = animal.marketplace_listing_id;
+        
         setStatus({
-          inMarketplace: !!result.marketplace_status,
-          marketplaceStatus: result.marketplace_status as MarketplaceStatus | null,
-          listingId: result.marketplace_listing_id,
+          inMarketplace: !!marketplaceStatus,
+          marketplaceStatus: marketplaceStatus as MarketplaceStatus | null,
+          listingId: marketplaceListingId || null,
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Erreur lors du chargement du statut');
-      console.error('Error loading sale status:', err);
+      logger.error('Error loading sale status:', err);
     } finally {
       setLoading(false);
     }
@@ -65,31 +63,25 @@ export function useSaleStatus(subjectId: string) {
    * Mettre à jour le statut marketplace du sujet
    */
   const updateStatus = useCallback(
-    async (
-      marketplaceStatus: MarketplaceStatus | null,
-      listingId: string | null
-    ) => {
+    async (marketplaceStatus: MarketplaceStatus | null, listingId: string | null) => {
       try {
         setLoading(true);
         setError(null);
 
-        const db = await getDatabase();
-        
-        await db.runAsync(
-          `UPDATE production_animaux 
-           SET marketplace_status = ?, marketplace_listing_id = ? 
-           WHERE id = ?`,
-          [marketplaceStatus, listingId, subjectId]
-        );
+        // Mettre à jour via l'API backend
+        await apiClient.patch(`/production/animaux/${subjectId}`, {
+          marketplace_status: marketplaceStatus,
+          marketplace_listing_id: listingId,
+        });
 
         setStatus({
           inMarketplace: !!marketplaceStatus,
           marketplaceStatus,
           listingId,
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         setError('Erreur lors de la mise à jour du statut');
-        console.error('Error updating sale status:', err);
+        logger.error('Error updating sale status:', err);
         throw err;
       } finally {
         setLoading(false);
@@ -157,33 +149,33 @@ export function useBulkSaleStatus(subjectIds: string[]) {
       setLoading(true);
       setError(null);
 
-      const db = await getDatabase();
-      
-      const placeholders = subjectIds.map(() => '?').join(',');
-      const results = await db.getAllAsync<{
-        id: string;
-        marketplace_status: string | null;
-        marketplace_listing_id: string | null;
-      }>(
-        `SELECT id, marketplace_status, marketplace_listing_id 
-         FROM production_animaux 
-         WHERE id IN (${placeholders})`,
-        subjectIds
+      // Récupérer tous les animaux depuis l'API backend
+      // Utiliser le repository avec silent403 pour gérer gracieusement les 403
+      // ✅ Utiliser la route marketplace dédiée qui ne vérifie pas l'appartenance
+      const { AnimalRepository } = await import('../database/repositories');
+      const animalRepo = new AnimalRepository();
+      const animals = await Promise.all(
+        subjectIds.map((id) => animalRepo.findMarketplaceAnimal(id))
       );
 
       const statusMap = new Map<string, SubjectSaleStatus>();
-      results.forEach((result) => {
-        statusMap.set(result.id, {
-          inMarketplace: !!result.marketplace_status,
-          marketplaceStatus: result.marketplace_status as MarketplaceStatus | null,
-          listingId: result.marketplace_listing_id,
-        });
+      animals.forEach((animal, index) => {
+        if (animal) {
+          const marketplaceStatus = animal.marketplace_status;
+          const marketplaceListingId = animal.marketplace_listing_id;
+          
+          statusMap.set(subjectIds[index], {
+            inMarketplace: !!marketplaceStatus,
+            marketplaceStatus: marketplaceStatus as MarketplaceStatus | null,
+            listingId: marketplaceListingId || null,
+          });
+        }
       });
 
       setStatuses(statusMap);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError('Erreur lors du chargement des statuts');
-      console.error('Error loading bulk sale statuses:', err);
+      logger.error('Error loading bulk sale statuses:', err);
     } finally {
       setLoading(false);
     }
@@ -198,21 +190,21 @@ export function useBulkSaleStatus(subjectIds: string[]) {
         setLoading(true);
         setError(null);
 
-        const db = await getDatabase();
-        
-        const placeholders = subjectIds.map(() => '?').join(',');
-        await db.runAsync(
-          `UPDATE production_animaux 
-           SET marketplace_status = 'available', marketplace_listing_id = ? 
-           WHERE id IN (${placeholders})`,
-          [listingId, ...subjectIds]
+        // Mettre à jour chaque animal individuellement via l'API backend
+        await Promise.all(
+          subjectIds.map((id) =>
+            apiClient.patch(`/production/animaux/${id}`, {
+              marketplace_status: 'available',
+              marketplace_listing_id: listingId,
+            })
+          )
         );
 
         // Recharger les statuts
         await loadStatuses();
-      } catch (err: any) {
+      } catch (err: unknown) {
         setError('Erreur lors de la mise à jour multiple');
-        console.error('Error bulk updating sale status:', err);
+        logger.error('Error bulk updating sale status:', err);
         throw err;
       } finally {
         setLoading(false);
@@ -229,4 +221,3 @@ export function useBulkSaleStatus(subjectIds: string[]) {
     markMultipleAsListed,
   };
 }
-

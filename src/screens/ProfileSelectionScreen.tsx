@@ -4,12 +4,13 @@
  */
 
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, LIGHT_COLORS } from '../constants/theme';
 import { SCREENS } from '../navigation/types';
 import type { RoleType } from '../types/roles';
 
@@ -24,9 +25,10 @@ interface ProfileOption {
 
 const ProfileSelectionScreen: React.FC = () => {
   const { colors } = useTheme();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<any>>();
   const route = useRoute();
-  const { identifier, isEmail } = (route.params as { identifier?: string; isEmail?: boolean }) || {};
+  const { userId, identifier, isEmail } =
+    (route.params as { userId?: string; identifier?: string; isEmail?: boolean }) || {};
 
   const profileOptions: ProfileOption[] = [
     {
@@ -61,44 +63,111 @@ const ProfileSelectionScreen: React.FC = () => {
     },
   ];
 
-  const handleProfileSelect = (profileType: RoleType) => {
-    // Naviguer vers l'écran de complément d'informations selon le profil
-    // Passer l'identifier si disponible (pour créer le compte)
-    switch (profileType) {
-      case 'producer':
-        navigation.navigate(SCREENS.CREATE_PROJECT as never, { 
-          identifier,
-          isEmail 
-        } as never);
-        break;
-      case 'buyer':
-        navigation.navigate(SCREENS.BUYER_INFO_COMPLETION as never, { 
-          profileType,
-          identifier,
-          isEmail 
-        } as never);
-        break;
-      case 'veterinarian':
-        navigation.navigate(SCREENS.VETERINARIAN_INFO_COMPLETION as never, { 
-          profileType,
-          identifier,
-          isEmail 
-        } as never);
-        break;
-      case 'technician':
-        // Le technicien peut avoir un flux simplifié
-        navigation.navigate(SCREENS.BUYER_INFO_COMPLETION as never, { 
-          profileType: 'technician',
-          identifier,
-          isEmail 
-        } as never);
-        break;
+  const handleProfileSelect = async (profileType: RoleType) => {
+    if (!userId) {
+      Alert.alert('Erreur', 'Identifiant utilisateur manquant. Veuillez recommencer.');
+      navigation.goBack();
+      return;
+    }
+
+    try {
+      // IMPORTANT: Ne PAS créer le profil spécialisé ici pour buyer/veterinarian/technician
+      // Ces profils seront créés dans leurs écrans de complément respectifs après avoir rempli le formulaire
+      // Seul le profil producer est créé ici car il nécessite la création d'un projet ensuite
+
+      // Naviguer vers l'écran approprié selon le profil
+      switch (profileType) {
+        case 'producer':
+          // Pour le producteur, créer le profil spécialisé maintenant
+          // car la création du projet nécessite le profil producteur
+          const { getOnboardingService } = await import('../services/OnboardingService');
+          const onboardingService = await getOnboardingService();
+          await onboardingService.createSpecializedProfile(userId, profileType);
+          // Naviguer vers création de projet
+          (navigation as any).navigate(SCREENS.CREATE_PROJECT, {
+            userId,
+            profileType,
+          });
+          break;
+        case 'buyer':
+          // Naviguer vers complément d'informations acheteur
+          // Le profil buyer sera créé dans BuyerInfoCompletionScreen après avoir rempli le formulaire
+          (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
+            profileType,
+            userId,
+          });
+          break;
+        case 'veterinarian':
+          // Naviguer vers complément d'informations vétérinaire
+          // Le profil veterinarian sera créé dans VeterinarianInfoCompletionScreen après avoir rempli le formulaire
+          (navigation as any).navigate(SCREENS.VETERINARIAN_INFO_COMPLETION, {
+            profileType,
+            userId,
+          });
+          break;
+        case 'technician':
+          // Naviguer vers complément d'informations technicien
+          // Le profil technician sera créé dans BuyerInfoCompletionScreen après avoir rempli le formulaire
+          (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
+            profileType: 'technician',
+            userId,
+          });
+          break;
+      }
+    } catch (error: unknown) {
+      console.error('Erreur création profil:', error);
+      
+      // Extraire le message d'erreur de manière plus détaillée
+      let errorMessage = 'Erreur inconnue';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        // Si c'est une APIError, essayer d'extraire plus d'informations
+        if ('status' in error && typeof (error as any).status === 'number') {
+          const apiError = error as any;
+          const status = apiError.status;
+          const data = apiError.data;
+          
+          if (data && typeof data === 'object' && 'message' in data) {
+            errorMessage = String(data.message);
+          } else if (status === 401) {
+            errorMessage = 'Session expirée. Veuillez vous reconnecter.';
+          } else if (status === 403) {
+            errorMessage = 'Accès refusé. Vous n\'avez pas les permissions nécessaires.';
+          } else if (status === 404) {
+            errorMessage = 'Ressource non trouvée. Veuillez réessayer.';
+          } else if (status === 500) {
+            errorMessage = 'Erreur serveur. Veuillez réessayer plus tard.';
+          } else if (status === 0) {
+            errorMessage = 'Erreur de connexion. Vérifiez votre connexion Internet.';
+          } else {
+            errorMessage = `Erreur ${status}: ${error.message}`;
+          }
+        }
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      Alert.alert(
+        'Erreur',
+        `Impossible de créer le profil: ${errorMessage}`,
+        [
+          { text: 'OK', style: 'default' },
+          {
+            text: 'Réessayer',
+            onPress: () => handleProfileSelect(profileType),
+            style: 'default',
+          },
+        ]
+      );
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-      <ScrollView 
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top', 'bottom']}
+    >
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -129,9 +198,7 @@ const ProfileSelectionScreen: React.FC = () => {
 
               <View style={styles.optionContent}>
                 <View style={styles.optionHeader}>
-                  <Text style={[styles.optionTitle, { color: colors.text }]}>
-                    {option.title}
-                  </Text>
+                  <Text style={[styles.optionTitle, { color: colors.text }]}>{option.title}</Text>
                   {option.badge && (
                     <View style={[styles.badge, { backgroundColor: option.color + '20' }]}>
                       <Text style={[styles.badgeText, { color: option.color }]}>
@@ -194,7 +261,7 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     borderLeftWidth: 4,
-    ...SPACING.shadows?.small,
+    ...LIGHT_COLORS.shadow.small,
   },
   optionIcon: {
     width: 56,
@@ -224,7 +291,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: FONT_SIZES.xs,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontWeight: FONT_WEIGHTS.semiBold,
   },
   optionDescription: {
     fontSize: FONT_SIZES.sm,
@@ -238,4 +305,3 @@ const styles = StyleSheet.create({
 });
 
 export default ProfileSelectionScreen;
-

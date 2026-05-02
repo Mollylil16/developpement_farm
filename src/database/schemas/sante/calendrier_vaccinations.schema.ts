@@ -30,4 +30,3 @@ export async function createCalendrierVaccinationsTable(db: SQLite.SQLiteDatabas
     );`
   );
 }
-

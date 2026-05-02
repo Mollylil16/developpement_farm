@@ -31,10 +31,11 @@ import FormField from '../components/FormField';
 import GoogleLogo from '../components/GoogleLogo';
 import AppleLogo from '../components/AppleLogo';
 import { databaseService } from '../services/database';
+import { validateEmail, validatePhone } from '../utils/validation';
 
 export default function AuthScreen() {
   const { colors } = useTheme();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<unknown>();
   const dispatch = useAppDispatch();
   const { isLoading, error, isAuthenticated } = useAppSelector((state) => state.auth);
 
@@ -92,21 +93,21 @@ export default function AuthScreen() {
       const isEmail = identifier.includes('@');
 
       if (isEmail) {
-        // Validation de l'email
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(identifier.trim())) {
-          Alert.alert('Erreur', 'Veuillez entrer une adresse email valide');
+        // Utiliser validateEmail de validation.ts pour éviter la duplication
+        const emailValidation = validateEmail(identifier.trim());
+        if (!emailValidation.isValid) {
+          Alert.alert('Erreur', emailValidation.errors.join('. ') || 'Veuillez entrer une adresse email valide');
           return;
         }
         dispatch(signUp({ email: identifier.trim(), nom: nom.trim(), prenom: prenom.trim() }));
       } else {
-        // Validation du téléphone (au moins 8 chiffres)
-        const cleanPhone = identifier.replace(/\s+/g, '');
-        const phoneRegex = /^[0-9]{8,15}$/;
-        if (!phoneRegex.test(cleanPhone)) {
-          Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone valide (8-15 chiffres)');
+        // Utiliser validatePhone de validation.ts pour éviter la duplication
+        const phoneValidation = validatePhone(identifier);
+        if (!phoneValidation.isValid) {
+          Alert.alert('Erreur', phoneValidation.errors.join('. ') || 'Veuillez entrer un numéro de téléphone valide');
           return;
         }
+        const cleanPhone = identifier.replace(/\s+/g, '');
         dispatch(signUp({ telephone: cleanPhone, nom: nom.trim(), prenom: prenom.trim() }));
       }
     } else {
@@ -382,5 +383,15 @@ const styles = StyleSheet.create({
   switchLink: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.semiBold,
+  },
+  infoBox: {
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    marginBottom: SPACING.md,
+  },
+  infoText: {
+    fontSize: FONT_SIZES.sm,
+    lineHeight: 20,
   },
 });

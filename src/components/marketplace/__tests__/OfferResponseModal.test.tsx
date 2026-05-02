@@ -62,7 +62,7 @@ describe('OfferResponseModal', () => {
   it('should render offer details', () => {
     const { getByText } = render(<OfferResponseModal {...defaultProps} />);
 
-    expect(getByText('Répondre à l\'offre')).toBeTruthy();
+    expect(getByText("Répondre à l'offre")).toBeTruthy();
     expect(getByText('450 000 FCFA')).toBeTruthy(); // proposed price
     expect(getByText('2 sujet(s)')).toBeTruthy();
   });
@@ -70,9 +70,9 @@ describe('OfferResponseModal', () => {
   it('should show all action options', () => {
     const { getByText } = render(<OfferResponseModal {...defaultProps} />);
 
-    expect(getByText('Accepter l\'offre')).toBeTruthy();
+    expect(getByText("Accepter l'offre")).toBeTruthy();
     expect(getByText('Contre-proposer')).toBeTruthy();
-    expect(getByText('Refuser l\'offre')).toBeTruthy();
+    expect(getByText("Refuser l'offre")).toBeTruthy();
   });
 
   it('should allow selecting an action', () => {
@@ -86,9 +86,7 @@ describe('OfferResponseModal', () => {
   });
 
   it('should show price input for counter offer', () => {
-    const { getByTestId, getByPlaceholderText } = render(
-      <OfferResponseModal {...defaultProps} />
-    );
+    const { getByTestId, getByPlaceholderText } = render(<OfferResponseModal {...defaultProps} />);
 
     fireEvent.press(getByTestId('counter-action-card'));
 
@@ -133,7 +131,7 @@ describe('OfferResponseModal', () => {
     );
 
     fireEvent.press(getByTestId('reject-action-card'));
-    
+
     const messageInput = getByPlaceholderText('Expliquez la raison du refus...');
     fireEvent.changeText(messageInput, 'Prix trop bas');
 
@@ -152,7 +150,7 @@ describe('OfferResponseModal', () => {
     );
 
     fireEvent.press(getByTestId('counter-action-card'));
-    
+
     const priceInput = getByPlaceholderText('0');
     fireEvent.changeText(priceInput, '480000');
 
@@ -173,21 +171,21 @@ describe('OfferResponseModal', () => {
     );
 
     fireEvent.press(getByTestId('counter-action-card'));
-    
+
     const priceInput = getByPlaceholderText('0');
-    
+
     // Test avec prix vide
     fireEvent.changeText(priceInput, '');
-    
+
     // Le bouton devrait être désactivé (canSubmit retourne false)
     const submitButtonEmpty = getByTestId('submit-button');
     expect(submitButtonEmpty).toBeTruthy();
-    
+
     // Test avec prix invalide (0)
     fireEvent.changeText(priceInput, '0');
     const submitButtonZero = getByTestId('submit-button');
     expect(submitButtonZero).toBeTruthy();
-    
+
     // Test avec prix valide
     fireEvent.changeText(priceInput, '480000');
     const submitButtonValid = getByTestId('submit-button');
@@ -197,9 +195,7 @@ describe('OfferResponseModal', () => {
 
   it('should call onClose when close button is pressed', () => {
     const mockOnClose = jest.fn();
-    const { getByTestId } = render(
-      <OfferResponseModal {...defaultProps} onClose={mockOnClose} />
-    );
+    const { getByTestId } = render(<OfferResponseModal {...defaultProps} onClose={mockOnClose} />);
 
     fireEvent.press(getByTestId('close-button'));
     expect(mockOnClose).toHaveBeenCalled();
@@ -214,9 +210,7 @@ describe('OfferResponseModal', () => {
   });
 
   it('should show loading state while submitting', async () => {
-    const mockOnAccept = jest.fn(
-      () => new Promise((resolve) => setTimeout(resolve, 100))
-    );
+    const mockOnAccept = jest.fn(() => new Promise((resolve) => setTimeout(resolve, 100)));
 
     const { getByTestId, queryByTestId } = render(
       <OfferResponseModal {...defaultProps} onAccept={mockOnAccept} />
@@ -232,4 +226,3 @@ describe('OfferResponseModal', () => {
     });
   });
 });
-

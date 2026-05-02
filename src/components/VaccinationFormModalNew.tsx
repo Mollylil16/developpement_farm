@@ -24,6 +24,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { createVaccination } from '../store/slices/santeSlice';
+import { logger } from '../utils/logger';
 import {
   TypeProphylaxie,
   TYPE_PROPHYLAXIE_LABELS,
@@ -34,6 +35,7 @@ import {
 import { getCategorieAnimal } from '../utils/animalUtils';
 import { formatLocalDate, getCurrentLocalDate } from '../utils/dateUtils';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface Props {
   visible: boolean;
@@ -51,7 +53,8 @@ export default function VaccinationFormModalNew({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
 
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux = useAppSelector((state) => selectAllAnimaux(state));
   const loading = useAppSelector((state) => state.sante.loading.vaccinations);
 
@@ -166,7 +169,7 @@ export default function VaccinationFormModalNew({
         setPhotoFlacon(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Erreur lors de la prise de photo:', error);
+      logger.error('Erreur lors de la prise de photo:', error);
       Alert.alert('Erreur', "Impossible d'ajouter la photo");
     } finally {
       setPhotoLoading(false);
@@ -254,12 +257,12 @@ export default function VaccinationFormModalNew({
         [{ text: 'OK', onPress: onClose }]
       );
     } catch (error) {
-      console.error("Erreur lors de l'enregistrement:", error);
+      logger.error("Erreur lors de l'enregistrement:", error);
       Alert.alert('Erreur', "Impossible d'enregistrer la vaccination");
     }
   };
 
-  const renderAnimalItem = ({ item }: { item: any }) => {
+  const renderAnimalItem = ({ item }: { item: unknown }) => {
     const isSelected = animauxSelectionnes.includes(item.id);
     const categorie = getCategorieAnimal(item);
 
@@ -617,13 +620,15 @@ export default function VaccinationFormModalNew({
                 </Text>
               </View>
             ) : (
-              <FlatList
-                data={animauxFiltres}
-                keyExtractor={(item) => item.id}
-                renderItem={renderAnimalItem}
-                scrollEnabled={false}
-                ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-              />
+              // ✅ Utiliser .map() au lieu de FlatList car scrollEnabled={false} et on est dans un ScrollView
+              <View>
+                {animauxFiltres.map((item, index) => (
+                  <View key={item.id}>
+                    {renderAnimalItem({ item, index })}
+                    {index < animauxFiltres.length - 1 && <View style={{ height: 8 }} />}
+                  </View>
+                ))}
+              </View>
             )}
           </View>
         </View>

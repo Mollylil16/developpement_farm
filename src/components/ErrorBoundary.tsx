@@ -16,6 +16,7 @@ import {
 import { SPACING, FONT_SIZES, BORDER_RADIUS, LIGHT_COLORS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import Button from './Button';
+import { logger } from '../utils/logger';
 
 interface Props {
   children: ReactNode;
@@ -67,42 +68,44 @@ class ErrorBoundaryClass extends Component<Props, State> {
     const newErrorCount = isRecurringError ? errorCount + 1 : 1;
 
     // Détecter spécifiquement l'erreur "Text strings must be rendered"
-    const isTextRenderingError = error.message.includes('Text strings must be rendered') ||
-                                 error.message.includes('must be rendered within a <Text>');
+    const isTextRenderingError =
+      error.message.includes('Text strings must be rendered') ||
+      error.message.includes('must be rendered within a <Text>');
 
     if (isTextRenderingError) {
       // Log détaillé avec call stack complet
-      console.error('🔴 [ErrorBoundary] ERREUR DE RENDU DE TEXTE DÉTECTÉE:', {
+      logger.error('[ErrorBoundary] ERREUR DE RENDU DE TEXTE DÉTECTÉE:', {
         error: error.toString(),
         message: error.message,
         stack: error.stack,
         componentStack: errorInfo.componentStack,
         errorCount: newErrorCount,
         isRecurring: isRecurringError,
-        suggestion: 'Vérifiez les composants dans componentStack ci-dessus. Cherchez les valeurs primitives (string/number) rendues directement dans des <View> ou autres composants non-Text.',
+        suggestion:
+          'Vérifiez les composants dans componentStack ci-dessus. Cherchez les valeurs primitives (string/number) rendues directement dans des <View> ou autres composants non-Text.',
       });
 
       // Extraire TOUS les composants depuis le componentStack
       const componentMatches = errorInfo.componentStack?.matchAll(/at\s+(\w+)\s*\(/g);
       if (componentMatches) {
-        const components = Array.from(componentMatches, m => m[1]);
-        console.error(`🔍 Composants dans la stack (ordre d\'appel):`, components);
+        const components = Array.from(componentMatches, (m) => m[1]);
+        logger.error(`Composants dans la stack (ordre d'appel):`, components);
       }
 
       // Extraire les lignes de code depuis le stack trace
       const stackLines = error.stack?.split('\n') || [];
-      console.error('📋 Stack trace complet (premières 20 lignes):', stackLines.slice(0, 20));
+      logger.error('Stack trace complet (premières 20 lignes):', stackLines.slice(0, 20));
 
       // Extraire les fichiers depuis le componentStack
       const fileMatches = errorInfo.componentStack?.matchAll(/\(([^)]+\.tsx?):(\d+):(\d+)\)/g);
       if (fileMatches) {
-        const files = Array.from(fileMatches, m => ({ file: m[1], line: m[2], col: m[3] }));
-        console.error('📁 Fichiers dans la stack:', files);
+        const files = Array.from(fileMatches, (m) => ({ file: m[1], line: m[2], col: m[3] }));
+        logger.error('Fichiers dans la stack:', files);
       }
     }
 
     // Logger l'erreur avec plus de détails
-    console.error('Error caught by boundary:', {
+    logger.error('Error caught by boundary:', {
       error: error.toString(),
       message: error.message,
       stack: error.stack,
@@ -117,7 +120,7 @@ class ErrorBoundaryClass extends Component<Props, State> {
       try {
         this.props.onError(error, errorInfo);
       } catch (callbackError) {
-        console.error('Error in onError callback:', callbackError);
+        logger.error('Error in onError callback:', callbackError);
       }
     }
 
@@ -146,7 +149,7 @@ class ErrorBoundaryClass extends Component<Props, State> {
 
     // Si trop d'erreurs, suggérer un redémarrage
     if (errorCount >= this.MAX_RETRIES) {
-      console.warn(`Maximum retries (${this.MAX_RETRIES}) reached. Consider restarting the app.`);
+      logger.warn(`Maximum retries (${this.MAX_RETRIES}) reached. Consider restarting the app.`);
       // Optionnel: Forcer un redémarrage de l'application
       // RNRestart.Restart();
     }
@@ -165,7 +168,7 @@ class ErrorBoundaryClass extends Component<Props, State> {
   handleForceRestart = () => {
     // Optionnel: Implémenter un redémarrage forcé
     // RNRestart.Restart();
-    console.warn('Force restart requested but not implemented');
+    logger.warn('Force restart requested but not implemented');
   };
 
   render() {
@@ -363,9 +366,9 @@ function ErrorFallback({
         Clipboard.setString(text);
       }
       // TODO: Afficher un toast de confirmation
-      console.log('Copied to clipboard');
+      logger.debug('Copied to clipboard');
     } catch (err) {
-      console.error('Failed to copy:', err);
+      logger.error('Failed to copy:', err);
     }
   };
 

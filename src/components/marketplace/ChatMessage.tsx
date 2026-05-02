@@ -55,10 +55,7 @@ export default function ChatMessage({
                 onPress={() => Alert.alert('Document', 'Téléchargement : ' + attachment.fileName)}
               >
                 <Ionicons name="document-outline" size={24} color={colors.primary} />
-                <Text
-                  style={[styles.documentName, { color: colors.text }]}
-                  numberOfLines={1}
-                >
+                <Text style={[styles.documentName, { color: colors.text }]} numberOfLines={1}>
                   {attachment.fileName}
                 </Text>
               </TouchableOpacity>
@@ -84,20 +81,13 @@ export default function ChatMessage({
       <View
         style={[
           styles.bubble,
-          isSent
-            ? { backgroundColor: colors.primary }
-            : { backgroundColor: colors.surface },
+          isSent ? { backgroundColor: colors.primary } : { backgroundColor: colors.surface },
           !isSent && showAvatar && styles.bubbleWithAvatar,
         ]}
       >
         {/* Contenu texte */}
         {message.content && (
-          <Text
-            style={[
-              styles.messageText,
-              { color: isSent ? colors.textInverse : colors.text },
-            ]}
-          >
+          <Text style={[styles.messageText, { color: isSent ? colors.textInverse : colors.text }]}>
             {message.content}
           </Text>
         )}
@@ -111,9 +101,7 @@ export default function ChatMessage({
             style={[
               styles.priceProposal,
               {
-                backgroundColor: isSent
-                  ? colors.textInverse + '20'
-                  : colors.primary + '10',
+                backgroundColor: isSent ? colors.textInverse + '20' : colors.primary + '10',
                 borderColor: isSent ? colors.textInverse : colors.primary,
               },
             ]}
@@ -148,19 +136,9 @@ export default function ChatMessage({
           {/* Statut (pour messages envoyés uniquement) */}
           {isSent && (
             <Ionicons
-              name={
-                message.read
-                  ? 'checkmark-done'
-                  : message.sentAt
-                  ? 'checkmark'
-                  : 'time-outline'
-              }
+              name={message.read ? 'checkmark-done' : message.sentAt ? 'checkmark' : 'time-outline'}
               size={14}
-              color={
-                message.read
-                  ? colors.success
-                  : colors.textInverse + 'AA'
-              }
+              color={message.read ? colors.success : colors.textInverse + 'AA'}
             />
           )}
         </View>

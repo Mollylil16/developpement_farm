@@ -1,6 +1,6 @@
 /**
  * FinanceTabs - Onglets de navigation de l'écran Finance
- * 
+ *
  * Permet de naviguer entre les différents modules financiers
  * Style harmonisé avec le menu Santé
  */
@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { normalizeIconName } from '../utils/iconValidation';
 
-export type FinanceOngletType = 'vue_ensemble' | 'charges_fixes' | 'depenses' | 'revenus' | 'bilan';
+export type FinanceOngletType = 'vue_ensemble' | 'charges_fixes' | 'depenses' | 'revenus' | 'dettes' | 'bilan';
 
 interface FinanceOnglet {
   id: FinanceOngletType;
@@ -27,7 +27,7 @@ interface FinanceTabsProps {
 
 export default function FinanceTabs({ onglets, ongletActif, onTabChange }: FinanceTabsProps) {
   const { colors } = useTheme();
-  
+
   return (
     <View style={[styles.ongletsContainer, { backgroundColor: colors.surface }]}>
       <ScrollView
@@ -94,4 +94,3 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
-

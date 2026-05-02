@@ -4,14 +4,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  FlatList,
-  Text,
-  StyleSheet,
-  RefreshControl,
-  TouchableOpacity,
-} from 'react-native';
+import { View, FlatList, Text, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,17 +31,17 @@ const MyFarmsScreen: React.FC = () => {
     setRefreshing(false);
   }, [refresh]);
 
-  const renderFarm = ({ item }: { item: typeof assistedFarms[0] }) => {
+  const renderFarm = ({ item }: { item: (typeof assistedFarms)[0] }) => {
     return (
-      <Card style={[styles.farmCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <Card
+        style={[styles.farmCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      >
         <View style={styles.farmHeader}>
           <View style={[styles.farmIcon, { backgroundColor: colors.primary + '20' }]}>
             <Ionicons name="business" size={32} color={colors.primary} />
           </View>
           <View style={styles.farmInfo}>
-            <Text style={[styles.farmName, { color: colors.text }]}>
-              {item.farmName}
-            </Text>
+            <Text style={[styles.farmName, { color: colors.text }]}>{item.farmName}</Text>
             <Text style={[styles.farmSince, { color: colors.textSecondary }]}>
               Assistée depuis {format(new Date(item.since), 'MMMM yyyy', { locale: fr })}
             </Text>
@@ -97,9 +90,7 @@ const MyFarmsScreen: React.FC = () => {
           <View style={styles.statItem}>
             <Ionicons name="clipboard" size={20} color={colors.primary} />
             <View style={styles.statInfo}>
-              <Text style={[styles.statValue, { color: colors.text }]}>
-                {item.taskCount}
-              </Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>{item.taskCount}</Text>
               <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
                 Tâche{item.taskCount > 1 ? 's' : ''}
               </Text>
@@ -113,7 +104,9 @@ const MyFarmsScreen: React.FC = () => {
             navigation.goBack();
           }}
         >
-          <Text style={[styles.viewDetailsText, { color: colors.primary }]}>Accéder à la ferme</Text>
+          <Text style={[styles.viewDetailsText, { color: colors.primary }]}>
+            Accéder à la ferme
+          </Text>
           <Ionicons name="chevron-forward" size={16} color={colors.primary} />
         </TouchableOpacity>
       </Card>
@@ -135,10 +128,7 @@ const MyFarmsScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Mes fermes</Text>
@@ -295,4 +285,3 @@ const styles = StyleSheet.create({
 });
 
 export default MyFarmsScreen;
-

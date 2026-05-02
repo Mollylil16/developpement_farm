@@ -24,4 +24,3 @@ export async function createRationsTable(db: SQLite.SQLiteDatabase): Promise<voi
     );
   `);
 }
-

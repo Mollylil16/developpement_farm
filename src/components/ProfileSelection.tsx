@@ -88,14 +88,10 @@ const ProfileSelection: React.FC<ProfileSelectionProps> = ({ onProfileSelect }) 
 
             <View style={styles.optionContent}>
               <View style={styles.optionHeader}>
-                <Text style={[styles.optionTitle, { color: colors.text }]}>
-                  {option.title}
-                </Text>
+                <Text style={[styles.optionTitle, { color: colors.text }]}>{option.title}</Text>
                 {option.badge && (
                   <View style={[styles.badge, { backgroundColor: option.color + '20' }]}>
-                    <Text style={[styles.badgeText, { color: option.color }]}>
-                      {option.badge}
-                    </Text>
+                    <Text style={[styles.badgeText, { color: option.color }]}>{option.badge}</Text>
                   </View>
                 )}
               </View>
@@ -203,4 +199,3 @@ const styles = StyleSheet.create({
 });
 
 export default ProfileSelection;
-

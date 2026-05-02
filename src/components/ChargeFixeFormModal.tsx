@@ -6,13 +6,16 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createChargeFixe, updateChargeFixe } from '../store/slices/financeSlice';
-import { ChargeFixe, CreateChargeFixeInput, CategorieChargeFixe, FrequenceCharge } from '../types';
+import type { ChargeFixe, CreateChargeFixeInput, CategorieChargeFixe, FrequenceCharge } from '../types/finance';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
+import DatePickerField from './DatePickerField';
 import { SPACING } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { Alert } from 'react-native';
+import { logger } from '../utils/logger';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface ChargeFixeFormModalProps {
   visible: boolean;
@@ -32,7 +35,8 @@ export default function ChargeFixeFormModal({
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateChargeFixeInput>({
     categorie: 'autre',
@@ -115,8 +119,8 @@ export default function ChargeFixeFormModal({
         ).unwrap();
       }
       onSuccess();
-    } catch (error: any) {
-      console.error('Erreur:', error);
+    } catch (error: unknown) {
+      logger.error('Erreur:', error);
     } finally {
       setLoading(false);
     }
@@ -218,11 +222,10 @@ export default function ChargeFixeFormModal({
           required
         />
 
-        <FormField
+        <DatePickerField
           label="Date de début"
           value={formData.date_debut}
-          onChangeText={(text) => setFormData({ ...formData, date_debut: text })}
-          placeholder="YYYY-MM-DD"
+          onChange={(date) => setFormData({ ...formData, date_debut: date })}
         />
 
         <View style={styles.section}>

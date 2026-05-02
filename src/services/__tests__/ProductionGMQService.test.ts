@@ -90,7 +90,7 @@ describe('ProductionGMQService', () => {
 
       // Vérifier que le GMQ est mis à jour pour chaque pesée
       expect(mockDb.runAsync).toHaveBeenCalledTimes(2);
-      
+
       // Vérifier le calcul du GMQ pour la première pesée suivante
       // Différence: 20 - 15 = 5 kg = 5000 g, jours: 10, GMQ = 500 g/jour
       const firstUpdateCall = mockDb.runAsync.mock.calls[0];
@@ -127,15 +127,15 @@ describe('ProductionGMQService', () => {
       expect(updateCall[1][2]).toBe('pesee-2');
     });
 
-    it('devrait lancer une erreur si l\'animal n\'existe pas', async () => {
+    it("devrait lancer une erreur si l'animal n'existe pas", async () => {
       mockAnimalRepo.findById.mockResolvedValue(null);
 
-      await expect(
-        ProductionGMQService.recalculerGMQ(animalId, dateModifiee)
-      ).rejects.toThrow('Animal introuvable');
+      await expect(ProductionGMQService.recalculerGMQ(animalId, dateModifiee)).rejects.toThrow(
+        'Animal introuvable'
+      );
     });
 
-    it('devrait gérer le cas où il n\'y a pas de pesées suivantes', async () => {
+    it("devrait gérer le cas où il n'y a pas de pesées suivantes", async () => {
       const mockAnimal = {
         id: animalId,
         poids_initial: 10,
@@ -207,4 +207,3 @@ describe('ProductionGMQService', () => {
     });
   });
 });
-

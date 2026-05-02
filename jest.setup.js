@@ -41,7 +41,9 @@ jest.mock('./src/utils/formatters', () => ({
 
 // Mock PricingService
 jest.mock('./src/services/PricingService', () => ({
-  formatPrice: jest.fn((price, currency = 'FCFA') => `${price?.toLocaleString('fr-FR') || 0} ${currency}`),
+  formatPrice: jest.fn(
+    (price, currency = 'FCFA') => `${price?.toLocaleString('fr-FR') || 0} ${currency}`
+  ),
   calculateTotalPrice: jest.fn(() => 1000),
   calculateDiscount: jest.fn(() => 10),
 }));
@@ -80,9 +82,26 @@ jest.mock('./src/contexts/ThemeContext', () => ({
 
 // Mock immer pour éviter les problèmes ESM
 jest.mock('immer', () => ({
-  produce: jest.fn((state, fn) => fn(state)),
+  produce: jest.fn((state, fn) => {
+    const draft = typeof state === 'object' && state !== null ? { ...state } : state;
+    const result = fn(draft);
+    return result !== undefined ? result : draft;
+  }),
+  isDraftable: jest.fn(() => true),
+  isDraft: jest.fn(() => false),
+  current: jest.fn((value) => value),
+  original: jest.fn((value) => value),
+  enableMapSet: jest.fn(),
+  enableAllPlugins: jest.fn(),
+  setAutoFreeze: jest.fn(),
+  setUseProxies: jest.fn(),
   default: {
-    produce: jest.fn((state, fn) => fn(state)),
+    produce: jest.fn((state, fn) => {
+      const draft = typeof state === 'object' && state !== null ? { ...state } : state;
+      const result = fn(draft);
+      return result !== undefined ? result : draft;
+    }),
+    isDraftable: jest.fn(() => true),
   },
 }));
 
@@ -92,4 +111,3 @@ global.console = {
   warn: jest.fn(),
   error: jest.fn(),
 };
-

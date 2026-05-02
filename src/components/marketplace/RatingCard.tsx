@@ -45,9 +45,7 @@ export default function RatingCard({ rating, compact = false }: RatingCardProps)
             <Ionicons name="person" size={20} color={colors.textInverse} />
           </View>
           <View style={styles.compactInfo}>
-            <Text style={[styles.buyerName, { color: colors.text }]}>
-              Acheteur
-            </Text>
+            <Text style={[styles.buyerName, { color: colors.text }]}>Acheteur</Text>
             <Text style={[styles.date, { color: colors.textSecondary }]}>
               {formatDate(rating.createdAt)}
             </Text>
@@ -55,17 +53,12 @@ export default function RatingCard({ rating, compact = false }: RatingCardProps)
 
           <View style={styles.compactScore}>
             {renderStars(parseFloat(averageScore), 14)}
-            <Text style={[styles.scoreNumber, { color: colors.gold }]}>
-              {averageScore}
-            </Text>
+            <Text style={[styles.scoreNumber, { color: colors.gold }]}>{averageScore}</Text>
           </View>
         </View>
 
         {rating.comment && (
-          <Text
-            style={[styles.comment, { color: colors.text }]}
-            numberOfLines={2}
-          >
+          <Text style={[styles.comment, { color: colors.text }]} numberOfLines={2}>
             {rating.comment}
           </Text>
         )}
@@ -73,9 +66,7 @@ export default function RatingCard({ rating, compact = false }: RatingCardProps)
         {rating.verifiedPurchase && (
           <View style={[styles.verifiedBadge, { backgroundColor: colors.success + '15' }]}>
             <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-            <Text style={[styles.verifiedText, { color: colors.success }]}>
-              Achat vérifié
-            </Text>
+            <Text style={[styles.verifiedText, { color: colors.success }]}>Achat vérifié</Text>
           </View>
         )}
       </View>
@@ -92,15 +83,11 @@ export default function RatingCard({ rating, compact = false }: RatingCardProps)
 
         <View style={styles.headerInfo}>
           <View style={styles.headerRow}>
-            <Text style={[styles.buyerName, { color: colors.text }]}>
-              Acheteur
-            </Text>
+            <Text style={[styles.buyerName, { color: colors.text }]}>Acheteur</Text>
             {rating.verifiedPurchase && (
               <View style={[styles.verifiedBadge, { backgroundColor: colors.success + '15' }]}>
                 <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-                <Text style={[styles.verifiedText, { color: colors.success }]}>
-                  Achat vérifié
-                </Text>
+                <Text style={[styles.verifiedText, { color: colors.success }]}>Achat vérifié</Text>
               </View>
             )}
           </View>
@@ -114,9 +101,7 @@ export default function RatingCard({ rating, compact = false }: RatingCardProps)
       {/* Score moyen */}
       <View style={styles.scoreSection}>
         {renderStars(parseFloat(averageScore), 20)}
-        <Text style={[styles.scoreText, { color: colors.gold }]}>
-          {averageScore} / 5
-        </Text>
+        <Text style={[styles.scoreText, { color: colors.gold }]}>{averageScore} / 5</Text>
       </View>
 
       {/* Détails critères (expandable) */}
@@ -138,9 +123,7 @@ export default function RatingCard({ rating, compact = false }: RatingCardProps)
       {expanded && (
         <View style={[styles.criteriaDetails, { backgroundColor: colors.surfaceLight }]}>
           <View style={styles.criteriaRow}>
-            <Text style={[styles.criteriaLabel, { color: colors.textSecondary }]}>
-              Qualité
-            </Text>
+            <Text style={[styles.criteriaLabel, { color: colors.textSecondary }]}>Qualité</Text>
             {renderStars(rating.ratings.quality, 14)}
           </View>
           <View style={styles.criteriaRow}>
@@ -150,9 +133,7 @@ export default function RatingCard({ rating, compact = false }: RatingCardProps)
             {renderStars(rating.ratings.professionalism, 14)}
           </View>
           <View style={styles.criteriaRow}>
-            <Text style={[styles.criteriaLabel, { color: colors.textSecondary }]}>
-              Ponctualité
-            </Text>
+            <Text style={[styles.criteriaLabel, { color: colors.textSecondary }]}>Ponctualité</Text>
             {renderStars(rating.ratings.timeliness, 14)}
           </View>
           <View style={styles.criteriaRow}>
@@ -166,21 +147,14 @@ export default function RatingCard({ rating, compact = false }: RatingCardProps)
 
       {/* Commentaire */}
       {rating.comment && (
-        <Text style={[styles.comment, { color: colors.text }]}>
-          {rating.comment}
-        </Text>
+        <Text style={[styles.comment, { color: colors.text }]}>{rating.comment}</Text>
       )}
 
       {/* Photos */}
       {rating.photos && rating.photos.length > 0 && (
         <View style={styles.photosContainer}>
           {rating.photos.slice(0, 3).map((photo, index) => (
-            <Image
-              key={index}
-              source={{ uri: photo }}
-              style={styles.photo}
-              resizeMode="cover"
-            />
+            <Image key={index} source={{ uri: photo }} style={styles.photo} resizeMode="cover" />
           ))}
           {rating.photos.length > 3 && (
             <View style={[styles.morePhotos, { backgroundColor: colors.surfaceLight }]}>
@@ -330,4 +304,3 @@ const styles = StyleSheet.create({
     fontWeight: MarketplaceTheme.typography.fontWeights.bold,
   },
 });
-

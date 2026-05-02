@@ -3,10 +3,18 @@
  */
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, RefreshControl } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  RefreshControl,
+} from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadChargesFixes, deleteChargeFixe, updateChargeFixe } from '../store/slices/financeSlice';
-import { ChargeFixe, StatutChargeFixe } from '../types';
+import type { ChargeFixe, StatutChargeFixe } from '../types/finance';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
@@ -14,15 +22,17 @@ import LoadingSpinner from './LoadingSpinner';
 import ChargeFixeFormModal from './ChargeFixeFormModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { selectAllChargesFixes, selectFinanceLoading } from '../store/selectors/financeSelectors';
-import { selectProjetActif } from '../store/selectors/projetSelectors';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
+import { logger } from '../utils/logger';
 
-export default function FinanceChargesFixesComponent() {
+function FinanceChargesFixesComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
   const loading = useAppSelector(selectFinanceLoading);
-  const projetActif = useAppSelector(selectProjetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const [selectedCharge, setSelectedCharge] = useState<ChargeFixe | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -100,12 +110,12 @@ export default function FinanceChargesFixesComponent() {
 
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;
-    
+
     setRefreshing(true);
     try {
       await dispatch(loadChargesFixes(projetActif.id)).unwrap();
     } catch (error) {
-      console.error('Erreur lors du rafraîchissement:', error);
+      logger.error('Erreur lors du rafraîchissement:', error);
     } finally {
       setRefreshing(false);
     }
@@ -203,10 +213,7 @@ export default function FinanceChargesFixesComponent() {
                   </TouchableOpacity>
                 )}
                 {canUpdate('finance') && (
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleEdit(charge)}
-                  >
+                  <TouchableOpacity style={styles.actionButton} onPress={() => handleEdit(charge)}>
                     <Text style={styles.actionButtonText}>✏️</Text>
                   </TouchableOpacity>
                 )}
@@ -223,9 +230,7 @@ export default function FinanceChargesFixesComponent() {
 
             <View style={styles.cardContent}>
               <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                  Catégorie:
-                </Text>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Catégorie:</Text>
                 <Text style={[styles.infoValue, { color: colors.text }]}>{charge.categorie}</Text>
               </View>
               <View style={styles.infoRow}>
@@ -235,9 +240,7 @@ export default function FinanceChargesFixesComponent() {
                 </Text>
               </View>
               <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                  Fréquence:
-                </Text>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Fréquence:</Text>
                 <Text style={[styles.infoValue, { color: colors.text }]}>{charge.frequence}</Text>
               </View>
               {charge.jour_paiement && (
@@ -417,3 +420,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(FinanceChargesFixesComponent);

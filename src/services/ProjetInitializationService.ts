@@ -1,34 +1,32 @@
 /**
  * Service pour initialiser un projet avec ses animaux initiaux
- * 
+ *
  * Responsabilités:
  * - Créer les animaux initiaux lors de la création d'un projet
  * - Générer des codes uniques pour les animaux
  * - Générer des noms uniques par genre
  */
 
-import * as SQLite from 'expo-sqlite';
-import { AnimalRepository } from '../database/repositories/AnimalRepository';
+import apiClient from './api/apiClient';
 import { genererPlusieursNomsAleatoires } from '../utils/nameGenerator';
 
 export class ProjetInitializationService {
-  private db: SQLite.SQLiteDatabase;
-
-  constructor(db: SQLite.SQLiteDatabase) {
-    this.db = db;
-  }
-
   /**
    * Crée automatiquement les animaux initiaux lors de la création d'un projet
    */
   async createAnimauxInitials(
     projetId: string,
-    effectifs: { nombre_truies: number; nombre_verrats: number; nombre_porcelets: number; nombre_croissance?: number }
+    effectifs: {
+      nombre_truies: number;
+      nombre_verrats: number;
+      nombre_porcelets: number;
+      nombre_croissance?: number;
+    }
   ): Promise<void> {
-    const animalRepo = new AnimalRepository(this.db);
-
-    // Récupérer les codes existants pour éviter les doublons
-    const animauxExistants = await animalRepo.findByProjet(projetId);
+    // Récupérer les codes existants pour éviter les doublons depuis l'API backend
+    const animauxExistants = await apiClient.get<any[]>(`/production/animaux`, {
+      params: { projet_id: projetId },
+    });
     const codesExistants = new Set(animauxExistants.map((a) => a.code.toUpperCase()));
 
     // Récupérer les noms déjà utilisés pour générer des noms uniques
@@ -111,21 +109,14 @@ export class ProjetInitializationService {
       const code = generateUniqueCode('T', truieCount);
       const nom = nomsFeminins[nomFemininIndex++];
 
-      await animalRepo.create({
+      await apiClient.post('/production/animaux', {
         projet_id: projetId,
         code,
         nom,
         sexe: 'femelle',
         reproducteur: true,
         statut: 'actif',
-        date_naissance: undefined,
-        poids_initial: undefined,
-        date_entree: undefined,
-        race: undefined,
-        origine: undefined,
         notes: "Créé lors de l'initialisation du projet",
-        pere_id: null,
-        mere_id: null,
       });
     }
 
@@ -135,21 +126,14 @@ export class ProjetInitializationService {
       const code = generateUniqueCode('V', verratCount);
       const nom = nomsMasculins[nomMasculinIndex++];
 
-      await animalRepo.create({
+      await apiClient.post('/production/animaux', {
         projet_id: projetId,
         code,
         nom,
         sexe: 'male',
         reproducteur: true,
         statut: 'actif',
-        date_naissance: undefined,
-        poids_initial: undefined,
-        date_entree: undefined,
-        race: undefined,
-        origine: undefined,
         notes: "Créé lors de l'initialisation du projet",
-        pere_id: null,
-        mere_id: null,
       });
     }
 
@@ -159,7 +143,7 @@ export class ProjetInitializationService {
       const code = generateUniqueCode('P', porceletCount);
       const nom = nomsPorcelets[nomPorceletIndex++];
 
-      await animalRepo.create({
+      await apiClient.post('/production/animaux', {
         projet_id: projetId,
         code,
         nom,
@@ -167,14 +151,7 @@ export class ProjetInitializationService {
         reproducteur: false,
         statut: 'actif',
         categorie_poids: 'porcelet',
-        date_naissance: undefined,
-        poids_initial: undefined,
-        date_entree: undefined,
-        race: undefined,
-        origine: undefined,
         notes: "Créé lors de l'initialisation du projet",
-        pere_id: null,
-        mere_id: null,
       });
     }
 
@@ -184,7 +161,7 @@ export class ProjetInitializationService {
       const code = generateUniqueCode('C', croissanceCount);
       const nom = nomsCroissance[nomCroissanceIndex++];
 
-      await animalRepo.create({
+      await apiClient.post('/production/animaux', {
         projet_id: projetId,
         code,
         nom,
@@ -192,16 +169,8 @@ export class ProjetInitializationService {
         reproducteur: false,
         statut: 'actif',
         categorie_poids: 'croissance',
-        date_naissance: undefined,
-        poids_initial: undefined,
-        date_entree: undefined,
-        race: undefined,
-        origine: undefined,
         notes: "Créé lors de l'initialisation du projet",
-        pere_id: null,
-        mere_id: null,
       });
     }
   }
 }
-

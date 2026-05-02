@@ -30,9 +30,13 @@ import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { getCategorieAnimal } from '../utils/animalUtils';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { useFocusEffect } from '@react-navigation/native';
+import { createLoggerWithPrefix } from '../utils/logger';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
+
+const logger = createLoggerWithPrefix('PrevisionVentes');
 
 interface Props {
-  refreshControl: React.ReactElement;
+  refreshControl: React.ReactElement<React.ComponentProps<typeof import('react-native').RefreshControl>>;
 }
 
 export default function PrevisionVentesComponent({ refreshControl }: Props) {
@@ -47,7 +51,8 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
     sailliesPlanifiees,
   } = useAppSelector((state) => state.planningProduction);
   const animaux = useAppSelector(selectAllAnimaux);
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   const [vueListe, setVueListe] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -66,7 +71,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
   useFocusEffect(
     React.useCallback(() => {
       if (projetActif && !hasLoadedAnimaux.current) {
-        console.log('🔄 PrevisionVentesComponent: Chargement des animaux...');
+        logger.info('Chargement des animaux...');
         dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
         hasLoadedAnimaux.current = true;
       }
@@ -92,7 +97,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
 
   // Debug log
   useEffect(() => {
-    console.log('📊 PrevisionVentesComponent Debug:', {
+    logger.debug('Debug:', {
       totalAnimaux: animaux?.length || 0,
       animauxAVendre: animauxAVendre.length,
       animaux: animaux?.map((a) => ({
@@ -185,8 +190,8 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
     ]);
   };
 
-  const getMarkedDates = () => {
-    const marked: any = {};
+  const getMarkedDates = (): { [key: string]: any } => {
+    const marked: { [key: string]: any } = {};
 
     (previsionsVentes || []).forEach((prevision) => {
       if (!prevision.date_vente_prevue) return;
@@ -247,11 +252,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
             ]}
             onPress={() => setModePrevu('cheptel')}
           >
-            <Ionicons
-              name="paw"
-              size={18}
-              color={modePrevu === 'cheptel' ? '#fff' : colors.text}
-            />
+            <Ionicons name="paw" size={18} color={modePrevu === 'cheptel' ? '#fff' : colors.text} />
             <Text
               style={[
                 styles.modeButtonText,
@@ -486,7 +487,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
             </View>
           </View>
           <View style={[styles.urgenceBadge, { backgroundColor: urgenceColor + '20' }]}>
-            <Ionicons name={urgenceIcon as any} size={16} color={urgenceColor} />
+            <Ionicons name={urgenceIcon as keyof typeof Ionicons.glyphMap} size={16} color={urgenceColor} />
             <Text style={[styles.urgenceText, { color: urgenceColor }]}>{urgenceLabel}</Text>
           </View>
         </View>

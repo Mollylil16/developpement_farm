@@ -9,6 +9,17 @@
 export type RoleType = 'producer' | 'buyer' | 'veterinarian' | 'technician';
 
 /**
+ * Use Role.X instead of raw strings to avoid silent typo bugs.
+ * Values match the RoleType union — this is the single source of truth.
+ */
+export const Role = {
+  PRODUCER: 'producer',
+  BUYER: 'buyer',
+  VETERINARIAN: 'veterinarian',
+  TECHNICIAN: 'technician',
+} as const satisfies Record<string, RoleType>;
+
+/**
  * Statut de validation d'un profil
  */
 export type ProfileStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
@@ -19,18 +30,18 @@ export type ProfileStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
 export interface ProducerProfile {
   isActive: boolean;
   activatedAt: string; // ISO date string
-  
+
   // Données de la ferme
   farmName: string;
   farmType: 'individual' | 'cooperative' | 'company';
   registrationNumber?: string;
-  
+
   // Capacité
   capacity: {
     totalCapacity: number;
     currentOccupancy: number;
   };
-  
+
   // Statistiques
   stats: {
     totalSales: number;
@@ -38,7 +49,7 @@ export interface ProducerProfile {
     averageRating: number;
     totalReviews: number;
   };
-  
+
   // Paramètres marketplace
   marketplaceSettings: {
     defaultPricePerKg: number;
@@ -54,10 +65,10 @@ export interface ProducerProfile {
 export interface BuyerProfile {
   isActive: boolean;
   activatedAt: string; // ISO date string
-  
+
   buyerType: 'individual' | 'restaurant' | 'butcher' | 'wholesaler' | 'retailer';
   businessName?: string;
-  
+
   // 🆕 Informations commerciales (complément)
   businessInfo?: {
     companyName: string;
@@ -66,7 +77,7 @@ export interface BuyerProfile {
     taxId?: string;
     address?: string;
   };
-  
+
   // Historique d'achats
   purchaseHistory: {
     totalPurchases: number;
@@ -74,7 +85,7 @@ export interface BuyerProfile {
     averageOrderValue: number;
     preferredRaces?: string[];
   };
-  
+
   // Préférences
   preferences: {
     preferredWeightRange: { min: number; max: number };
@@ -82,17 +93,17 @@ export interface BuyerProfile {
     notifyNewListings: boolean;
     notifyPriceDrops?: boolean;
   };
-  
+
   // Notation
   rating?: {
     asReviewer: number;
     totalReviewsGiven: number;
   };
-  
+
   // Paiement
   paymentMethods?: {
     type: 'cash' | 'mobile_money' | 'bank_transfer' | 'check';
-    details?: any;
+    details?: unknown;
   }[];
 }
 
@@ -102,14 +113,14 @@ export interface BuyerProfile {
 export interface VeterinarianProfile {
   isActive: boolean;
   activatedAt: string; // ISO date string
-  
+
   // 🆕 Statut de validation
   validationStatus?: ProfileStatus;
   submittedAt?: string; // ISO date string
   validatedAt?: string; // ISO date string
   validatedBy?: string; // Admin ID
   rejectionReason?: string;
-  
+
   // Qualifications
   qualifications: {
     degree: string;
@@ -118,7 +129,7 @@ export interface VeterinarianProfile {
     licenseNumber: string;
     licenseIssuedBy?: string;
     licenseValidUntil: string; // ISO date string
-    
+
     // 🆕 Documents obligatoires
     documents?: {
       identityCard: {
@@ -133,7 +144,7 @@ export interface VeterinarianProfile {
       };
     };
   };
-  
+
   // 🆕 Lieu de fonction
   workLocation?: {
     address: string;
@@ -143,9 +154,9 @@ export interface VeterinarianProfile {
     longitude: number;
     serviceRadius: number; // En km (défaut: 50)
   };
-  
+
   specializations: string[];
-  
+
   // 🆕 Expérience
   experience?: {
     yearsOfPractice: number;
@@ -156,7 +167,7 @@ export interface VeterinarianProfile {
       to?: string; // ISO date string
     }[];
   };
-  
+
   // 🆕 Propositions de service
   serviceProposals?: {
     farmId: string;
@@ -166,7 +177,7 @@ export interface VeterinarianProfile {
     respondedAt?: string; // ISO date string
     message?: string;
   }[];
-  
+
   // Clients (fermes)
   clients: {
     farmId: string;
@@ -175,7 +186,7 @@ export interface VeterinarianProfile {
     status?: 'active' | 'inactive';
     contractType?: 'permanent' | 'consultation' | 'emergency';
   }[];
-  
+
   // Statistiques
   stats: {
     totalConsultations: number;
@@ -185,7 +196,7 @@ export interface VeterinarianProfile {
     averageRating?: number;
     totalReviews?: number;
   };
-  
+
   // 🆕 Disponibilité
   availability?: {
     workingHours: {
@@ -193,7 +204,7 @@ export interface VeterinarianProfile {
     };
     emergencyAvailable: boolean;
   };
-  
+
   // 🆕 Tarifs
   fees?: {
     consultation: number;
@@ -222,14 +233,14 @@ export interface TechnicianPermissions {
 export interface TechnicianProfile {
   isActive: boolean;
   activatedAt: string; // ISO date string
-  
+
   // Qualifications
   qualifications: {
     level: 'beginner' | 'intermediate' | 'advanced' | 'expert';
   };
-  
+
   skills: string[];
-  
+
   // Fermes assistées
   assistedFarms: {
     farmId: string;
@@ -272,4 +283,3 @@ export interface UserPreferences {
     push: boolean;
   };
 }
-

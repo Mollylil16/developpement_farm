@@ -27,4 +27,3 @@ export async function createDepensesPonctuellesTable(db: SQLite.SQLiteDatabase):
     );
   `);
 }
-

@@ -14,7 +14,7 @@ import {
 interface LanguageContextType {
   language: 'fr' | 'en';
   setLanguage: (lang: 'fr' | 'en') => Promise<void>;
-  t: (key: string, options?: any) => string;
+  t: (key: string, options?: unknown) => string;
   isLoading: boolean;
 }
 

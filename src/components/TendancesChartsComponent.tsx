@@ -7,6 +7,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions, TouchableOpacity } from 'react-native';
 import { LineChart, BarChart } from 'react-native-chart-kit';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { format, parseISO, startOfMonth, endOfMonth, subMonths } from 'date-fns';
@@ -14,7 +15,9 @@ import { fr } from 'date-fns/locale';
 import Card from './Card';
 import { loadPeseesRecents } from '../store/slices/productionSlice';
 import { loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
-import { ChargeFixe, DepensePonctuelle, Mortalite, ProductionPesee } from '../types';
+import type { ChargeFixe, DepensePonctuelle } from '../types/finance';
+import type { Mortalite } from '../types/mortalites';
+import type { ProductionPesee } from '../types/production';
 import { selectPeseesRecents } from '../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
 import {
@@ -29,7 +32,8 @@ type PeriodeType = '7j' | '30j' | '3m' | '6m' | '12m';
 export default function TendancesChartsComponent() {
   const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const peseesRecents: ProductionPesee[] = useAppSelector(selectPeseesRecents);
   const mortalites: Mortalite[] = useAppSelector(selectAllMortalites);
   const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
@@ -98,7 +102,10 @@ export default function TendancesChartsComponent() {
     const groupBy = periode === '7j' || periode === '30j' ? 'week' : 'month';
 
     const grouped = peseesFiltrees.reduce(
-      (acc: Record<string, { poids: number[]; count: number; date: Date }>, pesee: ProductionPesee) => {
+      (
+        acc: Record<string, { poids: number[]; count: number; date: Date }>,
+        pesee: ProductionPesee
+      ) => {
         const datePesee = parseISO(pesee.date);
         let key: string;
         let dateReference: Date;

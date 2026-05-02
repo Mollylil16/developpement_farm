@@ -12,17 +12,17 @@ import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { SafeTextWrapper } from '../../utils/textRenderingGuard';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 
 interface TransitionPorceletCroissanceWidgetProps {
   onPress?: () => void;
 }
 
-function TransitionPorceletCroissanceWidget({
-  onPress,
-}: TransitionPorceletCroissanceWidgetProps) {
+function TransitionPorceletCroissanceWidget({ onPress }: TransitionPorceletCroissanceWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux = useAppSelector(selectAllAnimaux);
 
   // Utiliser useRef pour éviter les chargements multiples
@@ -77,9 +77,7 @@ function TransitionPorceletCroissanceWidget({
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.emoji}>📈</Text>
-          <Text style={[styles.title, { color: colors.text }]}>
-            Passage porcelets → croissance
-          </Text>
+          <Text style={[styles.title, { color: colors.text }]}>Passage porcelets en croissance</Text>
         </View>
 
         <View style={[styles.divider, { backgroundColor: colors.divider }]} />
@@ -151,4 +149,3 @@ const styles = StyleSheet.create({
 });
 
 export default memo(TransitionPorceletCroissanceWidget);
-

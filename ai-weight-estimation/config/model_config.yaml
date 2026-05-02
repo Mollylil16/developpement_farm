@@ -1,0 +1,70 @@
+# Configuration des modèles
+
+models:
+  detection:
+    name: "yolov8l-pig-detection"
+    path: "models/detection/yolov8l_pig.pt"
+    mobile_path: "mobile/onnx/yolov8n_pig.onnx"
+    input_size: [640, 640]
+    confidence_threshold: 0.5
+    iou_threshold: 0.45
+    version: "v2.1"
+    
+  segmentation:
+    name: "mask_rcnn_pig"
+    path: "models/segmentation/mask_rcnn_pig.pt"
+    input_size: [800, 800]
+    confidence_threshold: 0.7
+    version: "v1.0"
+    
+  reid:
+    name: "pig_reid_resnet50"
+    path: "models/reid/pig_reid_resnet50.pt"
+    input_size: [256, 128]
+    feature_dim: 512
+    version: "v1.3"
+    
+  weight:
+    geometric:
+      name: "geometric_weight_estimator"
+      path: "models/weight/geometric_estimator.pt"
+      keypoints_model: "models/weight/keypoints_detector.pt"
+      num_keypoints: 18
+      version: "v2.0"
+      
+    cnn:
+      name: "efficientnet_weight"
+      path: "models/weight/efficientnet_b4_weight.pt"
+      input_size: [224, 224]
+      version: "v3.0"
+      
+    transformer:
+      name: "vit_weight"
+      path: "models/weight/vit_base_weight.pt"
+      input_size: [224, 224]
+      patch_size: 16
+      version: "v2.0"
+      
+    ensemble:
+      name: "ensemble_weight"
+      weights: {
+        geometric: 0.3,
+        cnn: 0.4,
+        transformer: 0.3
+      }
+      version: "v3.0"
+
+# Optimisation mobile
+mobile:
+  tflite:
+    detection: "mobile/tflite/yolov8n_pig.tflite"
+    weight: "mobile/tflite/efficientnet_weight.tflite"
+    
+  coreml:
+    detection: "mobile/coreml/yolov8n_pig.mlmodel"
+    weight: "mobile/coreml/efficientnet_weight.mlmodel"
+    
+  onnx:
+    detection: "mobile/onnx/yolov8n_pig.onnx"
+    weight: "mobile/onnx/efficientnet_weight.onnx"
+

@@ -91,4 +91,3 @@ export function useDashboardAnimations(): UseDashboardAnimationsReturn {
     secondaryWidgetsAnim,
   };
 }
-

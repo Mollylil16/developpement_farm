@@ -26,8 +26,9 @@ export default function SettingsPreferencesView({ onBack }: SettingsPreferencesV
     try {
       await setLanguage(lang);
       Alert.alert(t('settings.language_changed'), t('settings.language_changed_message'));
-    } catch (error: any) {
-      Alert.alert(t('common.error'), error.message || 'Erreur lors du changement de langue');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur lors du changement de langue';
+      Alert.alert(t('common.error'), errorMessage);
     }
   };
 
@@ -139,10 +140,7 @@ export default function SettingsPreferencesView({ onBack }: SettingsPreferencesV
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.item}
-            onPress={() => setShowUnitsModal(true)}
-          >
+          <TouchableOpacity style={styles.item} onPress={() => setShowUnitsModal(true)}>
             <Text style={[styles.itemText, { color: colors.text }]}>Unités de mesure</Text>
             <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -154,10 +152,7 @@ export default function SettingsPreferencesView({ onBack }: SettingsPreferencesV
         visible={showCurrencyModal}
         onClose={() => setShowCurrencyModal(false)}
       />
-      <UnitsSettingsModal
-        visible={showUnitsModal}
-        onClose={() => setShowUnitsModal(false)}
-      />
+      <UnitsSettingsModal visible={showUnitsModal} onClose={() => setShowUnitsModal(false)} />
     </View>
   );
 }
@@ -249,4 +244,3 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
-

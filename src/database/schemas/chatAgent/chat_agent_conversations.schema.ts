@@ -18,4 +18,3 @@ export interface ChatAgentMessage {
   timestamp: string;
   metadata_json?: string | null; // JSON string pour stocker les métadonnées
 }
-

@@ -1,6 +1,6 @@
 /**
  * Use Case : Mettre à jour un animal
- * 
+ *
  * Orchestre la mise à jour d'un animal avec validation métier
  */
 
@@ -37,13 +37,13 @@ export class UpdateAnimalUseCase {
 
     // Validation métier
     if (input.code && input.code.trim() === '') {
-      throw new Error('Le code de l\'animal ne peut pas être vide');
+      throw new Error("Le code de l'animal ne peut pas être vide");
     }
 
     // Vérifier l'unicité du code si modifié
     if (input.code && input.code !== animal.code) {
       const existingAnimals = await this.animalRepository.findByProjet(animal.projetId);
-      const codeExists = existingAnimals.some(a => a.code === input.code && a.id !== input.id);
+      const codeExists = existingAnimals.some((a) => a.code === input.code && a.id !== input.id);
       if (codeExists) {
         throw new Error(`Un animal avec le code ${input.code} existe déjà dans ce projet`);
       }
@@ -53,7 +53,7 @@ export class UpdateAnimalUseCase {
     if (input.pereId) {
       const pere = await this.animalRepository.findById(input.pereId);
       if (!pere) {
-        throw new Error('Le père spécifié n\'existe pas');
+        throw new Error("Le père spécifié n'existe pas");
       }
       if (pere.sexe !== 'male') {
         throw new Error('Le père doit être un mâle');
@@ -63,7 +63,7 @@ export class UpdateAnimalUseCase {
     if (input.mereId) {
       const mere = await this.animalRepository.findById(input.mereId);
       if (!mere) {
-        throw new Error('La mère spécifiée n\'existe pas');
+        throw new Error("La mère spécifiée n'existe pas");
       }
       if (mere.sexe !== 'femelle') {
         throw new Error('La mère doit être une femelle');
@@ -93,15 +93,14 @@ export class UpdateAnimalUseCase {
 
     // Validation avec l'entité
     const animalEntity = new AnimalEntity(updated);
-    
+
     // Si on essaie de rendre un animal reproducteur, vérifier qu'il peut reproduire
     if (input.reproducteur === true && !animal.reproducteur) {
       if (!animalEntity.peutReproduire()) {
-        throw new Error('L\'animal est trop jeune pour être reproducteur (minimum 8 mois)');
+        throw new Error("L'animal est trop jeune pour être reproducteur (minimum 8 mois)");
       }
     }
 
     return updated;
   }
 }
-

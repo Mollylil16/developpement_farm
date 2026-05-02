@@ -1,37 +1,55 @@
 /**
  * Hook pour gérer les filtres et la recherche du cheptel
+ * Optimisé avec debouncing pour la recherche
  */
 
 import { useState, useMemo } from 'react';
 import { useAppSelector } from '../../store/hooks';
 import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
-import { ProductionAnimal, StatutAnimal } from '../../types';
+import type { ProductionAnimal, StatutAnimal } from '../../types/production';
 import { getCategorieAnimal } from '../../utils/animalUtils';
+import { useDebounce } from '../useDebounce';
 
-const STATUTS_CHEPTEL: StatutAnimal[] = ['actif', 'autre'];
+// Le cheptel correspond aux animaux présents sur la ferme (statut "actif").
+// Le statut "autre" signifie "retiré du cheptel mais dans historique" (voir `types/production.ts`),
+// donc il ne doit pas être inclus dans la liste principale du cheptel.
+const STATUTS_CHEPTEL: StatutAnimal[] = ['actif'];
 
 export function useProductionCheptelFilters(projetId?: string) {
-  const [filterCategorie, setFilterCategorie] = useState<'tous' | 'truie' | 'verrat' | 'porcelet'>('tous');
+  const [filterCategorie, setFilterCategorie] = useState<'tous' | 'truie' | 'verrat' | 'porcelet'>(
+    'tous'
+  );
   const [searchQuery, setSearchQuery] = useState('');
+  // Debouncer la recherche pour éviter les filtres à chaque frappe (300ms)
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const allAnimaux = useAppSelector(selectAllAnimaux);
 
   // Filtrer les animaux du cheptel (actif et autre) avec les filtres appliqués
   const animauxFiltres = useMemo(() => {
     if (!Array.isArray(allAnimaux)) return [];
+    if (!projetId) return [];
 
-    // D'abord filtrer par statut (cheptel uniquement)
-    let result = allAnimaux.filter(
-      (a) => a.projet_id === projetId && STATUTS_CHEPTEL.includes(a.statut)
-    );
+    // D'abord filtrer par projet_id et statut (cheptel uniquement)
+    // Utiliser toLowerCase() pour garantir une comparaison robuste (comme dans OverviewWidget)
+    // Note: Le statut 'actif' correspond aux animaux dans le cheptel actif (sur ferme)
+    let result = allAnimaux.filter((a) => {
+      const projetIdMatch = a.projet_id === projetId;
+      if (!projetIdMatch) return false;
+      const statutLower = (a.statut || '').toLowerCase();
+      // Cheptel = uniquement les animaux "actif"
+      // (exclure 'vendu', 'mort', 'offert', 'autre')
+      const isCheptel = statutLower === 'actif';
+      return isCheptel;
+    });
 
     // Filtrer par catégorie si spécifié
     if (filterCategorie !== 'tous') {
       result = result.filter((a) => getCategorieAnimal(a) === filterCategorie);
     }
 
-    // Filtrer par recherche (code ou nom) si spécifié
-    if (searchQuery.trim()) {
-      const query = searchQuery.trim().toLowerCase();
+    // Filtrer par recherche (code ou nom) si spécifié (utiliser la valeur debouncée)
+    if (debouncedSearchQuery.trim()) {
+      const query = debouncedSearchQuery.trim().toLowerCase();
       result = result.filter((a) => {
         const codeMatch = a.code?.toLowerCase().includes(query) || false;
         const nomMatch = a.nom?.toLowerCase().includes(query) || false;
@@ -40,15 +58,17 @@ export function useProductionCheptelFilters(projetId?: string) {
     }
 
     return result;
-  }, [allAnimaux, projetId, filterCategorie, searchQuery]);
+  }, [allAnimaux, projetId, filterCategorie, debouncedSearchQuery]);
 
   // Compter par catégorie pour les animaux du cheptel
   const countByCategory = useMemo(() => {
-    if (!Array.isArray(allAnimaux)) return { truies: 0, verrats: 0, porcelets: 0 };
+    if (!Array.isArray(allAnimaux) || !projetId) return { truies: 0, verrats: 0, porcelets: 0 };
 
-    const animauxCheptel = allAnimaux.filter(
-      (a) => a.projet_id === projetId && STATUTS_CHEPTEL.includes(a.statut)
-    );
+    const animauxCheptel = allAnimaux.filter((a) => {
+      if (a.projet_id !== projetId) return false;
+      const statutLower = a.statut?.toLowerCase();
+      return statutLower === 'actif';
+    });
 
     return {
       truies: animauxCheptel.filter((a) => getCategorieAnimal(a) === 'truie').length,
@@ -66,4 +86,3 @@ export function useProductionCheptelFilters(projetId?: string) {
     countByCategory,
   };
 }
-

@@ -6,7 +6,14 @@ import { useRolePermissions } from './useRolePermissions';
 import { useRole } from '../contexts/RoleContext';
 import { useAppSelector } from '../store/hooks';
 
-export type PermissionType = 'reproduction' | 'nutrition' | 'finance' | 'rapports' | 'planification' | 'mortalites' | 'sante';
+export type PermissionType =
+  | 'reproduction'
+  | 'nutrition'
+  | 'finance'
+  | 'rapports'
+  | 'planification'
+  | 'mortalites'
+  | 'sante';
 export type ActionType = 'create' | 'update' | 'delete';
 
 interface UseActionPermissionsReturn {
@@ -54,10 +61,12 @@ export function useActionPermissions(): UseActionPermissionsReturn {
   const currentUser = useAppSelector((state) => state.auth.user);
 
   // Vérifier si l'utilisateur est propriétaire du projet actif
-  const isProprietaire = activeRole === 'producer' && 
-    projetActif && 
-    currentUser && 
-    (projetActif.proprietaire_id === currentUser.id || (projetActif as any).user_id === currentUser.id);
+  const isProprietaire =
+    activeRole === 'producer' &&
+    projetActif &&
+    currentUser &&
+    (projetActif.proprietaire_id === currentUser.id ||
+      ('user_id' in projetActif && projetActif.user_id === currentUser.id));
 
   // Helper pour vérifier les permissions par module
   const hasPermission = (module: PermissionType): boolean => {

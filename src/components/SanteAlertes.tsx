@@ -1,6 +1,6 @@
 /**
  * SanteAlertes - Section des alertes sanitaires
- * 
+ *
  * Affiche les alertes critiques/élevées/moyennes en scrollview horizontal
  */
 
@@ -29,11 +29,11 @@ export default function SanteAlertes({
   onClose,
 }: SanteAlertesProps) {
   const { colors } = useTheme();
-  
+
   if (!showAlertes || alertes.length === 0) {
     return null;
   }
-  
+
   return (
     <View style={[styles.alertesContainer, { backgroundColor: colors.surface }]}>
       <View style={styles.alertesHeader}>
@@ -50,7 +50,7 @@ export default function SanteAlertes({
           <Ionicons name="close" size={24} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
-      
+
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.alertesScroll}>
         {alertes.map((alerte, index) => (
           <View
@@ -147,4 +147,3 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 });
-

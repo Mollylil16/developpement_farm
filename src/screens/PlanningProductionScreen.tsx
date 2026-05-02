@@ -35,7 +35,12 @@ export default function PlanningProductionScreen() {
     setTimeout(() => setRefreshing(false), 1000);
   };
 
-  const onglets = [
+  const onglets: Array<{
+    id: OngletType;
+    label: string;
+    icon: keyof typeof Ionicons.glyphMap;
+    description: string;
+  }> = [
     {
       id: 'simulation' as OngletType,
       label: 'Simulation',
@@ -83,7 +88,7 @@ export default function PlanningProductionScreen() {
             onPress={() => setOngletActif(onglet.id)}
           >
             <Ionicons
-              name={onglet.icon as any}
+              name={onglet.icon}
               size={24}
               color={ongletActif === onglet.id ? colors.primary : colors.textSecondary}
             />

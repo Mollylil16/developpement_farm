@@ -1,7 +1,7 @@
 /**
  * Migration 2 : Ajouter la colonne telephone à la table users
  * Permet l'authentification par téléphone
- * 
+ *
  * Version: 2
  */
 
@@ -29,4 +29,3 @@ export async function addTelephoneToUsers(db: SQLiteDatabase): Promise<void> {
     console.log('✅ Migration: Colonne telephone ajoutée à users');
   }
 }
-

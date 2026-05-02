@@ -4,25 +4,21 @@
  */
 
 import React, { useState, useCallback, useMemo } from 'react';
-import {
-  View,
-  ScrollView,
-  Text,
-  StyleSheet,
-  RefreshControl,
-  TouchableOpacity,
-} from 'react-native';
+import { View, ScrollView, Text, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useRole } from '../contexts/RoleContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useTechData } from '../hooks/useTechData';
-import { useAppSelector } from '../store/hooks';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { loadInvitationsEnAttente } from '../store/slices/collaborationSlice';
+import InvitationsModal from '../components/InvitationsModal';
 import { SCREENS } from '../navigation/types';
-import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, LIGHT_COLORS } from '../constants/theme';
 import Card from '../components/Card';
 import EmptyState from '../components/EmptyState';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -30,20 +26,47 @@ import DashboardHeader from '../components/dashboard/DashboardHeader';
 import ProfileMenuModal from '../components/ProfileMenuModal';
 import { NotificationPanel } from '../components/marketplace';
 import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
+import ProjectSelectorCollaborateur from '../components/Collaborations/ProjectSelectorCollaborateur';
 import { useProfilData } from '../hooks/useProfilData';
 import { useDashboardAnimations } from '../hooks/useDashboardAnimations';
 import { useMarketplaceNotifications } from '../hooks/useMarketplaceNotifications';
+import type { Planification } from '../types/planification';
 
 const DashboardTechScreen: React.FC = () => {
   const { currentUser } = useRole();
   const { colors, isDark } = useTheme();
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
+  const dispatch = useAppDispatch();
   const [refreshing, setRefreshing] = useState(false);
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
   const [notificationPanelVisible, setNotificationPanelVisible] = useState(false);
-  const { assistedFarms, todayTasks, recentRecords, loading, error, refresh } = useTechData(currentUser?.id);
+  const [invitationsModalVisible, setInvitationsModalVisible] = useState(false);
+  const { assistedFarms, todayTasks, recentRecords, loading, error, refresh } = useTechData(
+    currentUser?.id
+  );
   const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetCollaboratifActif, collaborateurActuel, invitationsEnAttente } = useAppSelector((state) => state.collaboration);
   const { planifications, planificationsAVenir } = useAppSelector((state) => state.planification);
+
+  // Charger les invitations en attente au montage et quand l'écran devient actif
+  React.useEffect(() => {
+    if (isFocused && currentUser) {
+      dispatch(loadInvitationsEnAttente({
+        userId: currentUser.id,
+        email: currentUser.email || undefined,
+        telephone: currentUser.telephone || undefined,
+      }));
+    }
+  }, [dispatch, isFocused, currentUser?.id, currentUser?.email, currentUser?.telephone]);
+
+  // Nombre d'invitations en attente
+  const invitationsCount = Array.isArray(invitationsEnAttente)
+    ? invitationsEnAttente.filter((inv) => inv.statut === 'en_attente').length
+    : 0;
+
+  // Pour les techniciens, utiliser le projet collaboratif sélectionné (projet du producteur)
+  const projetActifPourTech = projetCollaboratifActif || projetActif;
   const profil = useProfilData();
   const animations = useDashboardAnimations();
   const {
@@ -51,7 +74,7 @@ const DashboardTechScreen: React.FC = () => {
     unreadCount: marketplaceUnreadCount,
     markAsRead,
     deleteNotification,
-  } = useMarketplaceNotifications();
+  } = useMarketplaceNotifications({ enabled: isFocused });
 
   const techProfile = currentUser?.roles?.technician;
 
@@ -84,6 +107,10 @@ const DashboardTechScreen: React.FC = () => {
 
   const handlePressNotifications = useCallback(() => {
     setNotificationPanelVisible(true);
+  }, []);
+
+  const handlePressInvitations = useCallback(() => {
+    setInvitationsModalVisible(true);
   }, []);
 
   const handleCloseProfileMenu = useCallback(() => {
@@ -132,177 +159,185 @@ const DashboardTechScreen: React.FC = () => {
             profilPhotoUri={profil.profilPhotoUri}
             profilInitiales={profil.profilInitiales || ''}
             currentDate={currentDate}
-            projetNom={techProfile?.qualifications?.level ? `Niveau: ${levelLabels[techProfile.qualifications.level]}` : undefined}
-            invitationsCount={0}
+            projetNom={
+              projetCollaboratifActif?.nom || (techProfile?.qualifications?.level
+                ? `Niveau: ${levelLabels[techProfile.qualifications.level]}`
+                : undefined)
+            }
+            invitationsCount={invitationsCount}
             notificationCount={marketplaceUnreadCount}
             headerAnim={animations.headerAnim}
             onPressPhoto={handlePressPhoto}
-            onPressInvitations={() => {}}
+            onPressInvitations={handlePressInvitations}
             onPressNotifications={handlePressNotifications}
           />
 
-        {/* Fermes assistées */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Mes fermes
-            </Text>
-            {assistedFarms.length > 0 && (
-              <TouchableOpacity
-                onPress={() => navigation.navigate(SCREENS.MY_FARMS as never)}
-                style={styles.seeAllButton}
-              >
-                <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-              </TouchableOpacity>
+          {/* 🆕 Sélecteur de projet collaboratif */}
+          <View style={styles.projectSelectorContainer}>
+            <ProjectSelectorCollaborateur />
+          </View>
+
+          {/* Fermes assistées */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Mes fermes</Text>
+              {assistedFarms.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => navigation.navigate(SCREENS.MY_FARMS as never)}
+                  style={styles.seeAllButton}
+                >
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {loading ? (
+              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+                <LoadingSpinner size="small" />
+              </Card>
+            ) : assistedFarms.length === 0 ? (
+              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+                <EmptyState
+                  icon="business-outline"
+                  title="Aucune ferme assistée"
+                  message="Vous n'assistez aucune ferme pour le moment"
+                />
+              </Card>
+            ) : (
+              <View style={styles.farmsGrid}>
+                {assistedFarms.slice(0, 4).map((farm) => (
+                  <FarmCard key={farm.farmId} farm={farm} colors={colors} />
+                ))}
+              </View>
             )}
           </View>
-          {loading ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <LoadingSpinner size="small" />
-            </Card>
-          ) : assistedFarms.length === 0 ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <EmptyState
-                icon="business-outline"
-                title="Aucune ferme assistée"
-                message="Vous n'assistez aucune ferme pour le moment"
-                compact
-              />
-            </Card>
-          ) : (
-            <View style={styles.farmsGrid}>
-              {assistedFarms.slice(0, 4).map((farm) => (
-                <FarmCard key={farm.farmId} farm={farm} colors={colors} />
-              ))}
-            </View>
-          )}
-        </View>
 
-        {/* Tâches du jour */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Tâches du jour
-            </Text>
-            {todayTasks.length > 0 && (
-              <TouchableOpacity
-                onPress={() => navigation.navigate(SCREENS.TASKS as never)}
-                style={styles.seeAllButton}
-              >
-                <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-              </TouchableOpacity>
+          {/* Tâches du jour */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Tâches du jour</Text>
+              {todayTasks.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => navigation.navigate(SCREENS.TASKS as never)}
+                  style={styles.seeAllButton}
+                >
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {loading ? (
+              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+                <LoadingSpinner size="small" />
+              </Card>
+            ) : todayTasks.length === 0 ? (
+              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+                <EmptyState
+                  icon="checkmark-circle-outline"
+                  title="Aucune tâche"
+                  message="Vous n'avez pas de tâches prévues aujourd'hui"
+                />
+              </Card>
+            ) : (
+              <View style={styles.tasksList}>
+                {todayTasks.slice(0, 3).map((task) => (
+                  <TaskCard key={task.id} task={task} colors={colors} />
+                ))}
+              </View>
             )}
           </View>
-          {loading ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <LoadingSpinner size="small" />
-            </Card>
-          ) : todayTasks.length === 0 ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <EmptyState
-                icon="checkmark-circle-outline"
-                title="Aucune tâche"
-                message="Vous n'avez pas de tâches prévues aujourd'hui"
-                compact
-              />
-            </Card>
-          ) : (
-            <View style={styles.tasksList}>
-              {todayTasks.slice(0, 3).map((task) => (
-                <TaskCard key={task.id} task={task} colors={colors} />
-              ))}
+
+          {/* Planifications du projet actif */}
+          {projetActif && planifications && planifications.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  Planifications ({projetActif.nom})
+                </Text>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate(SCREENS.PLANIFICATION as never)}
+                  style={styles.seeAllButton}
+                >
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.tasksList}>
+                {planifications
+                  .filter((p) => p.statut === 'a_faire' || p.statut === 'en_cours')
+                  .slice(0, 3)
+                  .map((planif) => (
+                    <PlanificationCard key={planif.id} planification={planif} colors={colors} />
+                  ))}
+              </View>
             </View>
           )}
-        </View>
 
-        {/* Planifications du projet actif */}
-        {projetActif && planifications && planifications.length > 0 && (
+          {/* Enregistrements récents */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                Planifications ({projetActif.nom})
+                Enregistrements récents
               </Text>
-              <TouchableOpacity
-                onPress={() => navigation.navigate(SCREENS.PLANIFICATION as never)}
-                style={styles.seeAllButton}
-              >
-                <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-              </TouchableOpacity>
+              {recentRecords.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => navigation.navigate(SCREENS.RECORDS as never)}
+                  style={styles.seeAllButton}
+                >
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                </TouchableOpacity>
+              )}
             </View>
-            <View style={styles.tasksList}>
-              {planifications
-                .filter((p) => p.statut === 'a_faire' || p.statut === 'en_cours')
-                .slice(0, 3)
-                .map((planif) => (
-                  <PlanificationCard key={planif.id} planification={planif} colors={colors} />
+            {loading ? (
+              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+                <LoadingSpinner size="small" />
+              </Card>
+            ) : recentRecords.length === 0 ? (
+              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+                <EmptyState
+                  icon="document-outline"
+                  title="Aucun enregistrement"
+                  message="Vos enregistrements récents apparaîtront ici"
+                />
+              </Card>
+            ) : (
+              <View style={styles.recordsList}>
+                {recentRecords.slice(0, 3).map((record) => (
+                  <RecordCard key={record.id} record={record} colors={colors} />
                 ))}
-            </View>
-          </View>
-        )}
-
-        {/* Enregistrements récents */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Enregistrements récents
-            </Text>
-            {recentRecords.length > 0 && (
-              <TouchableOpacity
-                onPress={() => navigation.navigate(SCREENS.RECORDS as never)}
-                style={styles.seeAllButton}
-              >
-                <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-              </TouchableOpacity>
+              </View>
             )}
           </View>
-          {loading ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <LoadingSpinner size="small" />
-            </Card>
-          ) : recentRecords.length === 0 ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <EmptyState
-                icon="document-outline"
-                title="Aucun enregistrement"
-                message="Vos enregistrements récents apparaîtront ici"
-                compact
-              />
-            </Card>
-          ) : (
-            <View style={styles.recordsList}>
-              {recentRecords.slice(0, 3).map((record) => (
-                <RecordCard key={record.id} record={record} colors={colors} />
-              ))}
-            </View>
-          )}
         </View>
-      </View>
       </ScrollView>
 
       {/* Profile Menu Modal */}
-      <ProfileMenuModal
-        visible={profileMenuVisible}
-        onClose={handleCloseProfileMenu}
-      />
+      <ProfileMenuModal visible={profileMenuVisible} onClose={handleCloseProfileMenu} />
 
       {/* Notification Panel */}
       <NotificationPanel
         visible={notificationPanelVisible}
         notifications={marketplaceNotifications}
+        unreadCount={marketplaceUnreadCount}
         onClose={() => setNotificationPanelVisible(false)}
         onNotificationPress={(notification) => {
           markAsRead(notification.id);
           // TODO: Navigate to notification target
         }}
-        onDeleteNotification={deleteNotification}
+        onMarkAsRead={markAsRead}
+        onDelete={deleteNotification}
         onMarkAllAsRead={() => {
-          marketplaceNotifications.forEach(n => markAsRead(n.id));
+          marketplaceNotifications.forEach((n) => markAsRead(n.id));
         }}
       />
+
+      {/* Modal des invitations en attente */}
+      <InvitationsModal
+        visible={invitationsModalVisible}
+        onClose={() => setInvitationsModalVisible(false)}
+      />
+
       {/* Bouton flottant pour accéder à l'agent conversationnel */}
       <ChatAgentFAB />
     </SafeAreaView>
@@ -391,6 +426,10 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     fontWeight: FONT_WEIGHTS.medium,
   },
+  projectSelectorContainer: {
+    marginTop: SPACING.md,
+    paddingHorizontal: 0,
+  },
   tasksList: {
     gap: SPACING.sm,
   },
@@ -400,16 +439,30 @@ const styles = StyleSheet.create({
 });
 
 // Composant Card pour les fermes
-const FarmCard: React.FC<{ farm: { farmId: string; farmName: string; permissions: any; since: string; taskCount: number }; colors: any }> = ({
-  farm,
-  colors,
-}) => {
+const FarmCard: React.FC<{
+  farm: {
+    farmId: string;
+    farmName: string;
+    permissions?: {
+      canViewHerd?: boolean;
+      canEditHerd?: boolean;
+      canViewHealthRecords?: boolean;
+      canEditHealthRecords?: boolean;
+    };
+    since: string;
+    taskCount: number;
+  };
+  colors: typeof LIGHT_COLORS;
+}> = ({ farm, colors }) => {
   return (
-    <Card style={[componentStyles.farmCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <Card
+      style={[
+        componentStyles.farmCard,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
+    >
       <Ionicons name="business" size={32} color={colors.primary} />
-      <Text style={[componentStyles.farmName, { color: colors.text }]}>
-        {farm.farmName}
-      </Text>
+      <Text style={[componentStyles.farmName, { color: colors.text }]}>{farm.farmName}</Text>
       <Text style={[componentStyles.farmSince, { color: colors.textSecondary }]}>
         Depuis {format(new Date(farm.since), 'MMM yyyy', { locale: fr })}
       </Text>
@@ -418,10 +471,18 @@ const FarmCard: React.FC<{ farm: { farmId: string; farmName: string; permissions
 };
 
 // Composant Card pour les tâches
-const TaskCard: React.FC<{ task: { id: string; farmId: string; farmName: string; taskType: string; description: string; dueDate: string; priority: string }; colors: any }> = ({
-  task,
-  colors,
-}) => {
+const TaskCard: React.FC<{
+  task: {
+    id: string;
+    farmId: string;
+    farmName: string;
+    taskType: string;
+    description: string;
+    dueDate: string;
+    priority: string;
+  };
+  colors: typeof LIGHT_COLORS;
+}> = ({ task, colors }) => {
   const priorityColors = {
     low: colors.info,
     medium: colors.warning,
@@ -436,14 +497,35 @@ const TaskCard: React.FC<{ task: { id: string; farmId: string; farmName: string;
   };
 
   return (
-    <Card style={[componentStyles.taskCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <Card
+      style={[
+        componentStyles.taskCard,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
+    >
       <View style={componentStyles.taskHeader}>
-        <Ionicons name={taskIcons[task.taskType as keyof typeof taskIcons] || 'checkmark'} size={20} color={colors.primary} />
+        <Ionicons
+          name={(taskIcons[task.taskType as keyof typeof taskIcons] || 'checkmark') as any}
+          size={20}
+          color={colors.primary}
+        />
         <Text style={[componentStyles.taskFarm, { color: colors.textSecondary }]}>
           {task.farmName}
         </Text>
-        <View style={[componentStyles.priorityBadge, { backgroundColor: priorityColors[task.priority as keyof typeof priorityColors] + '20' }]}>
-          <Text style={[componentStyles.priorityText, { color: priorityColors[task.priority as keyof typeof priorityColors] }]}>
+        <View
+          style={[
+            componentStyles.priorityBadge,
+            {
+              backgroundColor: priorityColors[task.priority as keyof typeof priorityColors] + '20',
+            },
+          ]}
+        >
+          <Text
+            style={[
+              componentStyles.priorityText,
+              { color: priorityColors[task.priority as keyof typeof priorityColors] },
+            ]}
+          >
             {task.priority === 'high' ? 'Urgent' : task.priority === 'medium' ? 'Moyen' : 'Faible'}
           </Text>
         </View>
@@ -456,7 +538,7 @@ const TaskCard: React.FC<{ task: { id: string; farmId: string; farmName: string;
 };
 
 // Composant Card pour les planifications
-const PlanificationCard: React.FC<{ planification: any; colors: any }> = ({
+const PlanificationCard: React.FC<{ planification: Planification; colors: typeof LIGHT_COLORS }> = ({
   planification,
   colors,
 }) => {
@@ -467,11 +549,25 @@ const PlanificationCard: React.FC<{ planification: any; colors: any }> = ({
   };
 
   return (
-    <Card style={[componentStyles.planificationCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <Card
+      style={[
+        componentStyles.planificationCard,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
+    >
       <View style={componentStyles.planificationHeader}>
-        <View style={[componentStyles.statutBadge, { backgroundColor: statutColors[planification.statut] + '20' }]}>
+        <View
+          style={[
+            componentStyles.statutBadge,
+            { backgroundColor: statutColors[planification.statut] + '20' },
+          ]}
+        >
           <Text style={[componentStyles.statutText, { color: statutColors[planification.statut] }]}>
-            {planification.statut === 'a_faire' ? 'À faire' : planification.statut === 'en_cours' ? 'En cours' : 'Terminée'}
+            {planification.statut === 'a_faire'
+              ? 'À faire'
+              : planification.statut === 'en_cours'
+                ? 'En cours'
+                : 'Terminée'}
           </Text>
         </View>
         <Text style={[componentStyles.planificationDate, { color: colors.textSecondary }]}>
@@ -482,7 +578,10 @@ const PlanificationCard: React.FC<{ planification: any; colors: any }> = ({
         {planification.titre}
       </Text>
       {planification.description && (
-        <Text style={[componentStyles.planificationDescription, { color: colors.textSecondary }]} numberOfLines={1}>
+        <Text
+          style={[componentStyles.planificationDescription, { color: colors.textSecondary }]}
+          numberOfLines={1}
+        >
           {planification.description}
         </Text>
       )}
@@ -491,10 +590,17 @@ const PlanificationCard: React.FC<{ planification: any; colors: any }> = ({
 };
 
 // Composant Card pour les enregistrements
-const RecordCard: React.FC<{ record: { id: string; farmId: string; farmName: string; recordType: string; date: string; description: string }; colors: any }> = ({
-  record,
-  colors,
-}) => {
+const RecordCard: React.FC<{
+  record: {
+    id: string;
+    farmId: string;
+    farmName: string;
+    recordType: string;
+    date: string;
+    description: string;
+  };
+  colors: typeof LIGHT_COLORS;
+}> = ({ record, colors }) => {
   const recordIcons = {
     pesee: 'scale',
     vaccination: 'medical',
@@ -503,12 +609,19 @@ const RecordCard: React.FC<{ record: { id: string; farmId: string; farmName: str
   };
 
   return (
-    <Card style={[componentStyles.recordCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <Card
+      style={[
+        componentStyles.recordCard,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
+    >
       <View style={componentStyles.recordHeader}>
-        <Ionicons name={recordIcons[record.recordType as keyof typeof recordIcons] || 'document'} size={20} color={colors.primary} />
-        <Text style={[componentStyles.recordFarm, { color: colors.text }]}>
-          {record.farmName}
-        </Text>
+        <Ionicons
+          name={(recordIcons[record.recordType as keyof typeof recordIcons] || 'document') as any}
+          size={20}
+          color={colors.primary}
+        />
+        <Text style={[componentStyles.recordFarm, { color: colors.text }]}>{record.farmName}</Text>
         <Text style={[componentStyles.recordDate, { color: colors.textSecondary }]}>
           {format(new Date(record.date), 'd MMM', { locale: fr })}
         </Text>
@@ -620,4 +733,3 @@ const componentStyles = StyleSheet.create({
 });
 
 export default DashboardTechScreen;
-

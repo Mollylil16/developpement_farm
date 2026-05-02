@@ -22,7 +22,8 @@ import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/t
 import Card from '../components/Card';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
-import { getFarmService } from '../services/FarmService';
+import { getFarmService, type Farm as FarmServiceFarm } from '../services/FarmService';
+import { LIGHT_COLORS } from '../constants/theme';
 
 interface Farm {
   id: string;
@@ -61,11 +62,48 @@ const VetProposeFarmsScreen: React.FC = () => {
 
       // Récupérer les fermes dans le rayon de service
       const farmService = await getFarmService();
-      const nearbyFarms = await farmService.getFarmsNearLocation(
+      const nearbyFarmsService = await farmService.getFarmsNearLocation(
         vetProfile?.workLocation?.latitude || 0,
         vetProfile?.workLocation?.longitude || 0,
         vetProfile?.workLocation?.serviceRadius || 50
       );
+
+      // Calculer la distance pour chaque ferme et mapper vers le type Farm local
+      const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+        const R = 6371; // Rayon de la Terre en km
+        const dLat = ((lat2 - lat1) * Math.PI) / 180;
+        const dLng = ((lng2 - lng1) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((lat1 * Math.PI) / 180) *
+            Math.cos((lat2 * Math.PI) / 180) *
+            Math.sin(dLng / 2) *
+            Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+      };
+
+      const nearbyFarms: Farm[] = nearbyFarmsService.map((farm: FarmServiceFarm) => {
+        const distance = calculateDistance(
+          vetProfile?.workLocation?.latitude || 0,
+          vetProfile?.workLocation?.longitude || 0,
+          farm.latitude,
+          farm.longitude
+        );
+        return {
+          id: farm.id,
+          name: farm.name,
+          city: farm.city,
+          region: farm.region,
+          distance,
+          herdSize: farm.herdSize,
+          producer: { name: farm.producer.name },
+          farmType: farm.farmType,
+          capacity: farm.capacity,
+          specialization: farm.specialization,
+          veterinarian: farm.veterinarian,
+        };
+      });
 
       // Pour l'instant, on simule avec des données mock si aucune ferme n'est trouvée
       const mockFarms: Farm[] = [
@@ -105,9 +143,9 @@ const VetProposeFarmsScreen: React.FC = () => {
       }
 
       // Exclure les fermes où on a déjà proposé
-      const proposedFarmIds = vetProfile?.serviceProposals
-        ?.filter((p) => p.status === 'pending')
-        .map((p) => p.farmId) || [];
+      const proposedFarmIds =
+        vetProfile?.serviceProposals?.filter((p) => p.status === 'pending').map((p) => p.farmId) ||
+        [];
 
       filteredFarms = filteredFarms.filter((farm) => !proposedFarmIds.includes(farm.id));
 
@@ -144,8 +182,8 @@ const VetProposeFarmsScreen: React.FC = () => {
 
       // Recharger la liste
       loadNearbyFarms();
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible d\'envoyer la proposition');
+    } catch (error: unknown) {
+      Alert.alert('Erreur', (error instanceof Error ? error.message : String(error)) || "Impossible d'envoyer la proposition");
     }
   };
 
@@ -176,10 +214,7 @@ const VetProposeFarmsScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
@@ -201,12 +236,7 @@ const VetProposeFarmsScreen: React.FC = () => {
           ]}
           onPress={() => setFilter('all')}
         >
-          <Text
-            style={[
-              styles.filterChipText,
-              { color: filter === 'all' ? '#FFF' : colors.text },
-            ]}
-          >
+          <Text style={[styles.filterChipText, { color: filter === 'all' ? '#FFF' : colors.text }]}>
             Toutes ({farms.length})
           </Text>
         </TouchableOpacity>
@@ -225,10 +255,7 @@ const VetProposeFarmsScreen: React.FC = () => {
             color={filter === 'no_vet' ? '#FFF' : colors.warning}
           />
           <Text
-            style={[
-              styles.filterChipText,
-              { color: filter === 'no_vet' ? '#FFF' : colors.text },
-            ]}
+            style={[styles.filterChipText, { color: filter === 'no_vet' ? '#FFF' : colors.text }]}
           >
             Sans vétérinaire
           </Text>
@@ -251,7 +278,11 @@ const VetProposeFarmsScreen: React.FC = () => {
           data={farms}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <FarmProposalCard farm={item} onPropose={() => handlePropose(item.id)} colors={colors} />
+            <FarmProposalCard
+              farm={item}
+              onPropose={() => handlePropose(item.id)}
+              colors={colors}
+            />
           )}
           contentContainerStyle={styles.farmsList}
           refreshControl={
@@ -273,12 +304,14 @@ const VetProposeFarmsScreen: React.FC = () => {
 const FarmProposalCard: React.FC<{
   farm: Farm;
   onPropose: () => void;
-  colors: any;
+  colors: typeof LIGHT_COLORS;
 }> = ({ farm, onPropose, colors }) => {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <Card style={[styles.farmCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <Card
+      style={[styles.farmCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+    >
       <TouchableOpacity onPress={() => setExpanded(!expanded)} activeOpacity={0.7}>
         <View style={styles.farmHeader}>
           <View style={styles.farmInfo}>
@@ -294,7 +327,9 @@ const FarmProposalCard: React.FC<{
           {!farm.veterinarian && (
             <View style={[styles.noVetBadge, { backgroundColor: colors.warning + '20' }]}>
               <Ionicons name="alert" size={14} color={colors.warning} />
-              <Text style={[styles.noVetBadgeText, { color: colors.warning }]}>Sans vétérinaire</Text>
+              <Text style={[styles.noVetBadgeText, { color: colors.warning }]}>
+                Sans vétérinaire
+              </Text>
             </View>
           )}
         </View>
@@ -483,4 +518,3 @@ const styles = StyleSheet.create({
 });
 
 export default VetProposeFarmsScreen;
-

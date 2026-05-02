@@ -27,4 +27,3 @@ export async function createStocksMouvementsTable(db: SQLite.SQLiteDatabase): Pr
     );
   `);
 }
-

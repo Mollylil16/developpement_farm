@@ -19,7 +19,14 @@ interface TransactionCardProps {
   onConfirmDelivery?: () => void;
 }
 
-type TransactionStatusDisplay = 'confirmed' | 'preparing' | 'ready_for_delivery' | 'in_transit' | 'delivered' | 'completed' | 'cancelled';
+type TransactionStatusDisplay =
+  | 'confirmed'
+  | 'preparing'
+  | 'ready_for_delivery'
+  | 'in_transit'
+  | 'delivered'
+  | 'completed'
+  | 'cancelled';
 
 const STATUS_CONFIG: Record<
   TransactionStatusDisplay,
@@ -75,12 +82,12 @@ export default function TransactionCard({
 }: TransactionCardProps) {
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
 
-  const statusConfig = STATUS_CONFIG[transaction.status as TransactionStatusDisplay] || STATUS_CONFIG.confirmed;
+  const statusConfig =
+    STATUS_CONFIG[transaction.status as TransactionStatusDisplay] || STATUS_CONFIG.confirmed;
 
   // Note: buyerName and producerName don't exist on Transaction type
   // In production, fetch these from user repository
-  const counterpartName =
-    userRole === 'producer' ? 'Acheteur' : 'Producteur';
+  const counterpartName = userRole === 'producer' ? 'Acheteur' : 'Producteur';
 
   const canConfirmDelivery =
     (transaction.status === 'in_transit' || transaction.status === 'delivered') &&
@@ -202,9 +209,7 @@ export default function TransactionCard({
             onPress={onChat}
           >
             <Ionicons name="chatbubble-outline" size={18} color={colors.primary} />
-            <Text style={[styles.actionButtonText, { color: colors.primary }]}>
-              Discuter
-            </Text>
+            <Text style={[styles.actionButtonText, { color: colors.primary }]}>Discuter</Text>
           </TouchableOpacity>
         )}
 
@@ -333,4 +338,3 @@ const styles = StyleSheet.create({
     fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
   },
 });
-

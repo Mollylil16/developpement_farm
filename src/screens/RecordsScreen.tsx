@@ -31,7 +31,9 @@ const RecordsScreen: React.FC = () => {
   const { colors } = useTheme();
   const navigation = useNavigation();
   const [refreshing, setRefreshing] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'pesee' | 'vaccination' | 'traitement' | 'visite'>('all');
+  const [activeFilter, setActiveFilter] = useState<
+    'all' | 'pesee' | 'vaccination' | 'traitement' | 'visite'
+  >('all');
   const { recentRecords, loading, refresh } = useTechData(currentUser?.id);
 
   const onRefresh = useCallback(async () => {
@@ -40,11 +42,12 @@ const RecordsScreen: React.FC = () => {
     setRefreshing(false);
   }, [refresh]);
 
-  const filteredRecords = activeFilter === 'all'
-    ? recentRecords
-    : recentRecords.filter((record) => record.recordType === activeFilter);
+  const filteredRecords =
+    activeFilter === 'all'
+      ? recentRecords
+      : recentRecords.filter((record) => record.recordType === activeFilter);
 
-  const renderRecord = ({ item }: { item: typeof recentRecords[0] }) => {
+  const renderRecord = ({ item }: { item: (typeof recentRecords)[0] }) => {
     const recordIcons = {
       pesee: 'scale',
       vaccination: 'medical',
@@ -67,18 +70,27 @@ const RecordsScreen: React.FC = () => {
     };
 
     return (
-      <Card style={[styles.recordCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <Card
+        style={[styles.recordCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      >
         <View style={styles.recordHeader}>
-          <View style={[styles.recordIcon, { backgroundColor: recordColors[item.recordType as keyof typeof recordColors] + '20' }]}>
+          <View
+            style={[
+              styles.recordIcon,
+              {
+                backgroundColor: recordColors[item.recordType] + '20',
+              },
+            ]}
+          >
             <Ionicons
-              name={recordIcons[item.recordType as keyof typeof recordIcons] || 'document'}
+              name={(recordIcons[item.recordType] || 'document') as any}
               size={24}
-              color={recordColors[item.recordType as keyof typeof recordColors]}
+              color={recordColors[item.recordType]}
             />
           </View>
           <View style={styles.recordInfo}>
             <Text style={[styles.recordType, { color: colors.text }]}>
-              {recordLabels[item.recordType as keyof typeof recordLabels] || item.recordType}
+              {recordLabels[item.recordType] || item.recordType}
             </Text>
             <Text style={[styles.recordFarm, { color: colors.textSecondary }]}>
               {item.farmName}
@@ -89,9 +101,7 @@ const RecordsScreen: React.FC = () => {
           </Text>
         </View>
 
-        <Text style={[styles.recordDescription, { color: colors.text }]}>
-          {item.description}
-        </Text>
+        <Text style={[styles.recordDescription, { color: colors.text }]}>{item.description}</Text>
 
         <TouchableOpacity
           style={[styles.viewDetailsButton, { borderColor: colors.border }]}
@@ -121,10 +131,7 @@ const RecordsScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Enregistrements</Text>
@@ -133,7 +140,11 @@ const RecordsScreen: React.FC = () => {
 
       {/* Filtres */}
       <View style={[styles.filtersContainer, { borderBottomColor: colors.divider }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersContent}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filtersContent}
+        >
           {(['all', 'pesee', 'vaccination', 'traitement', 'visite'] as const).map((filter) => {
             const filterLabels = {
               all: 'Tous',
@@ -307,4 +318,3 @@ const styles = StyleSheet.create({
 });
 
 export default RecordsScreen;
-

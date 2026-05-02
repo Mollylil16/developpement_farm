@@ -2,8 +2,8 @@
  * Utilitaires de débogage pour identifier les boucles infinies et erreurs
  */
 
-let renderCount = new Map<string, number>();
-let lastRenderTime = new Map<string, number>();
+const renderCount = new Map<string, number>();
+const lastRenderTime = new Map<string, number>();
 
 /**
  * Détecte les re-renders excessifs (boucles infinies potentielles)
@@ -38,14 +38,21 @@ export function detectInfiniteLoop(componentName: string, threshold = 50) {
 /**
  * Log les changements de props pour identifier ce qui cause les re-renders
  */
-export function logPropsChanges(componentName: string, props: any, prevProps: any) {
+export function logPropsChanges(componentName: string, props: unknown, prevProps: unknown) {
   const changes: string[] = [];
 
-  Object.keys(props).forEach((key) => {
-    if (props[key] !== prevProps[key]) {
-      changes.push(`${key}: ${JSON.stringify(prevProps[key])} → ${JSON.stringify(props[key])}`);
-    }
-  });
+  if (props && typeof props === 'object' && prevProps && typeof prevProps === 'object') {
+    const propsObj = props as Record<string, unknown>;
+    const prevPropsObj = prevProps as Record<string, unknown>;
+    
+    Object.keys(propsObj).forEach((key) => {
+      if (propsObj[key] !== prevPropsObj[key]) {
+        changes.push(
+          `${key}: ${JSON.stringify(prevPropsObj[key])} → ${JSON.stringify(propsObj[key])}`
+        );
+      }
+    });
+  }
 
   if (changes.length > 0) {
     console.log(`📝 ${componentName} props changed:`, changes);
@@ -55,6 +62,6 @@ export function logPropsChanges(componentName: string, props: any, prevProps: an
 /**
  * Wrapper pour useEffect qui log les déclenchements
  */
-export function debugUseEffect(componentName: string, effectName: string, deps: any[]) {
+export function debugUseEffect(componentName: string, effectName: string, deps: unknown[]) {
   console.log(`🔄 ${componentName}.${effectName} triggered with:`, deps);
 }

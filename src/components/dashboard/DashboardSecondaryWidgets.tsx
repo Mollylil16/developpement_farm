@@ -5,7 +5,16 @@
  */
 
 import React, { useMemo, useState, useRef, memo } from 'react';
-import { View, Text, StyleSheet, Animated, ScrollView, Dimensions, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  ScrollView,
+  Dimensions,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+} from 'react-native';
 import CompactModuleCard from '../widgets/CompactModuleCard';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
@@ -15,7 +24,16 @@ const screenWidth = Dimensions.get('window').width;
 const CARD_WIDTH = 170; // Largeur fixe pour les cartes compactes
 const COLUMN_WIDTH = CARD_WIDTH + SPACING.md; // Largeur d'une colonne (carte + margin)
 
-type WidgetType = 'nutrition' | 'planning' | 'collaboration' | 'mortalites' | 'production' | 'sante' | 'marketplace' | 'purchases' | 'expenses';
+type WidgetType =
+  | 'nutrition'
+  | 'planning'
+  | 'collaboration'
+  | 'mortalites'
+  | 'production'
+  | 'sante'
+  | 'marketplace'
+  | 'purchases'
+  | 'expenses';
 
 interface WidgetConfig {
   type: WidgetType;
@@ -75,11 +93,62 @@ const DashboardSecondaryWidgets = memo(function DashboardSecondaryWidgets({
   };
 
   if (horizontal) {
+    // Vérifier si c'est le profil acheteur (widgets purchases et expenses)
+    const isBuyerProfile = widgets.length >= 2 && 
+      widgets[0]?.type === 'purchases' && 
+      widgets[1]?.type === 'expenses';
+
+    // Pour le profil acheteur, afficher les cartes horizontalement sur la même ligne
+    if (isBuyerProfile) {
+      return (
+        <View style={styles.container}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Modules principaux</Text>
+          <View style={styles.horizontalRowContainer}>
+            {widgets.slice(0, 2).map((widget, widgetIndex) => {
+              const widgetData = getWidgetData(widget.type);
+              if (!widgetData) return null;
+
+              return (
+                <Animated.View
+                  key={`${widget.type}-${widgetIndex}`}
+                  style={[
+                    styles.horizontalCardWrapper,
+                    {
+                      opacity: animations[widgetIndex] || animations[animations.length - 1],
+                      transform: [
+                        {
+                          translateY: (
+                            animations[widgetIndex] || animations[animations.length - 1]
+                          ).interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [20, 0],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <CompactModuleCard
+                    icon={widgetData.emoji}
+                    title={widgetData.title}
+                    primaryValue={widgetData.primary}
+                    secondaryValue={widgetData.secondary}
+                    labelPrimary={widgetData.labelPrimary}
+                    labelSecondary={widgetData.labelSecondary}
+                    onPress={() => onPressWidget(widget.screen)}
+                  />
+                </Animated.View>
+              );
+            })}
+          </View>
+        </View>
+      );
+    }
+
+    // Mode horizontal avec scroll (pour les autres profils)
     return (
       <View style={styles.container}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Modules principaux
-        </Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Modules principaux</Text>
         <ScrollView
           ref={scrollViewRef}
           horizontal
@@ -102,7 +171,9 @@ const DashboardSecondaryWidgets = memo(function DashboardSecondaryWidgets({
                   opacity: animations[columnIndex] || animations[animations.length - 1],
                   transform: [
                     {
-                      translateY: (animations[columnIndex] || animations[animations.length - 1]).interpolate({
+                      translateY: (
+                        animations[columnIndex] || animations[animations.length - 1]
+                      ).interpolate({
                         inputRange: [0, 1],
                         outputRange: [20, 0],
                       }),
@@ -116,11 +187,11 @@ const DashboardSecondaryWidgets = memo(function DashboardSecondaryWidgets({
                 if (!widgetData) return null;
 
                 return (
-                  <View 
-                    key={`${widget.type}-${widgetIndex}`} 
+                  <View
+                    key={`${widget.type}-${widgetIndex}`}
                     style={[
                       styles.cardWrapper,
-                      widgetIndex === column.length - 1 && styles.lastCardInColumn
+                      widgetIndex === column.length - 1 && styles.lastCardInColumn,
                     ]}
                   >
                     <CompactModuleCard
@@ -165,9 +236,7 @@ const DashboardSecondaryWidgets = memo(function DashboardSecondaryWidgets({
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>
-        Modules complémentaires
-      </Text>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>Modules complémentaires</Text>
       <View style={styles.widgetsContainer}>
         {moduleColumns.map((column, columnIndex) => (
           <View key={`column-${columnIndex}`} style={styles.columnContainer}>
@@ -184,7 +253,9 @@ const DashboardSecondaryWidgets = memo(function DashboardSecondaryWidgets({
                       opacity: animations[widgetIndex] || animations[animations.length - 1],
                       transform: [
                         {
-                          translateY: (animations[widgetIndex] || animations[animations.length - 1]).interpolate({
+                          translateY: (
+                            animations[widgetIndex] || animations[animations.length - 1]
+                          ).interpolate({
                             inputRange: [0, 1],
                             outputRange: [20, 0],
                           }),
@@ -275,7 +346,14 @@ const styles = StyleSheet.create({
   dotActive: {
     opacity: 1,
   },
+  horizontalRowContainer: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.xs,
+  },
+  horizontalCardWrapper: {
+    flex: 1,
+  },
 });
 
 export default DashboardSecondaryWidgets;
-

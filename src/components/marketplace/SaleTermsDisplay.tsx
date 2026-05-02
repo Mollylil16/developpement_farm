@@ -46,9 +46,7 @@ export default function SaleTermsDisplay({
       >
         <View style={styles.headerLeft}>
           <Ionicons name="document-text" size={24} color={colors.primary} />
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            Conditions de Vente
-          </Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Conditions de Vente</Text>
         </View>
         {expandable && (
           <Ionicons
@@ -68,9 +66,7 @@ export default function SaleTermsDisplay({
               <Ionicons name="car" size={20} color={colors.primary} />
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Transport</Text>
               <View style={[styles.badge, { backgroundColor: colors.badgeConditions + '20' }]}>
-                <Text style={[styles.badgeText, { color: colors.badgeConditions }]}>
-                  Acheteur
-                </Text>
+                <Text style={[styles.badgeText, { color: colors.badgeConditions }]}>Acheteur</Text>
               </View>
             </View>
             <Text style={[styles.sectionText, { color: colors.textSecondary }]}>
@@ -92,9 +88,7 @@ export default function SaleTermsDisplay({
               <Ionicons name="business" size={20} color={colors.primary} />
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Abattage</Text>
               <View style={[styles.badge, { backgroundColor: colors.badgeConditions + '20' }]}>
-                <Text style={[styles.badgeText, { color: colors.badgeConditions }]}>
-                  Acheteur
-                </Text>
+                <Text style={[styles.badgeText, { color: colors.badgeConditions }]}>Acheteur</Text>
               </View>
             </View>
             <Text style={[styles.sectionText, { color: colors.textSecondary }]}>
@@ -142,8 +136,8 @@ export default function SaleTermsDisplay({
               {terms.paymentTerms === 'on_delivery'
                 ? 'À la livraison'
                 : terms.paymentTerms === 'advance'
-                ? 'Acompte requis'
-                : 'À convenir'}
+                  ? 'Acompte requis'
+                  : 'À convenir'}
             </Text>
             <Text style={[styles.sectionText, { color: colors.textSecondary }]}>
               • Le paiement doit être effectué avant le départ des animaux
@@ -264,4 +258,3 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 });
-

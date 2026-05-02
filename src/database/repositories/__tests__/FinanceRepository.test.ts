@@ -1,10 +1,14 @@
 /**
  * Tests pour FinanceRepository
- * 
+ *
  * Repository critique pour la gestion des finances (revenus, dépenses, charges fixes)
  */
 
-import { RevenuRepository, DepensePonctuelleRepository, ChargeFixeRepository } from '../FinanceRepository';
+import {
+  RevenuRepository,
+  DepensePonctuelleRepository,
+  ChargeFixeRepository,
+} from '../FinanceRepository';
 import type { Revenu, DepensePonctuelle, ChargeFixe } from '../../../types/finance';
 import * as SQLite from 'expo-sqlite';
 
@@ -74,7 +78,7 @@ describe('FinanceRepository', () => {
     });
 
     describe('findByProjet', () => {
-      it('devrait trouver tous les revenus d\'un projet', async () => {
+      it("devrait trouver tous les revenus d'un projet", async () => {
         const projetId = 'projet-1';
         const mockRevenus = [
           { id: 'rev-1', projet_id: projetId, montant: 100000 },
@@ -170,7 +174,7 @@ describe('FinanceRepository', () => {
   });
 
   describe('Gestion des erreurs', () => {
-    it('devrait gérer les erreurs lors de la création d\'un revenu', async () => {
+    it("devrait gérer les erreurs lors de la création d'un revenu", async () => {
       mockDb.runAsync.mockRejectedValueOnce(new Error('Database error'));
 
       await expect(
@@ -181,7 +185,7 @@ describe('FinanceRepository', () => {
       ).rejects.toThrow('Database error');
     });
 
-    it('devrait gérer les erreurs lors de la création d\'une dépense', async () => {
+    it("devrait gérer les erreurs lors de la création d'une dépense", async () => {
       mockDb.runAsync.mockRejectedValueOnce(new Error('Database error'));
 
       await expect(
@@ -193,4 +197,3 @@ describe('FinanceRepository', () => {
     });
   });
 });
-

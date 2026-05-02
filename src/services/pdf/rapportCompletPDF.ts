@@ -13,14 +13,30 @@ import {
   generateAndSharePDF,
 } from '../pdfService';
 import {
-  Projet,
-  ProductionAnimal,
-  ChargeFixe,
-  DepensePonctuelle,
-  Revenu,
-  Gestation,
-  Sevrage,
-} from '../../types';
+  generateLineChartSVG,
+  generateBarChartSVG,
+  generatePieChartSVG,
+  generateChartAnalysis,
+} from './chartGenerators';
+import type { Projet } from '../../types/projet';
+import type { ProductionAnimal } from '../../types/production';
+import type { ChargeFixe, DepensePonctuelle, Revenu } from '../../types/finance';
+
+// Types utilisés pour typer les données de reproduction dans le rapport
+type Gestation = {
+  id: string;
+  animal_id: string;
+  date_saillie: string;
+  date_mise_bas_prevue: string;
+  statut: string;
+};
+
+type Sevrage = {
+  id: string;
+  animal_id: string;
+  date_sevrage: string;
+  nombre_porcelets: number;
+};
 
 interface RapportCompletData {
   projet: Projet;
@@ -90,12 +106,184 @@ interface RapportCompletData {
     porceletsNes: number;
     porceletsSevres: number;
     tauxSurvie: number;
+    // Utiliser les types Gestation et Sevrage pour typer les données si disponibles
+    gestations?: Gestation[];
+    sevrages?: Sevrage[];
   };
   recommandations: Array<{
     categorie: string;
     priorite: 'haute' | 'moyenne' | 'basse';
     message: string;
   }>;
+  
+  // Données pour les graphiques
+  graphiques?: {
+    // Graphiques financiers
+    depensesPlanifieVsReel?: {
+      labels: string[];
+      planifie: number[];
+      reel: number[];
+      revenus: number[];
+    };
+    depensesParCategorie?: Array<{ name: string; value: number; color: string }>;
+    revenusParCategorie?: Array<{ name: string; value: number; color: string }>;
+    opexVsCapex?: {
+      labels: string[];
+      opex: number[];
+      capex: number[];
+    };
+    // Graphiques de production
+    evolutionPoids?: {
+      labels: string[];
+      poidsMoyen: number[];
+    };
+    mortalites?: {
+      labels: string[];
+      nombre: number[];
+    };
+    gmq?: {
+      labels: string[];
+      gmq: number[];
+    };
+  };
+}
+
+/**
+ * Génère une analyse détaillée pour une section
+ */
+function generateSectionAnalysis(
+  section: string,
+  data: any,
+  context: RapportCompletData
+): string {
+  let analysis = '';
+
+  if (section === 'finances') {
+    const { totauxFinance, moyennes } = data;
+    const solde = totauxFinance.solde;
+    const ratioDepensesRevenus = totauxFinance.totalRevenus > 0 
+      ? (totauxFinance.totalDepenses / totauxFinance.totalRevenus) * 100 
+      : 0;
+
+    analysis = `
+      <div style="background: #f0f7ff; padding: 15px; border-radius: 8px; border-left: 4px solid #2196F3; margin-top: 15px;">
+        <h4 style="margin: 0 0 10px 0; color: #1976D2;">📊 Analyse Financière Détaillée</h4>
+        <p style="margin: 5px 0; font-size: 12px; line-height: 1.7; color: #333;">
+          <strong>Situation globale :</strong> 
+          ${solde >= 0 
+            ? `Votre exploitation est <strong style="color: #2e7d32;">bénéficiaire</strong> avec un solde net de ${formatCurrency(solde)}. 
+               Cette situation positive indique une bonne gestion financière.` 
+            : `Votre exploitation présente un <strong style="color: #c62828;">déficit</strong> de ${formatCurrency(Math.abs(solde))}. 
+               Il est recommandé d'analyser les dépenses et d'optimiser les coûts.`}
+        </p>
+        <p style="margin: 5px 0; font-size: 12px; line-height: 1.7; color: #333;">
+          <strong>Ratio dépenses/revenus :</strong> ${formatNumber(ratioDepensesRevenus, 1)}%
+          ${ratioDepensesRevenus > 100 
+            ? '- Les dépenses dépassent les revenus, situation critique nécessitant une action immédiate.'
+            : ratioDepensesRevenus > 80 
+              ? '- Les dépenses représentent une part importante des revenus, vigilance recommandée.'
+              : '- Les dépenses sont bien maîtrisées par rapport aux revenus.'}
+        </p>
+        <p style="margin: 5px 0; font-size: 12px; line-height: 1.7; color: #333;">
+          <strong>Moyennes mensuelles :</strong> 
+          Dépenses moyennes de ${formatCurrency(moyennes.depensesMensuelle)}/mois, 
+          revenus moyens de ${formatCurrency(moyennes.revenusMensuel)}/mois. 
+          ${moyennes.revenusMensuel > moyennes.depensesMensuelle 
+            ? 'La balance mensuelle est positive, ce qui est un bon signe pour la pérennité de l\'exploitation.'
+            : 'La balance mensuelle est négative, il faut augmenter les revenus ou réduire les dépenses.'}
+        </p>
+      </div>
+    `;
+  } else if (section === 'production') {
+    const { production, indicateurs } = data;
+    const gmq = indicateurs.gmqMoyen;
+    const efficacite = indicateurs.efficaciteAlimentaire;
+
+    analysis = `
+      <div style="background: #f0f7ff; padding: 15px; border-radius: 8px; border-left: 4px solid #2196F3; margin-top: 15px;">
+        <h4 style="margin: 0 0 10px 0; color: #1976D2;">📊 Analyse de Production</h4>
+        <p style="margin: 5px 0; font-size: 12px; line-height: 1.7; color: #333;">
+          <strong>Performance de croissance :</strong> 
+          Le GMQ moyen de ${formatNumber(gmq, 0)} g/jour 
+          ${gmq >= 600 
+            ? 'est <strong style="color: #2e7d32;">excellent</strong> et indique une croissance optimale des animaux.'
+            : gmq >= 400 
+              ? 'est <strong style="color: #ff9800;">acceptable</strong> mais peut être amélioré avec une meilleure alimentation et gestion.'
+              : 'est <strong style="color: #c62828;">faible</strong> et nécessite une attention particulière sur l\'alimentation, la santé et les conditions d\'élevage.'}
+        </p>
+        <p style="margin: 5px 0; font-size: 12px; line-height: 1.7; color: #333;">
+          <strong>Efficacité alimentaire :</strong> 
+          ${formatNumber(efficacite, 2)} 
+          ${efficacite <= 3.5 
+            ? '- Excellente conversion alimentaire, les animaux utilisent efficacement la nourriture.'
+            : efficacite <= 4.5 
+              ? '- Conversion alimentaire correcte, mais il y a une marge d\'amélioration possible.'
+              : '- La conversion alimentaire est élevée, il faut optimiser l\'alimentation pour réduire les coûts.'}
+        </p>
+        <p style="margin: 5px 0; font-size: 12px; line-height: 1.7; color: #333;">
+          <strong>Cheptel actif :</strong> 
+          ${production.nombreAnimauxActifs} animaux actifs avec ${production.peseesEffectuees} pesées effectuées. 
+          ${production.peseesEffectuees / production.nombreAnimauxActifs >= 2 
+            ? 'Le suivi du poids est régulier, ce qui permet un bon contrôle de la croissance.'
+            : 'Il serait bénéfique d\'augmenter la fréquence des pesées pour un meilleur suivi.'}
+        </p>
+      </div>
+    `;
+  } else if (section === 'reproduction') {
+    const { reproduction } = data;
+    const tauxSurvie = reproduction.tauxSurvie;
+
+    analysis = `
+      <div style="background: #f0f7ff; padding: 15px; border-radius: 8px; border-left: 4px solid #2196F3; margin-top: 15px;">
+        <h4 style="margin: 0 0 10px 0; color: #1976D2;">📊 Analyse de Reproduction</h4>
+        <p style="margin: 5px 0; font-size: 12px; line-height: 1.7; color: #333;">
+          <strong>Performance de reproduction :</strong> 
+          ${reproduction.porceletsNes} porcelets nés, ${reproduction.porceletsSevres} sevrés, 
+          avec un taux de survie de ${formatNumber(tauxSurvie, 1)}%.
+          ${tauxSurvie >= 85 
+            ? 'Le taux de survie est <strong style="color: #2e7d32;">excellent</strong>, indiquant une bonne gestion de la maternité et du sevrage.'
+            : tauxSurvie >= 70 
+              ? 'Le taux de survie est <strong style="color: #ff9800;">acceptable</strong> mais peut être amélioré par une meilleure surveillance sanitaire et nutritionnelle.'
+              : 'Le taux de survie est <strong style="color: #c62828;">préoccupant</strong>, une analyse approfondie des causes de mortalité est nécessaire.'}
+        </p>
+        <p style="margin: 5px 0; font-size: 12px; line-height: 1.7; color: #333;">
+          <strong>Gestations :</strong> 
+          ${reproduction.gestationsTerminees} gestations terminées. 
+          ${reproduction.gestationsTerminees > 0 
+            ? 'La reproduction est active, ce qui est positif pour le renouvellement du cheptel.'
+            : 'Aucune gestation terminée enregistrée, il faut vérifier le suivi de la reproduction.'}
+        </p>
+      </div>
+    `;
+  } else if (section === 'sante') {
+    const { indicateurs } = data;
+    const tauxMortalite = indicateurs.tauxMortalite;
+
+    analysis = `
+      <div style="background: #f0f7ff; padding: 15px; border-radius: 8px; border-left: 4px solid #2196F3; margin-top: 15px;">
+        <h4 style="margin: 0 0 10px 0; color: #1976D2;">📊 Analyse Sanitaire</h4>
+        <p style="margin: 5px 0; font-size: 12px; line-height: 1.7; color: #333;">
+          <strong>Taux de mortalité :</strong> 
+          ${formatNumber(tauxMortalite, 2)}%
+          ${tauxMortalite <= 5 
+            ? '- Le taux de mortalité est <strong style="color: #2e7d32;">excellent</strong>, indiquant une bonne santé du cheptel et une gestion sanitaire efficace.'
+            : tauxMortalite <= 10 
+              ? '- Le taux de mortalité est <strong style="color: #ff9800;">acceptable</strong> mais nécessite une surveillance accrue et des mesures préventives.'
+              : '- Le taux de mortalité est <strong style="color: #c62828;">élevé</strong>, une intervention urgente est nécessaire pour identifier et corriger les causes.'}
+        </p>
+        <p style="margin: 5px 0; font-size: 12px; line-height: 1.7; color: #333;">
+          <strong>Recommandations sanitaires :</strong> 
+          ${tauxMortalite > 10 
+            ? 'Renforcer les protocoles sanitaires, améliorer les conditions d\'élevage, et consulter un vétérinaire pour un diagnostic approfondi.'
+            : tauxMortalite > 5 
+              ? 'Maintenir les bonnes pratiques sanitaires et surveiller régulièrement l\'état de santé des animaux.'
+              : 'Continuer les bonnes pratiques sanitaires actuelles qui donnent d\'excellents résultats.'}
+        </p>
+      </div>
+    `;
+  }
+
+  return analysis;
 }
 
 /**
@@ -117,6 +305,7 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
     financeIndicateurs,
     reproduction,
     recommandations,
+    graphiques,
   } = data;
 
   const content = `
@@ -258,7 +447,65 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
           <div class="stat-label">Solde Net</div>
         </div>
       </div>
+      
+      ${generateSectionAnalysis('finances', { totauxFinance, moyennes }, data)}
     </div>
+    
+    <!-- Graphique Dépenses Planifiées vs Réelles -->
+    ${
+      graphiques?.depensesPlanifieVsReel && graphiques.depensesPlanifieVsReel.labels.length > 0
+        ? `
+    <div class="section">
+      <h2>📈 Évolution des Dépenses (6 derniers mois)</h2>
+      <div class="card">
+        ${generateLineChartSVG(
+          graphiques.depensesPlanifieVsReel.labels,
+          [
+            {
+              label: 'Planifié',
+              data: graphiques.depensesPlanifieVsReel.planifie,
+              color: '#2E7D32',
+            },
+            {
+              label: 'Réel',
+              data: graphiques.depensesPlanifieVsReel.reel,
+              color: '#FF9800',
+            },
+            {
+              label: 'Revenus',
+              data: graphiques.depensesPlanifieVsReel.revenus,
+              color: '#2196F3',
+            },
+          ],
+          700,
+          250
+        )}
+        ${generateChartAnalysis('line', {
+          labels: graphiques.depensesPlanifieVsReel.labels,
+          datasets: [
+            { label: 'Planifié', data: graphiques.depensesPlanifieVsReel.planifie, color: '#2E7D32' },
+            { label: 'Réel', data: graphiques.depensesPlanifieVsReel.reel, color: '#FF9800' },
+            { label: 'Revenus', data: graphiques.depensesPlanifieVsReel.revenus, color: '#2196F3' },
+          ],
+        }, 'finances')}
+        <div style="margin-top: 15px; padding: 12px; background: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
+          <p style="margin: 0; font-size: 11px; line-height: 1.6; color: #856404;">
+            <strong>💡 Interprétation :</strong> 
+            Ce graphique compare les dépenses planifiées (charges fixes), les dépenses réelles (dépenses ponctuelles) 
+            et les revenus sur les 6 derniers mois. 
+            ${graphiques.depensesPlanifieVsReel.reel.reduce((a, b) => a + b, 0) > graphiques.depensesPlanifieVsReel.planifie.reduce((a, b) => a + b, 0)
+              ? 'Les dépenses réelles dépassent les dépenses planifiées, indiquant des coûts imprévus. Il est recommandé de revoir le budget et d\'identifier les postes de dépenses non prévus.'
+              : 'Les dépenses réelles sont conformes ou inférieures aux dépenses planifiées, ce qui indique une bonne maîtrise budgétaire.'}
+            ${graphiques.depensesPlanifieVsReel.revenus.reduce((a, b) => a + b, 0) > graphiques.depensesPlanifieVsReel.reel.reduce((a, b) => a + b, 0)
+              ? ' Les revenus couvrent les dépenses, ce qui est positif pour la rentabilité.'
+              : ' Les revenus ne couvrent pas entièrement les dépenses, il faut augmenter les ventes ou réduire les coûts.'}
+          </p>
+        </div>
+      </div>
+    </div>
+    `
+        : ''
+    }
 
     <!-- Moyennes mensuelles -->
     <div class="section">
@@ -347,7 +594,7 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
                 (depense) => `
               <tr>
                 <td>${formatDate(depense.date)}</td>
-                <td>${depense.libelle}</td>
+                <td>${depense.libelle_categorie || depense.commentaire || ''}</td>
                 <td><span class="badge badge-warning">${depense.categorie}</span></td>
                 <td class="text-right">${formatCurrency(depense.montant)}</td>
               </tr>
@@ -402,6 +649,56 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
         }
       </div>
     </div>
+    
+    <!-- Graphique Répartition des Dépenses par Catégorie -->
+    ${
+      graphiques?.depensesParCategorie && graphiques.depensesParCategorie.length > 0
+        ? `
+    <div class="section">
+      <h2>📊 Répartition des Dépenses par Catégorie</h2>
+      <div class="card">
+        ${generatePieChartSVG(graphiques.depensesParCategorie, 500, 350)}
+        ${generateChartAnalysis('pie', graphiques.depensesParCategorie, 'finances')}
+        <div style="margin-top: 15px; padding: 12px; background: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
+          <p style="margin: 0; font-size: 11px; line-height: 1.6; color: #856404;">
+            <strong>💡 Interprétation :</strong> 
+            Ce graphique montre la répartition des dépenses par catégorie. 
+            Identifier les catégories les plus importantes permet d'optimiser les coûts en se concentrant sur les postes de dépenses les plus significatifs.
+            ${graphiques.depensesParCategorie.length > 0 
+              ? `La catégorie "${graphiques.depensesParCategorie[0].name}" représente la plus grande part des dépenses.`
+              : ''}
+          </p>
+        </div>
+      </div>
+    </div>
+    `
+        : ''
+    }
+    
+    <!-- Graphique Répartition des Revenus par Catégorie -->
+    ${
+      graphiques?.revenusParCategorie && graphiques.revenusParCategorie.length > 0
+        ? `
+    <div class="section">
+      <h2>📊 Répartition des Revenus par Catégorie</h2>
+      <div class="card">
+        ${generatePieChartSVG(graphiques.revenusParCategorie, 500, 350)}
+        ${generateChartAnalysis('pie', graphiques.revenusParCategorie, 'finances')}
+        <div style="margin-top: 15px; padding: 12px; background: #d1ecf1; border-radius: 6px; border-left: 4px solid #0c5460;">
+          <p style="margin: 0; font-size: 11px; line-height: 1.6; color: #0c5460;">
+            <strong>💡 Interprétation :</strong> 
+            Ce graphique montre la répartition des revenus par source. 
+            ${graphiques.revenusParCategorie.length > 0 
+              ? `La source "${graphiques.revenusParCategorie[0].name}" génère la majorité des revenus.`
+              : ''}
+            Une diversification des sources de revenus peut améliorer la stabilité financière de l'exploitation.
+          </p>
+        </div>
+      </div>
+    </div>
+    `
+        : ''
+    }
 
     <!-- ========================================= -->
     <!-- PARTIE 3 : INDICATEURS DE PERFORMANCE -->
@@ -421,7 +718,7 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
             <td class="text-right">
               <span style="font-size: 16px; font-weight: bold; color: ${
                 indicateurs.gmqMoyen >= 600
-                  ? '#28a745'
+                  ? '#1976D2'
                   : indicateurs.gmqMoyen >= 400
                     ? '#ffc107'
                     : '#dc3545'
@@ -453,7 +750,7 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
             <td class="text-right">
               <span style="font-size: 16px; font-weight: bold; color: ${
                 indicateurs.tauxReproduction >= 80
-                  ? '#28a745'
+                  ? '#1976D2'
                   : indicateurs.tauxReproduction >= 60
                     ? '#ffc107'
                     : '#dc3545'
@@ -467,7 +764,7 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
             <td class="text-right">
               <span style="font-size: 16px; font-weight: bold; color: ${
                 indicateurs.tauxMortalite <= 5
-                  ? '#28a745'
+                  ? '#1976D2'
                   : indicateurs.tauxMortalite <= 10
                     ? '#ffc107'
                     : '#dc3545'
@@ -494,7 +791,7 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
             <td><strong>Rentabilité</strong></td>
             <td class="text-right">
               <span style="font-size: 16px; font-weight: bold; color: ${
-                financeIndicateurs.rentabilite >= 0 ? '#28a745' : '#dc3545'
+                financeIndicateurs.rentabilite >= 0 ? '#1976D2' : '#dc3545'
               }">
                 ${formatNumber(financeIndicateurs.rentabilite, 1)}%
               </span>
@@ -521,7 +818,137 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
           <div class="stat-label">Porcelets sevrés</div>
         </div>
       </div>
+      
+      ${generateSectionAnalysis('production', { production, indicateurs }, data)}
+      ${generateSectionAnalysis('reproduction', { reproduction }, data)}
+      ${generateSectionAnalysis('sante', { indicateurs }, data)}
     </div>
+    
+    <!-- Graphique Évolution du Poids -->
+    ${
+      graphiques?.evolutionPoids && graphiques.evolutionPoids.labels.length > 0
+        ? `
+    <div class="section">
+      <h2>📈 Évolution du Poids Moyen</h2>
+      <div class="card">
+        ${generateLineChartSVG(
+          graphiques.evolutionPoids.labels,
+          [
+            {
+              label: 'Poids moyen (kg)',
+              data: graphiques.evolutionPoids.poidsMoyen,
+              color: '#2E7D32',
+            },
+          ],
+          700,
+          250
+        )}
+        ${generateChartAnalysis('line', {
+          labels: graphiques.evolutionPoids.labels,
+          datasets: [{ label: 'Poids moyen', data: graphiques.evolutionPoids.poidsMoyen, color: '#2E7D32' }],
+        }, 'production')}
+        <div style="margin-top: 15px; padding: 12px; background: #d1ecf1; border-radius: 6px; border-left: 4px solid #0c5460;">
+          <p style="margin: 0; font-size: 11px; line-height: 1.6; color: #0c5460;">
+            <strong>💡 Interprétation :</strong> 
+            Ce graphique montre l'évolution du poids moyen du cheptel au fil du temps. 
+            ${graphiques.evolutionPoids.poidsMoyen.length > 1 
+              ? graphiques.evolutionPoids.poidsMoyen[graphiques.evolutionPoids.poidsMoyen.length - 1] > graphiques.evolutionPoids.poidsMoyen[0]
+                ? 'Une tendance à la hausse indique une bonne croissance des animaux.'
+                : 'Une tendance à la baisse nécessite une analyse des causes (alimentation, santé, conditions d\'élevage).'
+              : ''}
+            Une croissance régulière et constante est le signe d'une bonne gestion de l'alimentation et des conditions d'élevage.
+          </p>
+        </div>
+      </div>
+    </div>
+    `
+        : ''
+    }
+    
+    <!-- Graphique Évolution du GMQ -->
+    ${
+      graphiques?.gmq && graphiques.gmq.labels.length > 0
+        ? `
+    <div class="section">
+      <h2>📈 Évolution du GMQ (Gain Moyen Quotidien)</h2>
+      <div class="card">
+        ${generateLineChartSVG(
+          graphiques.gmq.labels,
+          [
+            {
+              label: 'GMQ (g/jour)',
+              data: graphiques.gmq.gmq,
+              color: '#2196F3',
+            },
+          ],
+          700,
+          250
+        )}
+        ${generateChartAnalysis('line', {
+          labels: graphiques.gmq.labels,
+          datasets: [{ label: 'GMQ', data: graphiques.gmq.gmq, color: '#2196F3' }],
+        }, 'production')}
+        <div style="margin-top: 15px; padding: 12px; background: #d1ecf1; border-radius: 6px; border-left: 4px solid #0c5460;">
+          <p style="margin: 0; font-size: 11px; line-height: 1.6; color: #0c5460;">
+            <strong>💡 Interprétation :</strong> 
+            Le GMQ mesure la croissance quotidienne moyenne des animaux. 
+            ${graphiques.gmq.gmq.length > 0 
+              ? `Un GMQ de ${formatNumber(graphiques.gmq.gmq[graphiques.gmq.gmq.length - 1] || 0, 0)} g/jour 
+                 ${(graphiques.gmq.gmq[graphiques.gmq.gmq.length - 1] || 0) >= 600 
+                   ? 'est excellent et indique une croissance optimale.'
+                   : (graphiques.gmq.gmq[graphiques.gmq.gmq.length - 1] || 0) >= 400 
+                     ? 'est acceptable mais peut être amélioré.'
+                     : 'est faible et nécessite une optimisation de l\'alimentation et des conditions d\'élevage.'}`
+              : ''}
+            Un GMQ stable et élevé est essentiel pour une production rentable.
+          </p>
+        </div>
+      </div>
+    </div>
+    `
+        : ''
+    }
+    
+    <!-- Graphique Mortalités -->
+    ${
+      graphiques?.mortalites && graphiques.mortalites.labels.length > 0
+        ? `
+    <div class="section">
+      <h2>📊 Évolution des Mortalités</h2>
+      <div class="card">
+        ${generateBarChartSVG(
+          graphiques.mortalites.labels,
+          [
+            {
+              label: 'Nombre de mortalités',
+              data: graphiques.mortalites.nombre,
+              color: '#F44336',
+            },
+          ],
+          700,
+          250
+        )}
+        ${generateChartAnalysis('bar', {
+          labels: graphiques.mortalites.labels,
+          datasets: [{ label: 'Mortalités', data: graphiques.mortalites.nombre, color: '#F44336' }],
+        }, 'sante')}
+        <div style="margin-top: 15px; padding: 12px; background: #f8d7da; border-radius: 6px; border-left: 4px solid #c62828;">
+          <p style="margin: 0; font-size: 11px; line-height: 1.6; color: #721c24;">
+            <strong>💡 Interprétation :</strong> 
+            Ce graphique montre l'évolution du nombre de mortalités au fil du temps. 
+            ${graphiques.mortalites.nombre.reduce((a, b) => a + b, 0) === 0
+              ? 'Aucune mortalité enregistrée sur la période, ce qui est excellent.'
+              : graphiques.mortalites.nombre.some((n, i, arr) => i > 0 && n > arr[i - 1])
+                ? 'Une tendance à la hausse des mortalités nécessite une intervention urgente pour identifier et corriger les causes.'
+                : 'Les mortalités sont stables ou en baisse, ce qui indique une bonne gestion sanitaire.'}
+            Il est important de surveiller régulièrement ce indicateur et d'agir rapidement en cas d'augmentation.
+          </p>
+        </div>
+      </div>
+    </div>
+    `
+        : ''
+    }
 
     <!-- ========================================= -->
     <!-- PARTIE 4 : RECOMMANDATIONS -->
@@ -580,8 +1007,8 @@ export function generateRapportCompletHTML(data: RapportCompletData): string {
           </tr>
         </table>
         
-        <div style="margin-top: 15px; padding: 10px; background: ${totauxFinance.solde >= 0 ? '#d4edda' : '#f8d7da'}; border-radius: 6px;">
-          <p style="text-align: center; font-size: 12px; color: ${totauxFinance.solde >= 0 ? '#155724' : '#721c24'};">
+        <div style="margin-top: 15px; padding: 10px; background: ${totauxFinance.solde >= 0 ? '#e3f2fd' : '#f8d7da'}; border-radius: 6px;">
+          <p style="text-align: center; font-size: 12px; color: ${totauxFinance.solde >= 0 ? '#0d47a1' : '#721c24'};">
             ${
               totauxFinance.solde >= 0
                 ? '✅ Votre exploitation est bénéficiaire'

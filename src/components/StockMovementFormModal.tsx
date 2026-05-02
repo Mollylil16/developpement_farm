@@ -10,8 +10,9 @@ import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
+import DatePickerField from './DatePickerField';
 import Button from './Button';
-import { StockAliment, TypeMouvementStock, UniteStock } from '../types';
+import type { StockAliment, TypeMouvementStock, UniteStock } from '../types/nutrition';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 
 interface StockMovementFormModalProps {
@@ -139,12 +140,10 @@ export default function StockMovementFormModal({
       await dispatch(loadMouvementsParAliment({ alimentId: aliment.id })).unwrap();
 
       onSuccess();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur lors de la création du mouvement:', error);
-      Alert.alert(
-        'Erreur',
-        error?.message || "Une erreur est survenue lors de l'enregistrement du mouvement"
-      );
+      const errorMessage = error instanceof Error ? error.message : String(error) || "Une erreur est survenue lors de l'enregistrement du mouvement";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -238,11 +237,11 @@ export default function StockMovementFormModal({
           placeholder={aliment.unite}
         />
 
-        <FormField
+        <DatePickerField
           label="Date"
           value={date}
-          onChangeText={(text) => setDate(text)}
-          placeholder="YYYY-MM-DD"
+          onChange={(newDate) => setDate(newDate)}
+          maximumDate={new Date()}
         />
 
         <FormField

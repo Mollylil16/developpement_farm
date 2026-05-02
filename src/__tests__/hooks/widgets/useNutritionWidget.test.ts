@@ -34,4 +34,3 @@ describe('useNutritionWidget', () => {
     expect(module).toHaveProperty('useNutritionWidget');
   });
 });
-

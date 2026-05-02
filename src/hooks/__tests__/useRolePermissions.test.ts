@@ -90,4 +90,3 @@ describe('useRolePermissions', () => {
     expect(result.current.canManageMarketplace).toBe(false);
   });
 });
-

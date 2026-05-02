@@ -6,11 +6,13 @@
 import React, { useEffect, useState, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useAppSelector } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { selectAllRevenus } from '../../store/selectors/financeSelectors';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import type { PerformanceGlobale } from '../../services/PerformanceGlobaleService';
+import { logger } from '../../utils/logger';
 
 interface PerformanceWidgetProps {
   projetId: string;
@@ -19,7 +21,8 @@ interface PerformanceWidgetProps {
 
 function PerformanceWidget({ projetId, onPress }: PerformanceWidgetProps) {
   const { colors } = useTheme();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const revenus = useAppSelector(selectAllRevenus);
 
   const [loading, setLoading] = useState(true);
@@ -31,29 +34,24 @@ function PerformanceWidget({ projetId, onPress }: PerformanceWidgetProps) {
       try {
         setLoading(true);
         // Import dynamique du service pour éviter les erreurs de chargement
-        const { default: PerformanceGlobaleService } = await import('../../services/PerformanceGlobaleService');
-        const { getDatabase } = await import('../../services/database');
-        const { diagnosticDepenses } = await import('../../utils/diagnosticDepenses');
-        
+        const { default: PerformanceGlobaleService } = await import(
+          '../../services/PerformanceGlobaleService'
+        );
+
         if (!projetId || !projetActif) {
           setPerformance(null);
           setLoading(false);
           return;
         }
 
-        const db = await getDatabase();
-        
-        // Diagnostic désactivé temporairement (problème avec GROUP BY sur certains devices)
-        // await diagnosticDepenses(projetId);
-
-        PerformanceGlobaleService.setDatabase(db);
+        // Utiliser l'API backend au lieu de SQLite
         const result = await PerformanceGlobaleService.calculatePerformanceGlobale(
           projetId,
           projetActif
         );
         setPerformance(result);
       } catch (error) {
-        console.error('Erreur chargement performance globale:', error);
+        logger.error('Erreur chargement performance globale:', error);
         setPerformance(null);
       } finally {
         setLoading(false);
@@ -117,9 +115,7 @@ function PerformanceWidget({ projetId, onPress }: PerformanceWidgetProps) {
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Chargement...
-          </Text>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Chargement...</Text>
         </View>
       ) : !performance ? (
         <View style={styles.emptyContainer}>
@@ -147,9 +143,7 @@ function PerformanceWidget({ projetId, onPress }: PerformanceWidgetProps) {
 
             {/* Prix Marché */}
             <View style={[styles.statCard, { backgroundColor: colors.primary + '15', flex: 1 }]}>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                Prix marché
-              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Prix marché</Text>
               <Text style={[styles.statValue, { color: colors.primary }]}>
                 {formatMontant(performance.prix_kg_marche || 0)}
               </Text>
@@ -201,21 +195,23 @@ function PerformanceWidget({ projetId, onPress }: PerformanceWidgetProps) {
           </View>
 
           {/* Suggestions */}
-          {performance.suggestions && Array.isArray(performance.suggestions) && performance.suggestions.length > 0 && (
-            <View style={styles.suggestionsContainer}>
-              <Text style={[styles.suggestionsTitle, { color: colors.text }]}>
-                💡 Suggestions
-              </Text>
-              {performance.suggestions.slice(0, 3).map((suggestion: string, index: number) => (
-                <View key={index} style={styles.suggestionRow}>
-                  <Text style={[styles.suggestionBullet, { color: colors.primary }]}>•</Text>
-                  <Text style={[styles.suggestionText, { color: colors.textSecondary }]}>
-                    {String(suggestion || '')}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
+          {performance.suggestions &&
+            Array.isArray(performance.suggestions) &&
+            performance.suggestions.length > 0 && (
+              <View style={styles.suggestionsContainer}>
+                <Text style={[styles.suggestionsTitle, { color: colors.text }]}>
+                  💡 Suggestions
+                </Text>
+                {performance.suggestions.slice(0, 3).map((suggestion: string, index: number) => (
+                  <View key={index} style={styles.suggestionRow}>
+                    <Text style={[styles.suggestionBullet, { color: colors.primary }]}>•</Text>
+                    <Text style={[styles.suggestionText, { color: colors.textSecondary }]}>
+                      {String(suggestion || '')}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
 
           {/* Info */}
           <View style={styles.infoContainer}>

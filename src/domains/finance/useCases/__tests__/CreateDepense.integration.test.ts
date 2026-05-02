@@ -1,6 +1,6 @@
 /**
  * Tests d'intégration pour CreateDepenseUseCase
- * 
+ *
  * Teste l'orchestration complète de la création d'une dépense
  */
 
@@ -24,7 +24,7 @@ describe('CreateDepenseUseCase - Integration', () => {
     categorie: 'aliment',
     libelleCategorie: 'Aliments',
     date: '2024-01-15',
-    commentaire: 'Achat d\'aliments',
+    commentaire: "Achat d'aliments",
     photos: [],
     dateCreation: '2024-01-15T00:00:00Z',
     derniereModification: '2024-01-15T00:00:00Z',
@@ -64,7 +64,7 @@ describe('CreateDepenseUseCase - Integration', () => {
         montant: 50000,
         categorie: 'aliment',
         date: '2024-01-15',
-        commentaire: 'Achat d\'aliments',
+        commentaire: "Achat d'aliments",
       };
 
       mockRepository.createDepense.mockResolvedValueOnce(mockDepense);
@@ -76,7 +76,7 @@ describe('CreateDepenseUseCase - Integration', () => {
       expect(result.montant).toBe(50000);
     });
 
-    it('devrait rejeter si le projet n\'est pas fourni', async () => {
+    it("devrait rejeter si le projet n'est pas fourni", async () => {
       const input: CreateDepenseInput = {
         projetId: '',
         montant: 50000,
@@ -95,12 +95,10 @@ describe('CreateDepenseUseCase - Integration', () => {
         date: '2024-01-15',
       };
 
-      await expect(useCase.execute(input)).rejects.toThrow(
-        'Le montant doit être supérieur à 0'
-      );
+      await expect(useCase.execute(input)).rejects.toThrow('Le montant doit être supérieur à 0');
     });
 
-    it('devrait rejeter si la date n\'est pas fournie', async () => {
+    it("devrait rejeter si la date n'est pas fournie", async () => {
       const input: CreateDepenseInput = {
         projetId: 'projet-1',
         montant: 50000,
@@ -139,4 +137,3 @@ describe('CreateDepenseUseCase - Integration', () => {
     });
   });
 });
-

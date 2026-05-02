@@ -2,7 +2,7 @@
  * Migration 25 : Créer les tables supplémentaires du Marketplace
  * Crée service_proposal_notifications, purchase_requests, purchase_request_offers,
  * purchase_request_matches et weekly_pork_price_trends
- * 
+ *
  * Version: 25
  */
 
@@ -13,7 +13,7 @@ export async function createMarketplaceAdditionalTables(db: SQLiteDatabase): Pro
   const notificationsTableExists = await db.getFirstAsync<{ name: string } | null>(
     "SELECT name FROM sqlite_master WHERE type='table' AND name='service_proposal_notifications'"
   );
-  
+
   if (!notificationsTableExists) {
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS service_proposal_notifications (
@@ -29,17 +29,17 @@ export async function createMarketplaceAdditionalTables(db: SQLiteDatabase): Pro
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       );
     `);
-    
+
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_service_proposal_notifications_user 
       ON service_proposal_notifications(user_id);
     `);
-    
+
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_service_proposal_notifications_read 
       ON service_proposal_notifications(user_id, read);
     `);
-    
+
     console.log('✅ Migration: Table service_proposal_notifications créée');
   }
 
@@ -47,7 +47,7 @@ export async function createMarketplaceAdditionalTables(db: SQLiteDatabase): Pro
   const purchaseRequestsTableExists = await db.getFirstAsync<{ name: string } | null>(
     "SELECT name FROM sqlite_master WHERE type='table' AND name='purchase_requests'"
   );
-  
+
   if (!purchaseRequestsTableExists) {
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS purchase_requests (
@@ -85,27 +85,27 @@ export async function createMarketplaceAdditionalTables(db: SQLiteDatabase): Pro
         FOREIGN KEY (buyer_id) REFERENCES users(id) ON DELETE CASCADE
       );
     `);
-    
+
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_purchase_requests_buyer 
       ON purchase_requests(buyer_id);
     `);
-    
+
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_purchase_requests_status 
       ON purchase_requests(status);
     `);
-    
+
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_purchase_requests_race 
       ON purchase_requests(race);
     `);
-    
+
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_purchase_requests_location 
       ON purchase_requests(delivery_location_latitude, delivery_location_longitude);
     `);
-    
+
     console.log('✅ Migration: Table purchase_requests créée');
   }
 
@@ -113,7 +113,7 @@ export async function createMarketplaceAdditionalTables(db: SQLiteDatabase): Pro
   const purchaseRequestOffersTableExists = await db.getFirstAsync<{ name: string } | null>(
     "SELECT name FROM sqlite_master WHERE type='table' AND name='purchase_request_offers'"
   );
-  
+
   if (!purchaseRequestOffersTableExists) {
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS purchase_request_offers (
@@ -135,22 +135,22 @@ export async function createMarketplaceAdditionalTables(db: SQLiteDatabase): Pro
         FOREIGN KEY (producer_id) REFERENCES users(id) ON DELETE CASCADE
       );
     `);
-    
+
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_purchase_request_offers_request 
       ON purchase_request_offers(purchase_request_id);
     `);
-    
+
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_purchase_request_offers_producer 
       ON purchase_request_offers(producer_id);
     `);
-    
+
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_purchase_request_offers_status 
       ON purchase_request_offers(status);
     `);
-    
+
     console.log('✅ Migration: Table purchase_request_offers créée');
   }
 
@@ -158,7 +158,7 @@ export async function createMarketplaceAdditionalTables(db: SQLiteDatabase): Pro
   const purchaseRequestMatchesTableExists = await db.getFirstAsync<{ name: string } | null>(
     "SELECT name FROM sqlite_master WHERE type='table' AND name='purchase_request_matches'"
   );
-  
+
   if (!purchaseRequestMatchesTableExists) {
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS purchase_request_matches (
@@ -175,22 +175,22 @@ export async function createMarketplaceAdditionalTables(db: SQLiteDatabase): Pro
         FOREIGN KEY (listing_id) REFERENCES marketplace_listings(id) ON DELETE CASCADE
       );
     `);
-    
+
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_purchase_request_matches_request 
       ON purchase_request_matches(purchase_request_id);
     `);
-    
+
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_purchase_request_matches_producer 
       ON purchase_request_matches(producer_id);
     `);
-    
+
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_purchase_request_matches_notified 
       ON purchase_request_matches(notified);
     `);
-    
+
     console.log('✅ Migration: Table purchase_request_matches créée');
   }
 
@@ -198,7 +198,7 @@ export async function createMarketplaceAdditionalTables(db: SQLiteDatabase): Pro
   const weeklyPorkPriceTrendsTableExists = await db.getFirstAsync<{ name: string } | null>(
     "SELECT name FROM sqlite_master WHERE type='table' AND name='weekly_pork_price_trends'"
   );
-  
+
   if (!weeklyPorkPriceTrendsTableExists) {
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS weekly_pork_price_trends (
@@ -217,18 +217,17 @@ export async function createMarketplaceAdditionalTables(db: SQLiteDatabase): Pro
         UNIQUE(year, week_number)
       );
     `);
-    
+
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_weekly_pork_price_trends_year_week 
       ON weekly_pork_price_trends(year, week_number);
     `);
-    
+
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_weekly_pork_price_trends_updated 
       ON weekly_pork_price_trends(updated_at);
     `);
-    
+
     console.log('✅ Migration: Table weekly_pork_price_trends créée');
   }
 }
-

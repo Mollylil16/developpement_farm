@@ -7,7 +7,7 @@ import { createSelector } from '@reduxjs/toolkit';
 import { denormalize } from 'normalizr';
 import { RootState } from '../store';
 import { gestationsSchema, sevragesSchema } from '../normalization/schemas';
-import { Gestation, Sevrage } from '../../types';
+import type { Gestation, Sevrage } from '../../types/reproduction';
 
 // Sélecteur de base pour l'état reproduction
 const selectReproductionState = (state: RootState) => state.reproduction;

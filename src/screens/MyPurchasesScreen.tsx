@@ -4,14 +4,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  FlatList,
-  Text,
-  StyleSheet,
-  RefreshControl,
-  TouchableOpacity,
-} from 'react-native';
+import { View, FlatList, Text, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -63,7 +56,12 @@ const MyPurchasesScreen: React.FC = () => {
     };
 
     return (
-      <Card style={[styles.transactionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <Card
+        style={[
+          styles.transactionCard,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
         <View style={styles.transactionHeader}>
           <View style={styles.transactionHeaderLeft}>
             <Ionicons name="bag" size={24} color={colors.primary} />
@@ -94,7 +92,10 @@ const MyPurchasesScreen: React.FC = () => {
           {item.deliveryDetails && (
             <View style={styles.deliveryRow}>
               <Ionicons name="location" size={16} color={colors.textSecondary} />
-              <Text style={[styles.deliveryText, { color: colors.textSecondary }]} numberOfLines={1}>
+              <Text
+                style={[styles.deliveryText, { color: colors.textSecondary }]}
+                numberOfLines={1}
+              >
                 {item.deliveryDetails.location}
               </Text>
             </View>
@@ -138,10 +139,7 @@ const MyPurchasesScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Mes achats</Text>
@@ -301,4 +299,3 @@ const styles = StyleSheet.create({
 });
 
 export default MyPurchasesScreen;
-

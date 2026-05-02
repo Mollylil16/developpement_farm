@@ -47,7 +47,7 @@ export default function MarketplaceFilters({
   const handleApply = () => {
     // Nettoyer les valeurs vides
     const cleanedFilters: Filters = {};
-    
+
     if (filters.minPrice !== undefined && filters.minPrice > 0) {
       cleanedFilters.minPrice = filters.minPrice;
     }
@@ -96,7 +96,10 @@ export default function MarketplaceFilters({
           {/* Header */}
           <View style={[styles.header, { borderBottomColor: colors.divider }]}>
             <Text style={[styles.headerTitle, { color: colors.text }]}>Filtres</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <TouchableOpacity
+              onPress={onClose}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Ionicons name="close" size={28} color={colors.text} />
             </TouchableOpacity>
           </View>
@@ -109,9 +112,7 @@ export default function MarketplaceFilters({
               </Text>
               <View style={styles.rangeInputs}>
                 <View style={styles.rangeInput}>
-                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Minimum
-                  </Text>
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Minimum</Text>
                   <TextInput
                     style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
                     placeholder="0"
@@ -125,9 +126,7 @@ export default function MarketplaceFilters({
                 </View>
                 <Text style={[styles.rangeSeparator, { color: colors.textSecondary }]}>à</Text>
                 <View style={styles.rangeInput}>
-                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Maximum
-                  </Text>
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Maximum</Text>
                   <TextInput
                     style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
                     placeholder="Illimité"
@@ -149,9 +148,7 @@ export default function MarketplaceFilters({
               </Text>
               <View style={styles.rangeInputs}>
                 <View style={styles.rangeInput}>
-                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Minimum
-                  </Text>
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Minimum</Text>
                   <TextInput
                     style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
                     placeholder="0"
@@ -165,9 +162,7 @@ export default function MarketplaceFilters({
                 </View>
                 <Text style={[styles.rangeSeparator, { color: colors.textSecondary }]}>à</Text>
                 <View style={styles.rangeInput}>
-                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Maximum
-                  </Text>
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Maximum</Text>
                   <TextInput
                     style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
                     placeholder="Illimité"
@@ -189,9 +184,7 @@ export default function MarketplaceFilters({
               </Text>
               <View style={styles.rangeInputs}>
                 <View style={styles.rangeInput}>
-                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Minimum
-                  </Text>
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Minimum</Text>
                   <TextInput
                     style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
                     placeholder="0"
@@ -205,9 +198,7 @@ export default function MarketplaceFilters({
                 </View>
                 <Text style={[styles.rangeSeparator, { color: colors.textSecondary }]}>à</Text>
                 <View style={styles.rangeInput}>
-                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                    Maximum
-                  </Text>
+                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Maximum</Text>
                   <TextInput
                     style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
                     placeholder="Illimité"
@@ -348,4 +339,3 @@ const styles = StyleSheet.create({
     fontWeight: MarketplaceTheme.typography.fontWeights.bold,
   },
 });
-

@@ -1,6 +1,6 @@
 /**
  * Tests d'intégration pour CreateVaccinationUseCase
- * 
+ *
  * Teste l'orchestration complète de la création d'une vaccination
  */
 
@@ -71,7 +71,7 @@ describe('CreateVaccinationUseCase - Integration', () => {
       expect(result.animalId).toBe('animal-1');
     });
 
-    it('devrait rejeter si le projet n\'est pas fourni', async () => {
+    it("devrait rejeter si le projet n'est pas fourni", async () => {
       const input: CreateVaccinationInput = {
         projetId: '',
         animalId: 'animal-1',
@@ -81,19 +81,17 @@ describe('CreateVaccinationUseCase - Integration', () => {
       await expect(useCase.execute(input)).rejects.toThrow('Le projet est requis');
     });
 
-    it('devrait rejeter si la date de vaccination n\'est pas fournie', async () => {
+    it("devrait rejeter si la date de vaccination n'est pas fournie", async () => {
       const input: CreateVaccinationInput = {
         projetId: 'projet-1',
         animalId: 'animal-1',
         dateVaccination: '',
       };
 
-      await expect(useCase.execute(input)).rejects.toThrow(
-        'La date de vaccination est requise'
-      );
+      await expect(useCase.execute(input)).rejects.toThrow('La date de vaccination est requise');
     });
 
-    it('devrait rejeter si ni animalId ni lotId n\'est fourni', async () => {
+    it("devrait rejeter si ni animalId ni lotId n'est fourni", async () => {
       const input: CreateVaccinationInput = {
         projetId: 'projet-1',
         dateVaccination: '2024-01-15',
@@ -104,7 +102,7 @@ describe('CreateVaccinationUseCase - Integration', () => {
       );
     });
 
-    it('devrait accepter un lotId au lieu d\'un animalId', async () => {
+    it("devrait accepter un lotId au lieu d'un animalId", async () => {
       const input: CreateVaccinationInput = {
         projetId: 'projet-1',
         lotId: 'lot-1',
@@ -153,4 +151,3 @@ describe('CreateVaccinationUseCase - Integration', () => {
     });
   });
 });
-

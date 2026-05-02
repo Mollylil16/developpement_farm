@@ -13,6 +13,15 @@ export const LIGHT_COLORS = {
   secondary: '#66BB6A', // Vert secondaire
   accent: '#FF9800', // Orange accent
 
+  // Couleurs pour les genres animaux
+  male: '#1976D2', // Bleu pour mâle
+  female: '#E91E63', // Rose pour femelle
+  castrated: '#9C27B0', // Violet pour castré
+
+  // Couleurs pour les rôles professionnels
+  veterinarian: '#2196F3', // Bleu pour vétérinaire
+  technician: '#FF9800', // Orange pour technicien
+
   // Couleurs système
   error: '#EF5350', // Rouge moderne
   success: '#66BB6A', // Vert succès
@@ -74,6 +83,15 @@ export const DARK_COLORS = {
   secondary: '#81C784', // Vert secondaire
   accent: '#FF9800', // Orange accent (identique)
 
+  // Couleurs pour les genres animaux (plus claires pour le mode sombre)
+  male: '#42A5F5', // Bleu plus clair
+  female: '#F48FB1', // Rose plus clair
+  castrated: '#CE93D8', // Violet plus clair
+
+  // Couleurs pour les rôles professionnels
+  veterinarian: '#42A5F5', // Bleu pour vétérinaire (plus clair pour dark)
+  technician: '#FFB74D', // Orange plus clair pour technicien (dark)
+
   // Couleurs système
   error: '#EF5350', // Rouge moderne (identique)
   success: '#66BB6A', // Vert succès
@@ -129,6 +147,11 @@ export const DARK_COLORS = {
 // Export COLORS par défaut (light) pour compatibilité
 export const COLORS = LIGHT_COLORS;
 
+// Couleurs spécifiques aux genres animaux
+export const MALE_COLOR = LIGHT_COLORS.male;
+export const FEMALE_COLOR = LIGHT_COLORS.female;
+export const CASTRATED_COLOR = LIGHT_COLORS.castrated;
+
 export const SPACING = {
   xs: 4,
   sm: 8,
@@ -160,17 +183,17 @@ export const FONT_SIZES = {
 };
 
 // Type pour les font weights acceptés par React Native
-export type FontWeight = 
-  | 'normal' 
-  | 'bold' 
-  | '100' 
-  | '200' 
-  | '300' 
-  | '400' 
-  | '500' 
-  | '600' 
-  | '700' 
-  | '800' 
+export type FontWeight =
+  | 'normal'
+  | 'bold'
+  | '100'
+  | '200'
+  | '300'
+  | '400'
+  | '500'
+  | '600'
+  | '700'
+  | '800'
   | '900';
 
 export const FONT_WEIGHTS: Record<'regular' | 'medium' | 'semiBold' | 'bold', FontWeight> = {

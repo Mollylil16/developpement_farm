@@ -1,6 +1,6 @@
 /**
  * FinanceHeader - En-tête de l'écran Finance
- * 
+ *
  * Affiche le titre avec icône
  */
 
@@ -11,7 +11,7 @@ import { useTheme } from '../contexts/ThemeContext';
 
 export default function FinanceHeader() {
   const { colors } = useTheme();
-  
+
   return (
     <View style={[styles.header, { backgroundColor: colors.surface }]}>
       <View style={styles.headerContent}>
@@ -49,4 +49,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

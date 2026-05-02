@@ -11,20 +11,20 @@ export async function hashPassword(password: string): Promise<string> {
   // Essayer d'utiliser expo-crypto si disponible
   try {
     const Crypto = await import('expo-crypto');
-    return await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      password
-    );
-  } catch (error) {
+    return await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, password);
+  } catch {
     // Fallback: utiliser crypto-js si disponible
     try {
-      const CryptoJS = await import('crypto-js');
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const CryptoJS = require('crypto-js');
       return CryptoJS.SHA256(password).toString();
-    } catch (error2) {
+    } catch {
       // Fallback final: implémentation simple (non sécurisée pour la production)
       // ⚠️ Cette implémentation est uniquement pour le développement
       // En production, vous DEVEZ installer expo-crypto ou crypto-js
-      console.warn('⚠️ Aucune bibliothèque de hachage disponible. Utilisation d\'un fallback non sécurisé.');
+      console.warn(
+        "⚠️ Aucune bibliothèque de hachage disponible. Utilisation d'un fallback non sécurisé."
+      );
       return simpleHash(password);
     }
   }
@@ -38,9 +38,8 @@ function simpleHash(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash; // Convert to 32bit integer
   }
   return Math.abs(hash).toString(16).padStart(64, '0');
 }
-

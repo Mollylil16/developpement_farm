@@ -7,6 +7,7 @@ import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { loadVaccinations, loadMaladies } from '../../store/slices/santeSlice';
 import { selectAllVaccinations, selectAllMaladies } from '../../store/selectors/santeSelectors';
 import { useEffect, useRef } from 'react';
+import type { Maladie } from '../../types/sante';
 
 export interface SanteWidgetData {
   emoji: string;
@@ -41,7 +42,7 @@ export function useSanteWidget(projetId?: string): SanteWidgetData | null {
   return useMemo(() => {
     if (!projetId) return null;
 
-    const maladiesEnCours = maladies.filter((m: any) => !m.date_fin || m.date_fin === '');
+    const maladiesEnCours = maladies.filter((m: Maladie) => !m.date_fin || m.date_fin === '');
 
     return {
       emoji: '🏥',
@@ -53,4 +54,3 @@ export function useSanteWidget(projetId?: string): SanteWidgetData | null {
     };
   }, [projetId, vaccinations, maladies]);
 }
-

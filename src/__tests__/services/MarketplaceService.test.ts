@@ -20,7 +20,7 @@ describe('MarketplaceService - Validations', () => {
   });
 
   describe('Protection contre auto-achat', () => {
-    it('devrait vérifier que l\'utilisateur ne peut pas acheter ses propres sujets', () => {
+    it("devrait vérifier que l'utilisateur ne peut pas acheter ses propres sujets", () => {
       // Test de la logique de vérification
       const canBuyOwnSubject = (userId: string, producerId: string): boolean => {
         return userId !== producerId;
@@ -31,4 +31,3 @@ describe('MarketplaceService - Validations', () => {
     });
   });
 });
-

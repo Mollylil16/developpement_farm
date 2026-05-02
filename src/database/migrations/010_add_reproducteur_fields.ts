@@ -1,7 +1,7 @@
 /**
  * Migration 10 : Ajouter reproducteur, pere_id et mere_id à production_animaux
  * Permet de gérer la généalogie et identifier les reproducteurs
- * 
+ *
  * Version: 10
  */
 
@@ -48,4 +48,3 @@ export async function addReproducteurFields(db: SQLiteDatabase): Promise<void> {
     console.log('✅ Migration: Colonne mere_id ajoutée à production_animaux');
   }
 }
-

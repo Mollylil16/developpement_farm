@@ -20,7 +20,7 @@ import {
   deleteStockAliment,
   loadMouvementsParAliment,
 } from '../store/slices/stocksSlice';
-import { StockAliment, StockMouvement } from '../types';
+import type { StockAliment, StockMouvement } from '../types/nutrition';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from './LoadingSpinner';
@@ -29,6 +29,7 @@ import StockAlimentFormModal from './StockAlimentFormModal';
 import StockMovementFormModal from './StockMovementFormModal';
 import Button from './Button';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 const screenWidth = Dimensions.get('window').width;
 // Largeur fixe pour les cartes : largeur écran - (padding horizontal * 2)
@@ -38,7 +39,8 @@ export default function NutritionStockComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { stocks, mouvementsParAliment, loading } = useAppSelector((state) => state.stocks);
   const [selectedStock, setSelectedStock] = useState<StockAliment | null>(null);
   const [showAlimentModal, setShowAlimentModal] = useState(false);
@@ -145,11 +147,9 @@ export default function NutritionStockComponent() {
               if (selectedStock?.id === aliment.id) {
                 setSelectedStock(null);
               }
-            } catch (error: any) {
-              Alert.alert(
-                'Erreur',
-                error.message || "Erreur lors de la suppression de l'aliment"
-              );
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : "Erreur lors de la suppression de l'aliment";
+              Alert.alert('Erreur', errorMessage);
             }
           },
         },
@@ -437,7 +437,7 @@ export default function NutritionStockComponent() {
           // Réinitialiser les états
           setIsEditing(false);
           setSelectedStock(null);
-          
+
           // Recharger les stocks de manière asynchrone sans bloquer
           if (projetActif) {
             // Utiliser setTimeout pour laisser le modal se fermer complètement

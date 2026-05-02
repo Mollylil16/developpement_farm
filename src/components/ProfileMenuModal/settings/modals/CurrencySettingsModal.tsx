@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../../../../constants/theme';
 import CustomModal from '../../../CustomModal';
+import { logger } from '../../../../utils/logger';
 
 const CURRENCY_STORAGE_KEY = '@fermier_pro:currency';
 
@@ -41,7 +42,7 @@ export default function CurrencySettingsModal({ visible, onClose }: CurrencySett
         setSelectedCurrency(saved);
       }
     } catch (error) {
-      console.error('Erreur chargement devise:', error);
+      logger.error('Erreur chargement devise:', error);
     }
   };
 
@@ -51,7 +52,7 @@ export default function CurrencySettingsModal({ visible, onClose }: CurrencySett
       await AsyncStorage.setItem(CURRENCY_STORAGE_KEY, currencyCode);
       onClose();
     } catch (error) {
-      console.error('Erreur sauvegarde devise:', error);
+      logger.error('Erreur sauvegarde devise:', error);
     }
   };
 
@@ -69,7 +70,8 @@ export default function CurrencySettingsModal({ visible, onClose }: CurrencySett
             style={[
               styles.currencyOption,
               {
-                backgroundColor: selectedCurrency === currency.code ? colors.primary + '15' : colors.surface,
+                backgroundColor:
+                  selectedCurrency === currency.code ? colors.primary + '15' : colors.surface,
                 borderColor: selectedCurrency === currency.code ? colors.primary : colors.border,
               },
             ]}
@@ -139,4 +141,3 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
-

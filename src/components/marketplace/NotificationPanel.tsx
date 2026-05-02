@@ -43,10 +43,27 @@ const NOTIFICATION_TYPES_BY_TAB: Record<TabType, NotificationType[]> = {
     'rating_received',
     'delivery_reminder',
     'payment_reminder',
+    'appointment_requested',
+    'appointment_accepted',
+    'appointment_rejected',
+    'appointment_cancelled',
+    'appointment_reminder',
+    'collaboration_removed',
   ],
   offers: ['offer_received', 'offer_accepted', 'offer_rejected'],
   messages: ['message_received'],
-  system: ['delivery_confirmed', 'rating_received', 'delivery_reminder', 'payment_reminder'],
+  system: [
+    'delivery_confirmed',
+    'rating_received',
+    'delivery_reminder',
+    'payment_reminder',
+    'appointment_requested',
+    'appointment_accepted',
+    'appointment_rejected',
+    'appointment_cancelled',
+    'appointment_reminder',
+    'collaboration_removed',
+  ],
 };
 
 export default function NotificationPanel({
@@ -69,7 +86,7 @@ export default function NotificationPanel({
       return notifications;
     }
     const allowedTypes = NOTIFICATION_TYPES_BY_TAB[activeTab];
-    return notifications.filter(n => allowedTypes.includes(n.type));
+    return notifications.filter((n) => allowedTypes.includes(n.type));
   }, [notifications, activeTab]);
 
   // Compter les non lues par onglet
@@ -81,7 +98,7 @@ export default function NotificationPanel({
       system: 0,
     };
 
-    notifications.forEach(n => {
+    notifications.forEach((n) => {
       if (!n.read) {
         if (NOTIFICATION_TYPES_BY_TAB.offers.includes(n.type)) counts.offers++;
         if (NOTIFICATION_TYPES_BY_TAB.messages.includes(n.type)) counts.messages++;
@@ -136,11 +153,7 @@ export default function NotificationPanel({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <TouchableOpacity
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={onClose}
-      >
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <Animated.View
           style={[
             styles.panel,
@@ -153,19 +166,12 @@ export default function NotificationPanel({
           onStartShouldSetResponder={() => true}
         >
           {/* Header */}
-          <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>
-              Notifications
-            </Text>
+          <View style={[styles.header, { borderBottomColor: colors.divider, backgroundColor: colors.surfaceSolid || '#FFFFFF' }]}>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Notifications</Text>
             <View style={styles.headerActions}>
               {unreadCount > 0 && (
-                <TouchableOpacity
-                  onPress={onMarkAllAsRead}
-                  style={styles.markAllButton}
-                >
-                  <Text style={[styles.markAllText, { color: colors.primary }]}>
-                    Tout lire
-                  </Text>
+                <TouchableOpacity onPress={onMarkAllAsRead} style={styles.markAllButton}>
+                  <Text style={[styles.markAllText, { color: colors.primary }]}>Tout lire</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -175,8 +181,8 @@ export default function NotificationPanel({
           </View>
 
           {/* Onglets */}
-          <View style={[styles.tabs, { borderBottomColor: colors.divider }]}>
-            {(['all', 'offers', 'messages', 'system'] as TabType[]).map(tab => {
+          <View style={[styles.tabs, { borderBottomColor: colors.divider, backgroundColor: colors.surfaceSolid || '#FFFFFF' }]}>
+            {(['all', 'offers', 'messages', 'system'] as TabType[]).map((tab) => {
               const count = unreadCountByTab[tab];
               const isActive = activeTab === tab;
               return (
@@ -218,25 +224,30 @@ export default function NotificationPanel({
 
           {/* Liste des notifications */}
           <ScrollView
-            style={styles.list}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
+            style={[styles.list, { backgroundColor: colors.surfaceSolid || '#FFFFFF' }]}
+            contentContainerStyle={[
+              styles.listContent,
+              filteredNotifications.length === 0 && styles.listContentEmpty
+            ]}
+            showsVerticalScrollIndicator={true}
+            nestedScrollEnabled={true}
           >
             {filteredNotifications.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Ionicons name="notifications-off-outline" size={64} color={colors.textLight} />
+                <Ionicons name="notifications-off-outline" size={64} color={colors.textLight || colors.textSecondary} />
                 <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
                   Aucune notification
                 </Text>
               </View>
             ) : (
-              filteredNotifications.map(notification => (
-                <NotificationCard
-                  key={notification.id}
-                  notification={notification}
-                  onPress={() => handleNotificationPress(notification)}
-                  onMarkAsRead={() => onMarkAsRead(notification.id)}
-                />
+              filteredNotifications.map((notification) => (
+                <View key={notification.id} style={styles.notificationItem}>
+                  <NotificationCard
+                    notification={notification}
+                    onPress={() => handleNotificationPress(notification)}
+                    onMarkAsRead={() => onMarkAsRead(notification.id)}
+                  />
+                </View>
               ))
             )}
           </ScrollView>
@@ -260,6 +271,7 @@ const styles = StyleSheet.create({
   },
   panel: {
     width: PANEL_WIDTH,
+    minHeight: 300, // ✅ Hauteur minimum pour afficher le contenu
     maxHeight: PANEL_HEIGHT,
     borderRadius: MarketplaceTheme.borderRadius.lg,
     ...MarketplaceTheme.shadows.large,
@@ -323,19 +335,28 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+    minHeight: 200,
+    flexGrow: 1, // ✅ S'assurer que le ScrollView prend l'espace disponible
   },
   listContent: {
     padding: MarketplaceTheme.spacing.sm,
+    gap: MarketplaceTheme.spacing.sm,
   },
-  emptyContainer: {
+  listContentEmpty: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: MarketplaceTheme.spacing.xl,
+  },
+  notificationItem: {
+    marginBottom: MarketplaceTheme.spacing.xs,
+  },
+  emptyContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: MarketplaceTheme.spacing.xl * 2,
   },
   emptyText: {
     marginTop: MarketplaceTheme.spacing.md,
     fontSize: MarketplaceTheme.typography.fontSizes.md,
   },
 });
-

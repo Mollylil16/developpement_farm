@@ -12,14 +12,16 @@ export function getIconeType(type: TypeProphylaxie): keyof typeof Ionicons.glyph
   switch (type) {
     case 'vitamine':
       return 'nutrition';
-    case 'vaccin':
+    case 'vaccin_obligatoire':
       return 'medical';
-    case 'antiparasitaire':
+    case 'deparasitant':
       return 'bug';
-    case 'antibiotique':
+    case 'antibiotique_preventif':
       return 'shield-checkmark';
-    case 'autre':
+    case 'autre_traitement':
       return 'flask';
+    case 'fer':
+      return 'medical';
     default:
       return 'medical';
   }
@@ -32,16 +34,17 @@ export function getCouleurType(type: TypeProphylaxie): string {
   switch (type) {
     case 'vitamine':
       return '#FFA726'; // Orange
-    case 'vaccin':
+    case 'vaccin_obligatoire':
       return '#66BB6A'; // Vert
-    case 'antiparasitaire':
+    case 'deparasitant':
       return '#AB47BC'; // Violet
-    case 'antibiotique':
+    case 'antibiotique_preventif':
       return '#42A5F5'; // Bleu
-    case 'autre':
+    case 'autre_traitement':
       return '#78909C'; // Gris-bleu
+    case 'fer':
+      return '#EF5350'; // Rouge
     default:
       return '#2196F3'; // Bleu primaire
   }
 }
-

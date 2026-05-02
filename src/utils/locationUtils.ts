@@ -31,7 +31,7 @@ export async function getUserLocation(): Promise<{ latitude: number; longitude: 
     };
   } catch (error) {
     console.error('Erreur géolocalisation:', error);
-    Alert.alert('Erreur', 'Impossible d\'obtenir votre localisation');
+    Alert.alert('Erreur', "Impossible d'obtenir votre localisation");
     return null;
   }
 }
@@ -51,26 +51,17 @@ function toRadians(degrees: number): number {
  * @param lon2 Longitude du deuxième point
  * @returns Distance en kilomètres (arrondie)
  */
-export function calculateDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
+export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371; // Rayon de la Terre en km
   const dLat = toRadians(lat2 - lat1);
   const dLon = toRadians(lon2 - lon1);
 
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat1)) *
-      Math.cos(toRadians(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = R * c;
 
   return Math.round(distance); // Distance en km (arrondie)
 }
-

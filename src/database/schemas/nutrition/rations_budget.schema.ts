@@ -31,4 +31,3 @@ export async function createRationsBudgetTable(db: SQLite.SQLiteDatabase): Promi
     );
   `);
 }
-

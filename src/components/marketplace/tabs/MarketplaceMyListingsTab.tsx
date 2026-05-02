@@ -4,19 +4,29 @@
  */
 
 import React from 'react';
-import { View, Text, FlatList, RefreshControl, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  RefreshControl,
+  TouchableOpacity,
+  Alert,
+  StyleSheet,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useAppSelector } from '../../../store/hooks';
 import { selectAllAnimaux } from '../../../store/selectors/productionSelectors';
-import { getDatabase } from '../../../services/database';
-import { getMarketplaceService } from '../../../services/MarketplaceService';
+import apiClient from '../../../services/api/apiClient';
 import { MarketplaceTheme } from '../../../styles/marketplace.theme';
 import EmptyState from '../../EmptyState';
 import type { MarketplaceListing } from '../../../types/marketplace';
 import type { ProductionAnimal } from '../../../types/production';
 import { getErrorMessage } from '../../../types/errors';
+import { createLoggerWithPrefix } from '../../../utils/logger';
+
+const logger = createLoggerWithPrefix('MarketplaceMyListings');
 
 interface MarketplaceMyListingsTabProps {
   listings: MarketplaceListing[];
@@ -25,38 +35,63 @@ interface MarketplaceMyListingsTabProps {
   onViewDetails: (listing: MarketplaceListing) => void;
 }
 
-export default function MarketplaceMyListingsTab({
+function MarketplaceMyListingsTab({
   listings,
   loading,
   onRefresh,
   onViewDetails,
 }: MarketplaceMyListingsTabProps) {
   const marketplaceColors = MarketplaceTheme.colors;
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => state.auth ?? { user: null });
   const allAnimaux = useAppSelector(selectAllAnimaux);
 
   const handleRemove = async (listing: MarketplaceListing) => {
+    Alert.alert('Retirer de la vente', 'Voulez-vous retirer cette annonce du marketplace ?', [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Retirer',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            if (!user?.id) {
+              Alert.alert('Erreur', 'Utilisateur non connecté');
+              return;
+            }
+            // Supprimer le listing via l'API backend
+            await apiClient.delete(`/marketplace/listings/${listing.id}`);
+            onRefresh();
+            Alert.alert('Succès', 'Annonce retirée du marketplace');
+          } catch (error) {
+            logger.error('Erreur retrait du marketplace:', error);
+            Alert.alert('Erreur', getErrorMessage(error));
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleMarquerVendu = (listing: MarketplaceListing) => {
     Alert.alert(
-      'Retirer de la vente',
-      'Voulez-vous retirer cette annonce du marketplace ?',
+      'Marquer comme vendu',
+      'Voulez-vous marquer cette annonce comme vendue ? La vente sera enregistrée en Finance > Revenus et les sujets seront retirés du cheptel.',
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Retirer',
-          style: 'destructive',
+          text: 'Vendu',
           onPress: async () => {
             try {
-              const db = await getDatabase();
-              const service = getMarketplaceService(db);
               if (!user?.id) {
                 Alert.alert('Erreur', 'Utilisateur non connecté');
                 return;
               }
-              await service.removeListing(listing.id, user.id);
+              const res = await apiClient.post<{ success: boolean; message?: string }>(
+                `/marketplace/listings/${listing.id}/marquer-vendu`,
+                {}
+              );
               onRefresh();
-              Alert.alert('Succès', 'Annonce retirée du marketplace');
+              Alert.alert('Succès', res?.message || 'Annonce marquée vendue. Revenu enregistré et sujets retirés du cheptel.');
             } catch (error) {
-              console.error('Erreur retrait du marketplace:', error);
+              logger.error('Erreur marquer vendu:', error);
               Alert.alert('Erreur', getErrorMessage(error));
             }
           },
@@ -66,21 +101,51 @@ export default function MarketplaceMyListingsTab({
   };
 
   const renderItem = ({ item }: { item: MarketplaceListing }) => {
-    const animal = allAnimaux.find((a: ProductionAnimal) => a.id === item.subjectId);
+    const isBatchListing = item.listingType === 'batch' || item.batchId;
+    const animal = !isBatchListing && item.subjectId 
+      ? allAnimaux.find((a: ProductionAnimal) => a.id === item.subjectId)
+      : null;
 
     return (
-      <View style={[styles.card, { backgroundColor: marketplaceColors.surface, borderColor: marketplaceColors.border }]}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: marketplaceColors.surface, borderColor: marketplaceColors.border },
+        ]}
+      >
         <View style={styles.header}>
-          <Text style={[styles.code, { color: marketplaceColors.text }]}>
-            {animal?.code || item.code || `#${item.subjectId.slice(0, 8)}`}
-            {animal?.nom ? ` (${animal.nom})` : null}
-          </Text>
+          {isBatchListing ? (
+            <View style={styles.batchHeader}>
+              <View style={styles.batchBadge}>
+                <Ionicons name="people" size={14} color={marketplaceColors.primary} />
+                <Text style={[styles.batchLabel, { color: marketplaceColors.primary }]}>
+                  Bande
+                </Text>
+              </View>
+              <Text style={[styles.code, { color: marketplaceColors.text }]}>
+                {item.pigCount || item.pigIds?.length || 0} porc{(item.pigCount || item.pigIds?.length || 0) > 1 ? 's' : ''}
+              </Text>
+            </View>
+          ) : (
+            <Text style={[styles.code, { color: marketplaceColors.text }]}>
+              {animal?.code || item.code || `#${(item.subjectId || item.id).slice(0, 8)}`}
+              {animal?.nom ? ` (${animal.nom})` : null}
+            </Text>
+          )}
           <View style={styles.actions}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.primary + '15' }]}
               onPress={() => onViewDetails(item)}
             >
-              <Text style={[styles.actionText, { color: marketplaceColors.primary }]}>Voir détails</Text>
+              <Text style={[styles.actionText, { color: marketplaceColors.primary }]}>
+                Voir détails
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: '#15803d15' }]}
+              onPress={() => handleMarquerVendu(item)}
+            >
+              <Text style={[styles.actionText, { color: '#15803d' }]}>Vendu</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: marketplaceColors.error + '15' }]}
@@ -94,13 +159,23 @@ export default function MarketplaceMyListingsTab({
           <View style={styles.stat}>
             <Ionicons name="scale-outline" size={16} color={marketplaceColors.textSecondary} />
             <Text style={[styles.statText, { color: marketplaceColors.text }]}>
-              {item.weight || 0} kg
+              {isBatchListing 
+                ? `${item.weight || 0} kg (moyen)`
+                : `${item.weight || 0} kg`}
             </Text>
           </View>
+          {isBatchListing && item.pigCount && (
+            <View style={styles.stat}>
+              <Ionicons name="cube-outline" size={16} color={marketplaceColors.textSecondary} />
+              <Text style={[styles.statText, { color: marketplaceColors.text }]}>
+                {(item.weight || 0) * item.pigCount} kg (total)
+              </Text>
+            </View>
+          )}
           <View style={styles.stat}>
             <Ionicons name="cash-outline" size={16} color={marketplaceColors.textSecondary} />
             <Text style={[styles.statText, { color: marketplaceColors.text }]}>
-              {item.pricePerKg} FCFA/kg
+              {item.pricePerKg.toLocaleString('fr-FR')} FCFA/kg
             </Text>
           </View>
         </View>
@@ -149,6 +224,11 @@ export default function MarketplaceMyListingsTab({
           icon="storefront-outline"
         />
       }
+      // Optimisations FlatList (Phase 4)
+      removeClippedSubviews={true}
+      maxToRenderPerBatch={10}
+      windowSize={5}
+      initialNumToRender={10}
     />
   );
 }
@@ -225,5 +305,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginLeft: 'auto',
   },
+  batchHeader: {
+    flex: 1,
+  },
+  batchBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  batchLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
 });
 
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(MarketplaceMyListingsTab);

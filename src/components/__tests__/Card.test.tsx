@@ -86,4 +86,3 @@ describe('Card', () => {
     expect(getByText('Themed Content')).toBeTruthy();
   });
 });
-

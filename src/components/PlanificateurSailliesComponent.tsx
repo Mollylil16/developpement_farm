@@ -27,9 +27,10 @@ import {
 import { SailliePlanifiee, STATUT_SAILLIE_LABELS } from '../types/planningProduction';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { getCategorieAnimal } from '../utils/animalUtils';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface Props {
-  refreshControl: React.ReactElement;
+  refreshControl: React.ReactElement<React.ComponentProps<typeof import('react-native').RefreshControl>>;
 }
 
 export default function PlanificateurSailliesComponent({ refreshControl }: Props) {
@@ -40,7 +41,8 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
     (state) => state.planningProduction
   );
   const animaux = useAppSelector(selectAllAnimaux);
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   const [vueListe, setVueListe] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -103,11 +105,9 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
             try {
               await dispatch(genererPlanSaillies()).unwrap();
               // Succès : les saillies sont automatiquement mises à jour dans le state
-            } catch (error: any) {
-              Alert.alert(
-                'Erreur lors de la génération',
-                error || 'Une erreur est survenue lors de la génération du plan de saillies.'
-              );
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue lors de la génération du plan de saillies.';
+              Alert.alert('Erreur lors de la génération', errorMessage);
             }
           },
         },
@@ -189,8 +189,9 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
                   `Rendez-vous dans le widget Planning pour voir les tâches.`,
                 [{ text: 'OK' }]
               );
-            } catch (error: any) {
-              Alert.alert('Erreur', error.message || 'Erreur lors de la validation du planning');
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la validation du planning';
+              Alert.alert('Erreur', errorMessage);
             }
           },
         },
@@ -198,8 +199,8 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
     );
   };
 
-  const getMarkedDates = () => {
-    const marked: any = {};
+  const getMarkedDates = (): { [key: string]: any } => {
+    const marked: { [key: string]: any } = {};
 
     (sailliesPlanifiees || []).forEach((saillie) => {
       const dateSaillie = format(parseISO(saillie.date_saillie_prevue), 'yyyy-MM-dd');

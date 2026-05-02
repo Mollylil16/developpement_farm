@@ -14,8 +14,12 @@ import financeReducer, {
   createChargeFixe,
   loadChargesFixes,
 } from '../financeSlice';
-import { getDatabase } from '../../../services/database';
-import { RevenuRepository, DepensePonctuelleRepository, ChargeFixeRepository } from '../../../database/repositories';
+import { getDatabase } from '../../database';
+import {
+  RevenuRepository,
+  DepensePonctuelleRepository,
+  ChargeFixeRepository,
+} from '../../../database/repositories';
 
 // Mock des modules
 jest.mock('../../../services/database');
@@ -178,4 +182,3 @@ describe('financeSlice', () => {
     });
   });
 });
-

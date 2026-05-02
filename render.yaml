@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: farmtrackpro-landing
+    runtime: node
+    rootDir: landing-page
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        sync: false # À configurer manuellement dans le dashboard Render avec l'URL de votre backend
+      - key: NEXT_PUBLIC_ADMIN_URL
+        sync: false # À configurer manuellement dans le dashboard Render avec l'URL de votre dashboard admin
+    healthCheckPath: /
+    plan: starter # ou "free" pour le plan gratuit (avec limitations)

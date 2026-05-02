@@ -26,9 +26,24 @@ describe('StatCard', () => {
         textSecondary: '#666666',
         borderLight: '#E0E0E0',
         shadow: {
-          small: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
-          medium: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4 },
-          large: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
+          small: {
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.1,
+            shadowRadius: 2,
+          },
+          medium: {
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.15,
+            shadowRadius: 4,
+          },
+          large: {
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.2,
+            shadowRadius: 8,
+          },
         },
       },
       isDark: false,
@@ -42,13 +57,13 @@ describe('StatCard', () => {
     expect(getByText('Total')).toBeTruthy();
   });
 
-  it('devrait afficher l\'unité si fournie', () => {
+  it("devrait afficher l'unité si fournie", () => {
     const { getByText } = render(<StatCard value={100} label="Poids" unit="kg" />);
     expect(getByText(/100/)).toBeTruthy();
     expect(getByText(/kg/)).toBeTruthy();
   });
 
-  it('devrait afficher l\'icône si fournie', () => {
+  it("devrait afficher l'icône si fournie", () => {
     const icon = <Ionicons name="paw" size={24} color="#007AFF" />;
     const { getByText } = render(<StatCard value={100} label="Total" icon={icon} />);
     // Vérifier que le composant se rend correctement avec l'icône
@@ -96,4 +111,3 @@ describe('StatCard', () => {
     expect(getByText('100')).toBeTruthy();
   });
 });
-

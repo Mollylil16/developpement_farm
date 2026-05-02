@@ -1,0 +1,101 @@
+# ==============================================
+# EAS Build - Fichiers à exclure de l'archive
+# ==============================================
+# Objectif: Réduire la taille de 783MB à ~50MB
+
+# ========== DOSSIERS PRINCIPAUX À EXCLURE ==========
+
+# Backend (projet séparé, déployé sur Render)
+backend/
+
+# Admin web (projet séparé)
+admin-web/
+
+# AI weight estimation (projet séparé)
+ai-weight-estimation/
+
+# Dossier imbriqué (erreur de structure)
+developpement_farm/
+
+# Dossiers natifs (regénérés par Expo)
+android/
+ios/
+
+# Node modules (réinstallés par EAS)
+node_modules/
+
+# ========== DOCUMENTATION ==========
+docs/
+*.md
+!README.md
+
+# ========== TESTS ==========
+__mocks__/
+coverage/
+e2e/
+reports/
+test-build/
+**/__tests__/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+jest.config.js
+jest.setup.js
+
+# ========== SCRIPTS & OUTILS ==========
+scripts/
+*.ps1
+*.sh
+check_*.js
+execute_migration.js
+run_migration.js
+run_sql_migration.js
+
+# ========== FICHIERS DE CONFIG LOCAUX ==========
+.env
+.env.local
+.env.*.local
+.nvmrc
+renovate.json
+eslint.config.mjs
+bundle-analysis-report.json
+coverage-report.json
+
+# ========== LOGS ==========
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ========== FICHIERS TEMPORAIRES ==========
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+temp_method.ts
+test_syntax.ts
+
+# ========== FICHIERS DE SAUVEGARDE ==========
+*.backup
+*.bak
+package.json.stable
+
+# ========== DOSSIERS PROBLÉMATIQUES ==========
+# Ces dossiers semblent être créés par erreur
+--clear/
+et --hard c64171e/
+
+# ========== BASE DE DONNÉES LOCALE ==========
+database/
+*.db
+*.sqlite
+*.sqlite3
+
+# ========== ARCHIVES ==========
+archive/
+patches/
+
+# ========== CONFIG NON NÉCESSAIRES ==========
+config/
+llms.txt

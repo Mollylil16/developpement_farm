@@ -1,6 +1,6 @@
 /**
  * VaccinationTypeCard - Carte pour un type de prophylaxie
- * 
+ *
  * Affiche les statistiques et actions pour un type spécifique
  */
 
@@ -26,7 +26,7 @@ export default function VaccinationTypeCard({
   onVoirCalendrier,
 }: VaccinationTypeCardProps) {
   const { colors } = useTheme();
-  
+
   return (
     <View style={[styles.card, { backgroundColor: colors.surface }]}>
       {/* En-tête avec icône */}
@@ -41,7 +41,7 @@ export default function VaccinationTypeCard({
           </Text>
         </View>
       </View>
-      
+
       {/* Statistiques */}
       <View style={styles.stats}>
         <View style={styles.statItem}>
@@ -51,7 +51,7 @@ export default function VaccinationTypeCard({
           </View>
           <Text style={[styles.statValue, { color: colors.text }]}>{stat.porcs_vaccines}</Text>
         </View>
-        
+
         <View style={styles.statItem}>
           <View style={styles.statRow}>
             <Ionicons name="alert-circle" size={16} color={colors.error} />
@@ -59,7 +59,7 @@ export default function VaccinationTypeCard({
           </View>
           <Text style={[styles.statValue, { color: colors.text }]}>{stat.en_retard}</Text>
         </View>
-        
+
         <View style={styles.statItem}>
           <View style={styles.statRow}>
             <Ionicons name="shield-checkmark" size={16} color={couleur} />
@@ -68,7 +68,7 @@ export default function VaccinationTypeCard({
           <Text style={[styles.statValue, { color: colors.text }]}>{stat.taux_couverture}%</Text>
         </View>
       </View>
-      
+
       {/* Barre de progression */}
       <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
         <View
@@ -81,7 +81,7 @@ export default function VaccinationTypeCard({
           ]}
         />
       </View>
-      
+
       {/* Actions */}
       <View style={styles.actions}>
         <TouchableOpacity
@@ -91,10 +91,10 @@ export default function VaccinationTypeCard({
           <Ionicons name="add-circle-outline" size={20} color={couleur} />
           <Text style={[styles.buttonText, { color: couleur }]}>Ajouter</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.button, { backgroundColor: colors.background }]}
-          onPress={() => onVoirCalendrier(stat.type)}
+          onPress={() => onVoirCalendrier(stat.type_prophylaxie)}
         >
           <Ionicons name="calendar-outline" size={20} color={colors.textSecondary} />
           <Text style={[styles.buttonText, { color: colors.textSecondary }]}>Calendrier</Text>
@@ -191,4 +191,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

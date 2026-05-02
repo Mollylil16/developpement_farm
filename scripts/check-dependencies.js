@@ -31,15 +31,18 @@ function logSection(title) {
 
 function checkLockFile() {
   logSection('🔒 Vérification du lock file');
-  
+
   const lockFile = path.join(process.cwd(), 'package-lock.json');
   if (fs.existsSync(lockFile)) {
     log('✅ package-lock.json trouvé', colors.green);
     const stats = fs.statSync(lockFile);
     const ageInDays = (Date.now() - stats.mtime.getTime()) / (1000 * 60 * 60 * 24);
-    
+
     if (ageInDays > 30) {
-      log(`⚠️  Le lock file n'a pas été mis à jour depuis ${Math.floor(ageInDays)} jours`, colors.yellow);
+      log(
+        `⚠️  Le lock file n'a pas été mis à jour depuis ${Math.floor(ageInDays)} jours`,
+        colors.yellow
+      );
       log('   Recommandation: Exécutez "npm install" pour le mettre à jour', colors.yellow);
     } else {
       log(`✅ Lock file récent (${Math.floor(ageInDays)} jours)`, colors.green);
@@ -54,16 +57,16 @@ function checkLockFile() {
 
 function checkAudit() {
   logSection('🔍 Audit de sécurité');
-  
+
   try {
     log('Exécution de npm audit...', colors.blue);
     const output = execSync('npm audit --json', { encoding: 'utf-8', stdio: 'pipe' });
     const audit = JSON.parse(output);
-    
+
     if (audit.metadata && audit.metadata.vulnerabilities) {
       const vulns = audit.metadata.vulnerabilities;
       const total = vulns.info + vulns.low + vulns.moderate + vulns.high + vulns.critical;
-      
+
       if (total === 0) {
         log('✅ Aucune vulnérabilité trouvée', colors.green);
       } else {
@@ -73,46 +76,49 @@ function checkAudit() {
         if (vulns.moderate > 0) log(`   🟡 Moderate: ${vulns.moderate}`, colors.yellow);
         if (vulns.low > 0) log(`   🔵 Low: ${vulns.low}`, colors.blue);
         if (vulns.info > 0) log(`   ⚪ Info: ${vulns.info}`, colors.blue);
-        
-        log('\n   Recommandation: Exécutez "npm audit fix" pour corriger automatiquement', colors.yellow);
+
+        log(
+          '\n   Recommandation: Exécutez "npm audit fix" pour corriger automatiquement',
+          colors.yellow
+        );
       }
-      
+
       return total === 0;
     }
   } catch (error) {
-    log('❌ Erreur lors de l\'audit', colors.red);
+    log("❌ Erreur lors de l'audit", colors.red);
     log(error.message, colors.red);
     return false;
   }
-  
+
   return true;
 }
 
 function checkOutdated() {
   logSection('📦 Vérification des mises à jour disponibles');
-  
+
   try {
     log('Exécution de npm outdated...', colors.blue);
     const output = execSync('npm outdated --json', { encoding: 'utf-8', stdio: 'pipe' });
     const outdated = JSON.parse(output);
-    
+
     const packages = Object.keys(outdated);
     if (packages.length === 0) {
       log('✅ Toutes les dépendances sont à jour', colors.green);
     } else {
       log(`⚠️  ${packages.length} package(s) obsolète(s):`, colors.yellow);
-      
+
       // Grouper par type de mise à jour
       const major = [];
       const minor = [];
       const patch = [];
-      
-      packages.forEach(pkg => {
+
+      packages.forEach((pkg) => {
         const info = outdated[pkg];
         const current = info.current;
         const wanted = info.wanted;
         const latest = info.latest;
-        
+
         if (latest !== current && latest !== wanted) {
           major.push({ pkg, current, latest });
         } else if (wanted !== current) {
@@ -121,7 +127,7 @@ function checkOutdated() {
           patch.push({ pkg, current, latest });
         }
       });
-      
+
       if (major.length > 0) {
         log('\n   🔴 Mises à jour majeures (breaking changes possibles):', colors.red);
         major.slice(0, 10).forEach(({ pkg, current, latest }) => {
@@ -131,7 +137,7 @@ function checkOutdated() {
           log(`      ... et ${major.length - 10} autres`, colors.red);
         }
       }
-      
+
       if (minor.length > 0) {
         log('\n   🟡 Mises à jour mineures:', colors.yellow);
         minor.slice(0, 10).forEach(({ pkg, current, wanted }) => {
@@ -141,7 +147,7 @@ function checkOutdated() {
           log(`      ... et ${minor.length - 10} autres`, colors.yellow);
         }
       }
-      
+
       if (patch.length > 0) {
         log('\n   🔵 Mises à jour de patch:', colors.blue);
         patch.slice(0, 10).forEach(({ pkg, current, latest }) => {
@@ -151,11 +157,14 @@ function checkOutdated() {
           log(`      ... et ${patch.length - 10} autres`, colors.blue);
         }
       }
-      
-      log('\n   Recommandation: Exécutez "npm update" pour les mises à jour mineures/patch', colors.yellow);
+
+      log(
+        '\n   Recommandation: Exécutez "npm update" pour les mises à jour mineures/patch',
+        colors.yellow
+      );
       log('   Pour les mises à jour majeures, revoir manuellement les changements', colors.yellow);
     }
-    
+
     return packages.length === 0;
   } catch (error) {
     // npm outdated retourne un code d'erreur si des packages sont obsolètes
@@ -178,11 +187,11 @@ function checkOutdated() {
 
 function checkDuplicateDependencies() {
   logSection('🔄 Vérification des dépendances dupliquées');
-  
+
   try {
     const output = execSync('npm ls --depth=0 --json', { encoding: 'utf-8', stdio: 'pipe' });
     const tree = JSON.parse(output);
-    
+
     // Cette vérification est basique, npm ls devrait déjà signaler les problèmes
     log('✅ Vérification des dépendances dupliquées effectuée', colors.green);
     return true;
@@ -195,16 +204,16 @@ function checkDuplicateDependencies() {
 
 function generateReport() {
   logSection('📊 Résumé');
-  
+
   const results = {
     lockFile: checkLockFile(),
     audit: checkAudit(),
     outdated: checkOutdated(),
     duplicates: checkDuplicateDependencies(),
   };
-  
-  const allPassed = Object.values(results).every(r => r);
-  
+
+  const allPassed = Object.values(results).every((r) => r);
+
   if (allPassed) {
     log('\n✅ Toutes les vérifications sont passées', colors.green);
     process.exit(0);

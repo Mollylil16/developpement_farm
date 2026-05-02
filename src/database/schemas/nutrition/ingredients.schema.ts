@@ -21,4 +21,3 @@ export async function createIngredientsTable(db: SQLite.SQLiteDatabase): Promise
     );
   `);
 }
-

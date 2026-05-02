@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { createVisiteVeterinaire, updateVisiteVeterinaire } from '../store/slices/santeSlice';
 import CustomModal from './CustomModal';
 import { VisiteVeterinaire, CreateVisiteVeterinaireInput } from '../types/sante';
@@ -30,7 +31,8 @@ interface Props {
 export default function VisiteVeterinaireFormModal({ visible, onClose, visite }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   const isEditing = !!visite;
 
@@ -69,18 +71,18 @@ export default function VisiteVeterinaireFormModal({ visible, onClose, visite }:
         date_visite: visite.date_visite,
         veterinaire: visite.veterinaire || '',
         motif: visite.motif,
-        animaux_examines: visite.animaux_examines?.join(', ') || '',
+        animaux_examines: visite.animaux_examines || '',
         diagnostic: visite.diagnostic || '',
         prescriptions: visite.prescriptions || '',
         recommandations: visite.recommandations || '',
         cout: visite.cout?.toString() || '',
-        prochaine_visite_prevue: visite.prochaine_visite_prevue || '',
+        prochaine_visite_prevue: visite.prochaine_visite || '',
         notes: visite.notes || '',
       });
     }
   }, [visite]);
 
-  const handleDatePickerChange = (event: any, selectedDate?: Date) => {
+  const handleDatePickerChange = (event: unknown, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
     if (selectedDate) {
       const dateString = formatLocalDate(selectedDate.toISOString());
@@ -112,13 +114,8 @@ export default function VisiteVeterinaireFormModal({ visible, onClose, visite }:
     setError(null);
 
     try {
-      // Convertir la liste d'animaux (séparés par virgules) en tableau
-      const animauxArray = formData.animaux_examines
-        ? formData.animaux_examines
-            .split(',')
-            .map((id) => id.trim())
-            .filter(Boolean)
-        : undefined;
+      // animaux_examines est déjà une string (IDs séparés par virgules)
+      const animauxExaminesString = formData.animaux_examines?.trim() || undefined;
 
       if (isEditing && visite) {
         await dispatch(
@@ -128,12 +125,12 @@ export default function VisiteVeterinaireFormModal({ visible, onClose, visite }:
               date_visite: formData.date_visite,
               veterinaire: formData.veterinaire,
               motif: formData.motif,
-              animaux_examines: animauxArray,
+              animaux_examines: animauxExaminesString,
               diagnostic: formData.diagnostic || undefined,
               prescriptions: formData.prescriptions || undefined,
               recommandations: formData.recommandations || undefined,
               cout: parseFloat(formData.cout),
-              prochaine_visite_prevue: formData.prochaine_visite_prevue || undefined,
+              prochaine_visite: formData.prochaine_visite_prevue || undefined,
               notes: formData.notes || undefined,
             },
           })
@@ -144,12 +141,12 @@ export default function VisiteVeterinaireFormModal({ visible, onClose, visite }:
           date_visite: formData.date_visite,
           veterinaire: formData.veterinaire,
           motif: formData.motif,
-          animaux_examines: animauxArray,
+          animaux_examines: animauxExaminesString,
           diagnostic: formData.diagnostic || undefined,
           prescriptions: formData.prescriptions || undefined,
           recommandations: formData.recommandations || undefined,
           cout: parseFloat(formData.cout),
-          prochaine_visite_prevue: formData.prochaine_visite_prevue || undefined,
+          prochaine_visite: formData.prochaine_visite_prevue || undefined,
           notes: formData.notes || undefined,
         };
 
@@ -157,8 +154,9 @@ export default function VisiteVeterinaireFormModal({ visible, onClose, visite }:
       }
 
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Erreur lors de l'enregistrement");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err) || "Erreur lors de l'enregistrement";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

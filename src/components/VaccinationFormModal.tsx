@@ -3,20 +3,16 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createVaccination, updateVaccination } from '../store/slices/santeSlice';
+import { useModeElevage } from '../hooks/useModeElevage';
 import CustomModal from './CustomModal';
+import apiClient from '../services/api/apiClient';
+import { Alert } from 'react-native';
 import {
   Vaccination,
   CreateVaccinationInput,
@@ -26,18 +22,31 @@ import {
   STATUT_VACCINATION_LABELS,
 } from '../types/sante';
 import { formatLocalDate, parseLocalDate } from '../utils/dateUtils';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
   vaccination?: Vaccination; // Si fourni, on est en mode édition
   animalId?: string; // Pré-sélection d'un animal
+  batchId?: string; // ID de la bande (mode batch)
+  typeInitial?: string; // Type de prophylaxie initial
 }
 
-export default function VaccinationFormModal({ visible, onClose, vaccination, animalId }: Props) {
+export default function VaccinationFormModal({ 
+  visible, 
+  onClose, 
+  vaccination, 
+  animalId,
+  batchId,
+  typeInitial 
+}: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
+  const mode = useModeElevage();
+  const isBatchMode = mode === 'bande' || !!batchId;
   // Note: calendriers n'est pas utilisé dans ce composant
   // const calendriers = useAppSelector(selectAllCalendrierVaccinations);
 
@@ -100,7 +109,7 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
     }
   }, [vaccination]);
 
-  const handleDatePickerChange = (event: any, selectedDate?: Date) => {
+  const handleDatePickerChange = (event: unknown, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
     if (selectedDate) {
       const dateString = formatLocalDate(selectedDate.toISOString());
@@ -111,6 +120,11 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
       }
     }
   };
+
+  // État pour le mode batch
+  const [batchCount, setBatchCount] = useState('1');
+  const [batchDosage, setBatchDosage] = useState('');
+  const [batchReason, setBatchReason] = useState('suivi_normal');
 
   const handleSubmit = async () => {
     // Validation
@@ -124,15 +138,50 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
       return;
     }
 
-    if (!formData.animal_id && !formData.lot_id) {
-      setError('Veuillez sélectionner un animal ou un lot');
-      return;
+    // Validation selon le mode
+    if (isBatchMode && batchId) {
+      // Mode batch : validation spécifique
+      const countNum = parseInt(batchCount);
+      if (isNaN(countNum) || countNum < 1) {
+        setError('Le nombre de porcs doit être supérieur à 0');
+        return;
+      }
+      if (!formData.nom_vaccin?.trim()) {
+        setError('Le nom du produit est requis');
+        return;
+      }
+    } else {
+      // Mode individuel : validation classique
+      if (!formData.animal_id && !formData.lot_id) {
+        setError('Veuillez sélectionner un animal ou un lot');
+        return;
+      }
     }
 
     setLoading(true);
     setError(null);
 
     try {
+      // Mode batch : appeler l'API batch
+      if (isBatchMode && batchId && !isEditing) {
+        const countNum = parseInt(batchCount);
+        const vaccineType = mapProphylaxieToBatchType(typeInitial || 'autre_traitement');
+        
+        await apiClient.post('/batch-vaccinations/vaccinate', {
+          batch_id: batchId,
+          count: countNum,
+          vaccine_type: vaccineType,
+          product_name: formData.nom_vaccin.trim(),
+          dosage: batchDosage.trim() || undefined,
+          vaccination_date: new Date(formData.date_vaccination).toISOString(),
+          reason: batchReason,
+        });
+
+        Alert.alert('Succès', `${countNum} porc(s) vacciné(s) avec succès`);
+        onClose();
+        return;
+      }
+
       if (isEditing && vaccination) {
         // Mode édition
         await dispatch(
@@ -168,11 +217,15 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
           calendrier_id: formData.calendrier_id || undefined,
           animal_ids: formData.animal_id ? [formData.animal_id] : undefined,
           lot_id: formData.lot_id || undefined,
+          type_prophylaxie: 'vaccin_obligatoire', // Valeur par défaut
           vaccin: formData.vaccin,
           nom_vaccin: formData.nom_vaccin || undefined,
+          produit_administre: formData.nom_vaccin || TYPE_VACCIN_LABELS[formData.vaccin] || 'Vaccin non spécifié',
           date_vaccination: formData.date_vaccination,
           date_rappel: formData.date_rappel || undefined,
           numero_lot_vaccin: formData.numero_lot_vaccin || undefined,
+          dosage: 'Non spécifié', // Valeur par défaut
+          raison_traitement: 'prevention', // Valeur par défaut
           veterinaire: formData.veterinaire || undefined,
           cout: formData.cout ? parseFloat(formData.cout) : undefined,
           statut: formData.statut,
@@ -184,12 +237,25 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
       }
 
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Erreur lors de l'enregistrement");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err) || "Erreur lors de l'enregistrement";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
+
+  // Helper pour mapper TypeProphylaxie vers type batch
+  function mapProphylaxieToBatchType(typeProphylaxie?: string): string {
+    const mapping: Record<string, string> = {
+      vitamine: 'vitamines',
+      deparasitant: 'deparasitant',
+      fer: 'fer',
+      antibiotique_preventif: 'antibiotiques',
+      autre_traitement: 'autre',
+    };
+    return mapping[typeProphylaxie || ''] || 'autre';
+  }
 
   const vaccins: TypeVaccin[] = [
     'rouget',
@@ -257,8 +323,8 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
           </View>
         </View>
 
-        {/* Nom personnalisé (si "Autre") */}
-        {formData.vaccin === 'autre' && (
+        {/* Nom personnalisé (si "Autre") - Mode individuel uniquement */}
+        {formData.vaccin === 'autre' && !isBatchMode && (
           <View style={styles.section}>
             <Text style={[styles.label, { color: colors.text }]}>Nom du vaccin</Text>
             <TextInput
@@ -272,6 +338,54 @@ export default function VaccinationFormModal({ visible, onClose, vaccination, an
               placeholderTextColor={colors.textSecondary}
             />
           </View>
+        )}
+
+        {/* Champs spécifiques au mode batch */}
+        {isBatchMode && batchId && (
+          <>
+            <View style={styles.section}>
+              <Text style={[styles.label, { color: colors.text }]}>Nombre de porcs à vacciner *</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border },
+                ]}
+                value={batchCount}
+                onChangeText={setBatchCount}
+                keyboardType="number-pad"
+                placeholder="Ex: 10"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+
+            <View style={styles.section}>
+              <Text style={[styles.label, { color: colors.text }]}>Produit utilisé *</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border },
+                ]}
+                value={formData.nom_vaccin}
+                onChangeText={(text) => setFormData({ ...formData, nom_vaccin: text })}
+                placeholder="Nom du produit"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+
+            <View style={styles.section}>
+              <Text style={[styles.label, { color: colors.text }]}>Dosage</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border },
+                ]}
+                value={batchDosage}
+                onChangeText={setBatchDosage}
+                placeholder="Ex: 2ml par porc"
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+          </>
         )}
 
         {/* Date de vaccination */}

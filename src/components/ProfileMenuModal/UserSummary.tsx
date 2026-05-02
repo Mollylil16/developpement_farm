@@ -2,35 +2,46 @@
  * Résumé utilisateur affiché dans la vue d'accueil
  */
 
-import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { useAppSelector } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
+import { useProfilData } from '../../hooks/useProfilData';
+import ProfilePhoto from '../ProfilePhoto';
 
 export default function UserSummary() {
   const { colors } = useTheme();
   const { user } = useAppSelector((state) => state.auth);
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
+  
+  // Utiliser useProfilData pour avoir la photo synchronisée
+  const { profilPhotoUri } = useProfilData();
+  
+  // Utiliser la photo synchronisée si disponible, sinon fallback sur user.photo
+  const displayPhoto = profilPhotoUri || user?.photo;
 
   return (
     <View style={[styles.userInfo, { borderBottomColor: colors.border }]}>
-      {user?.photo ? (
-        <Image source={{ uri: user.photo }} style={styles.userPhoto} />
-      ) : (
-        <View style={[styles.userPhotoPlaceholder, { backgroundColor: colors.primary + '15' }]}>
-          <Text style={[styles.userInitials, { color: colors.primary }]}>
-            {user?.prenom?.[0] || user?.nom?.[0] || 'U'}
-          </Text>
-        </View>
-      )}
+      <ProfilePhoto
+        uri={displayPhoto || null}
+        size={64}
+        style={styles.userPhoto}
+        placeholder={
+          <View style={[styles.userPhotoPlaceholder, { backgroundColor: colors.primary + '15' }]}>
+            <Text style={[styles.userInitials, { color: colors.primary }]}>
+              {user?.prenom?.[0] || user?.nom?.[0] || 'U'}
+            </Text>
+          </View>
+        }
+      />
       <View style={styles.userInfoText}>
         <Text style={[styles.userName, { color: colors.text }]}>
           {user?.prenom || user?.nom || 'Utilisateur'}
         </Text>
-        <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
-          {user?.email || ''}
-        </Text>
+        <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{user?.email || ''}</Text>
         {projetActif && (
           <Text style={[styles.userProject, { color: colors.textSecondary }]}>
             {projetActif.nom}
@@ -82,4 +93,3 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs / 2,
   },
 });
-

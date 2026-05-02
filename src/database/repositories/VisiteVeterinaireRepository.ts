@@ -1,66 +1,18 @@
 /**
  * VisiteVeterinaireRepository - Gestion des visites vétérinaires
- * 
- * Responsabilités:
- * - CRUD des visites vétérinaires
- * - Recherche par projet
- * - Prochaine visite prévue
+ *
+ * Utilise maintenant l'API REST du backend (PostgreSQL)
  */
 
-import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
 import { VisiteVeterinaire, CreateVisiteVeterinaireInput } from '../../types/sante';
-import uuid from 'react-native-uuid';
 
 export class VisiteVeterinaireRepository extends BaseRepository<VisiteVeterinaire> {
-  constructor(db: SQLite.SQLiteDatabase) {
-    super(db, 'visites_veterinaires');
+  constructor() {
+    super('visites_veterinaires', '/sante/visites-veterinaires');
   }
 
-  /**
-   * Créer une nouvelle visite vétérinaire
-   */
-  async create(input: CreateVisiteVeterinaireInput): Promise<VisiteVeterinaire> {
-    const id = uuid.v4().toString();
-    const now = new Date().toISOString();
-
-    await this.execute(
-      `INSERT INTO visites_veterinaires (
-        id, projet_id, date_visite, veterinaire, motif, animaux_examines,
-        diagnostic, prescriptions, recommandations, traitement, cout,
-        prochaine_visite_prevue, notes,
-        date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        input.projet_id,
-        input.date_visite,
-        input.veterinaire || null,
-        input.motif,
-        input.animaux_examines || null,
-        input.diagnostic || null,
-        input.prescriptions || null,
-        input.recommandations || null,
-        null, // traitement (non utilisé dans le type)
-        input.cout || null,
-        input.prochaine_visite || null,
-        input.notes || null,
-        now,
-        now,
-      ]
-    );
-
-    const created = await this.findById(id);
-    if (!created) {
-      throw new Error('Impossible de créer la visite vétérinaire');
-    }
-    return created;
-  }
-
-  /**
-   * Mapper une ligne de la base vers VisiteVeterinaire
-   */
-  private mapRow(row: any): VisiteVeterinaire {
+  private mapRow(row: unknown): VisiteVeterinaire {
     return {
       id: row.id,
       projet_id: row.projet_id,
@@ -79,88 +31,75 @@ export class VisiteVeterinaireRepository extends BaseRepository<VisiteVeterinair
     };
   }
 
-  /**
-   * Override findById pour mapper correctement
-   */
+  async create(input: CreateVisiteVeterinaireInput): Promise<VisiteVeterinaire> {
+    const visiteData = {
+      projet_id: input.projet_id,
+      date_visite: input.date_visite,
+      veterinaire: input.veterinaire || null,
+      motif: input.motif,
+      animaux_examines: input.animaux_examines || null,
+      diagnostic: input.diagnostic || null,
+      prescriptions: input.prescriptions || null,
+      recommandations: input.recommandations || null,
+      cout: input.cout || null,
+      prochaine_visite_prevue: input.prochaine_visite || null,
+      notes: input.notes || null,
+    };
+
+    const created = await this.executePost<unknown>('/sante/visites-veterinaires', visiteData);
+    return this.mapRow(created);
+  }
+
   async findById(id: string): Promise<VisiteVeterinaire | null> {
-    const row = await this.queryOne<any>(`SELECT * FROM ${this.tableName} WHERE id = ?`, [id]);
-    return row ? this.mapRow(row) : null;
+    try {
+      const row = await this.queryOne<unknown>(`/sante/visites-veterinaires/${id}`);
+      return row ? this.mapRow(row) : null;
+    } catch (error) {
+      console.error('Error finding visite by id:', error);
+      return null;
+    }
   }
 
-  /**
-   * Récupérer toutes les visites d'un projet
-   */
   async findByProjet(projetId: string): Promise<VisiteVeterinaire[]> {
-    const rows = await this.query<any>(
-      `SELECT * FROM visites_veterinaires WHERE projet_id = ? ORDER BY date_visite DESC`,
-      [projetId]
-    );
-    return rows.map((row) => this.mapRow(row));
+    try {
+      const rows = await this.query<unknown>('/sante/visites-veterinaires', { projet_id: projetId });
+      return rows.map(this.mapRow)
+        .sort((a, b) => new Date(b.date_visite).getTime() - new Date(a.date_visite).getTime());
+    } catch (error) {
+      console.error('Error finding visites by projet:', error);
+      return [];
+    }
   }
 
-  /**
-   * Récupérer la prochaine visite prévue
-   */
   async findProchaineVisite(projetId: string): Promise<VisiteVeterinaire | null> {
-    const row = await this.queryOne<any>(
-      `SELECT * FROM visites_veterinaires 
-       WHERE projet_id = ? AND prochaine_visite_prevue IS NOT NULL AND prochaine_visite_prevue > ?
-       ORDER BY prochaine_visite_prevue ASC LIMIT 1`,
-      [projetId, new Date().toISOString()]
-    );
-    return row ? this.mapRow(row) : null;
+    try {
+      const visites = await this.findByProjet(projetId);
+      const visitesFutures = visites
+        .filter(v => v.prochaine_visite && new Date(v.prochaine_visite) > new Date())
+        .sort((a, b) => new Date(a.prochaine_visite || '').getTime() - new Date(b.prochaine_visite || '').getTime());
+      
+      return visitesFutures.length > 0 ? visitesFutures[0] : null;
+    } catch (error) {
+      console.error('Error finding prochaine visite:', error);
+      return null;
+    }
   }
 
-  /**
-   * Mettre à jour une visite
-   */
   async update(id: string, updates: Partial<CreateVisiteVeterinaireInput>): Promise<VisiteVeterinaire> {
-    const now = new Date().toISOString();
-    const fields: string[] = [];
-    const values: any[] = [];
+    const updateData: Record<string, unknown> = {};
 
-    if (updates.date_visite !== undefined) {
-      fields.push('date_visite = ?');
-      values.push(updates.date_visite);
-    }
-    if (updates.veterinaire !== undefined) {
-      fields.push('veterinaire = ?');
-      values.push(updates.veterinaire || null);
-    }
-    if (updates.motif !== undefined) {
-      fields.push('motif = ?');
-      values.push(updates.motif);
-    }
-    if (updates.animaux_examines !== undefined) {
-      fields.push('animaux_examines = ?');
-      values.push(updates.animaux_examines || null);
-    }
-    if (updates.diagnostic !== undefined) {
-      fields.push('diagnostic = ?');
-      values.push(updates.diagnostic || null);
-    }
-    if (updates.prescriptions !== undefined) {
-      fields.push('prescriptions = ?');
-      values.push(updates.prescriptions || null);
-    }
-    if (updates.recommandations !== undefined) {
-      fields.push('recommandations = ?');
-      values.push(updates.recommandations || null);
-    }
-    if (updates.cout !== undefined) {
-      fields.push('cout = ?');
-      values.push(updates.cout || null);
-    }
-    if (updates.prochaine_visite !== undefined) {
-      fields.push('prochaine_visite_prevue = ?');
-      values.push(updates.prochaine_visite || null);
-    }
-    if (updates.notes !== undefined) {
-      fields.push('notes = ?');
-      values.push(updates.notes || null);
-    }
+    if (updates.date_visite !== undefined) updateData.date_visite = updates.date_visite;
+    if (updates.veterinaire !== undefined) updateData.veterinaire = updates.veterinaire || null;
+    if (updates.motif !== undefined) updateData.motif = updates.motif;
+    if (updates.animaux_examines !== undefined) updateData.animaux_examines = updates.animaux_examines || null;
+    if (updates.diagnostic !== undefined) updateData.diagnostic = updates.diagnostic || null;
+    if (updates.prescriptions !== undefined) updateData.prescriptions = updates.prescriptions || null;
+    if (updates.recommandations !== undefined) updateData.recommandations = updates.recommandations || null;
+    if (updates.cout !== undefined) updateData.cout = updates.cout || null;
+    if (updates.prochaine_visite !== undefined) updateData.prochaine_visite_prevue = updates.prochaine_visite || null;
+    if (updates.notes !== undefined) updateData.notes = updates.notes || null;
 
-    if (fields.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       const existing = await this.findById(id);
       if (!existing) {
         throw new Error('Visite introuvable');
@@ -168,17 +107,7 @@ export class VisiteVeterinaireRepository extends BaseRepository<VisiteVeterinair
       return existing;
     }
 
-    fields.push('derniere_modification = ?');
-    values.push(now);
-    values.push(id);
-
-    await this.execute(`UPDATE visites_veterinaires SET ${fields.join(', ')} WHERE id = ?`, values);
-
-    const updated = await this.findById(id);
-    if (!updated) {
-      throw new Error('Visite introuvable après mise à jour');
-    }
-    return updated;
+    const updated = await this.executePatch<unknown>(`/sante/visites-veterinaires/${id}`, updateData);
+    return this.mapRow(updated);
   }
 }
-

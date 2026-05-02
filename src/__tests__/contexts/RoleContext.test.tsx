@@ -34,8 +34,31 @@ describe('RoleContext - Logique de rôles', () => {
       const userWithMultipleRoles = {
         id: 'user_1',
         roles: {
-          producer: { isActive: true, activatedAt: '2024-01-01', farmName: 'Test', farmType: 'individual', capacity: { totalCapacity: 100, currentOccupancy: 50 }, stats: { totalSales: 0, totalRevenue: 0, averageRating: 0, totalReviews: 0 }, marketplaceSettings: { defaultPricePerKg: 450, autoAcceptOffers: false, minimumOfferPercentage: 80, notificationsEnabled: true } },
-          buyer: { isActive: true, activatedAt: '2024-01-01', buyerType: 'individual', purchaseHistory: { totalPurchases: 0, totalSpent: 0, averageOrderValue: 0 }, preferences: { preferredWeightRange: { min: 50, max: 100 }, maxDistance: 50, notifyNewListings: true } },
+          producer: {
+            isActive: true,
+            activatedAt: '2024-01-01',
+            farmName: 'Test',
+            farmType: 'individual',
+            capacity: { totalCapacity: 100, currentOccupancy: 50 },
+            stats: { totalSales: 0, totalRevenue: 0, averageRating: 0, totalReviews: 0 },
+            marketplaceSettings: {
+              defaultPricePerKg: 450,
+              autoAcceptOffers: false,
+              minimumOfferPercentage: 80,
+              notificationsEnabled: true,
+            },
+          },
+          buyer: {
+            isActive: true,
+            activatedAt: '2024-01-01',
+            buyerType: 'individual',
+            purchaseHistory: { totalPurchases: 0, totalSpent: 0, averageOrderValue: 0 },
+            preferences: {
+              preferredWeightRange: { min: 50, max: 100 },
+              maxDistance: 50,
+              notifyNewListings: true,
+            },
+          },
         },
       };
 
@@ -77,8 +100,31 @@ describe('RoleContext - Logique de rôles', () => {
       const userWithMultipleRoles = {
         id: 'user_1',
         roles: {
-          producer: { isActive: true, activatedAt: '2024-01-01', farmName: 'Test', farmType: 'individual', capacity: { totalCapacity: 100, currentOccupancy: 50 }, stats: { totalSales: 0, totalRevenue: 0, averageRating: 0, totalReviews: 0 }, marketplaceSettings: { defaultPricePerKg: 450, autoAcceptOffers: false, minimumOfferPercentage: 80, notificationsEnabled: true } },
-          buyer: { isActive: true, activatedAt: '2024-01-01', buyerType: 'individual', purchaseHistory: { totalPurchases: 0, totalSpent: 0, averageOrderValue: 0 }, preferences: { preferredWeightRange: { min: 50, max: 100 }, maxDistance: 50, notifyNewListings: true } },
+          producer: {
+            isActive: true,
+            activatedAt: '2024-01-01',
+            farmName: 'Test',
+            farmType: 'individual',
+            capacity: { totalCapacity: 100, currentOccupancy: 50 },
+            stats: { totalSales: 0, totalRevenue: 0, averageRating: 0, totalReviews: 0 },
+            marketplaceSettings: {
+              defaultPricePerKg: 450,
+              autoAcceptOffers: false,
+              minimumOfferPercentage: 80,
+              notificationsEnabled: true,
+            },
+          },
+          buyer: {
+            isActive: true,
+            activatedAt: '2024-01-01',
+            buyerType: 'individual',
+            purchaseHistory: { totalPurchases: 0, totalSpent: 0, averageOrderValue: 0 },
+            preferences: {
+              preferredWeightRange: { min: 50, max: 100 },
+              maxDistance: 50,
+              notifyNewListings: true,
+            },
+          },
         },
       };
 
@@ -89,4 +135,3 @@ describe('RoleContext - Logique de rôles', () => {
     });
   });
 });
-

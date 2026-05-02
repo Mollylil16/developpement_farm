@@ -15,6 +15,9 @@ import {
 } from '../services/notificationsService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NOTIFICATIONS_ENABLED_KEY } from '../constants/notifications';
+import { createLoggerWithPrefix } from '../utils/logger';
+
+const logger = createLoggerWithPrefix('useNotifications');
 
 export function useNotifications() {
   const gestations = useAppSelector(selectAllGestations);
@@ -75,12 +78,12 @@ export function useNotifications() {
       } catch (error) {
         // En mode développement, on log en warning plutôt qu'en erreur
         if (__DEV__) {
-          console.warn(
-            'Notifications: Configuration échouée (peut être normal dans Expo Go):',
+          logger.warn(
+            'Configuration échouée (peut être normal dans Expo Go):',
             error
           );
         } else {
-          console.error('Erreur lors de la configuration des notifications:', error);
+          logger.error('Erreur lors de la configuration des notifications:', error);
         }
       }
     };
@@ -105,7 +108,7 @@ export function useNotifications() {
         const gestationsEnCours = gestations.filter((g) => g.statut === 'en_cours');
         await scheduleGestationAlerts(gestationsEnCours);
       } catch (error) {
-        console.error('Erreur lors de la planification des gestations:', error);
+        logger.error('Erreur lors de la planification des gestations:', error);
       }
     };
 
@@ -129,7 +132,7 @@ export function useNotifications() {
         const tasksAFaire = planifications.filter((p) => p.statut === 'a_faire');
         await scheduleTaskReminders(tasksAFaire);
       } catch (error) {
-        console.error('Erreur lors de la planification des tâches:', error);
+        logger.error('Erreur lors de la planification des tâches:', error);
       }
     };
 
@@ -152,7 +155,7 @@ export function useNotifications() {
       try {
         await scheduleStockAlerts(stocks);
       } catch (error) {
-        console.error('Erreur lors de la planification des stocks:', error);
+        logger.error('Erreur lors de la planification des stocks:', error);
       }
     };
 
@@ -173,7 +176,7 @@ export function useNotifications() {
           : [];
         await cleanupObsoleteNotifications(gestationsEnCours, tasksAFaire);
       } catch (error) {
-        console.error('Erreur lors du nettoyage des notifications:', error);
+        logger.error('Erreur lors du nettoyage des notifications:', error);
       }
     };
 
@@ -189,7 +192,7 @@ export function useNotifications() {
     try {
       await cancelAllNotifications();
     } catch (error) {
-      console.error("Erreur lors de l'annulation des notifications:", error);
+      logger.error("Erreur lors de l'annulation des notifications:", error);
     }
   }, []);
 

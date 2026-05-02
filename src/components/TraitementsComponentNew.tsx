@@ -18,13 +18,23 @@ import {
   Platform,
   UIManager,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
-import { selectAllVaccinations, selectAllMaladies } from '../store/selectors/santeSelectors';
+import {
+  selectAllVaccinations,
+  selectAllMaladies,
+  selectAllVisitesVeterinaires,
+} from '../store/selectors/santeSelectors';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
-import { loadVaccinations, loadMaladies, updateMaladie } from '../store/slices/santeSlice';
+import {
+  loadVaccinations,
+  loadMaladies,
+  loadVisitesVeterinaires,
+  updateMaladie,
+} from '../store/slices/santeSlice';
 import { loadProductionAnimaux, updateProductionAnimal } from '../store/slices/productionSlice';
 import { createMortalite } from '../store/slices/mortalitesSlice';
 import {
@@ -33,7 +43,11 @@ import {
   RAISON_TRAITEMENT_LABELS,
   Maladie,
 } from '../types/sante';
-import { ProductionAnimal } from '../types';
+import type { ProductionAnimal } from '../types/production';
+import { useModeElevage } from '../hooks/useModeElevage';
+import type { Batch } from '../types/batch';
+import apiClient from '../services/api/apiClient';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -48,24 +62,66 @@ interface TraitementsComponentProps {
 export default function TraitementsComponentNew({ refreshControl }: TraitementsComponentProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const modeElevage = useModeElevage();
+  const isModeBatch = modeElevage === 'bande';
 
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const vaccinations = useAppSelector((state) => selectAllVaccinations(state));
   const maladies = useAppSelector((state) => selectAllMaladies(state));
+  const visitesVeterinaires = useAppSelector((state) => selectAllVisitesVeterinaires(state));
   const animaux = useAppSelector((state) => selectAllAnimaux(state));
 
   const [rechercheFiltre, setRechercheFiltre] = useState('');
   const [filtreRaison, setFiltreRaison] = useState<string>('tous');
   const [sectionActive, setSectionActive] = useState<'produits' | 'malades'>('produits');
+  const [batches, setBatches] = useState<Batch[]>([]);
 
-  // Charger les données au montage
-  useEffect(() => {
-    if (projetActif?.id) {
+  // Charger les bandes en mode batch uniquement quand l'écran est visible
+  useFocusEffect(
+    useCallback(() => {
+      if (!isModeBatch || !projetActif?.id) {
+        setBatches([]);
+        return;
+      }
+
+      let cancelled = false;
+
+      const loadBatches = async () => {
+        try {
+          const data = await apiClient.get<Batch[]>(`/batch-pigs/projet/${projetActif.id}`);
+          if (!cancelled) {
+            setBatches(data || []);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            console.error('[TraitementsComponentNew] Erreur chargement bandes:', error);
+            setBatches([]);
+          }
+        }
+      };
+
+      loadBatches();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [isModeBatch, projetActif?.id])
+  );
+
+  // Charger les données uniquement quand l'écran est visible
+  useFocusEffect(
+    useCallback(() => {
+      if (!projetActif?.id) return;
+
+      // Charger vaccinations, maladies, visites vétérinaires et animaux
       dispatch(loadVaccinations(projetActif.id));
       dispatch(loadMaladies(projetActif.id));
-      dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: false }));
-    }
-  }, [projetActif?.id, dispatch]);
+      dispatch(loadVisitesVeterinaires(projetActif.id));
+      // Inclure les inactifs pour avoir tous les animaux (actif et autre statuts)
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true }));
+    }, [projetActif?.id, dispatch])
+  );
 
   // Section A: Inventaire des produits
   const inventaireProduits = useMemo(() => {
@@ -122,8 +178,35 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
       }
     });
 
+    // Récupérer produits depuis visites vétérinaires (prescriptions / produits administrés en consultation)
+    (visitesVeterinaires || []).forEach((visite) => {
+      if (visite.prescriptions) {
+        const segments = visite.prescriptions
+          .split(/[,\n;]|\s+et\s+/i)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        segments.forEach((produit) => {
+          const key = produit.toLowerCase();
+          if (!produitsMap.has(key)) {
+            produitsMap.set(key, {
+              nom: produit,
+              type: 'medicament',
+              raison: 'traitement_curatif',
+              stock: 0,
+              derniereUtilisation: visite.date_visite,
+            });
+          } else {
+            const existing = produitsMap.get(key)!;
+            if (visite.date_visite > (existing.derniereUtilisation || '')) {
+              existing.derniereUtilisation = visite.date_visite;
+            }
+          }
+        });
+      }
+    });
+
     return Array.from(produitsMap.values());
-  }, [vaccinations, maladies]);
+  }, [vaccinations, maladies, visitesVeterinaires]);
 
   // Filtrer produits
   const produitsFiltres = useMemo(() => {
@@ -145,14 +228,28 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
   const sujetsMalades = useMemo(() => {
     const maladiesActives = (maladies || []).filter((m) => !m.gueri);
 
+    if (isModeBatch) {
+      // En mode batch, grouper par batch_id ou afficher les maladies avec batch_id
+      return maladiesActives.map((maladie) => {
+        const batch = batches.find((b) => b.id === maladie.batch_id);
+        const animal = maladie.animal_id ? (animaux || []).find((a) => a.id === maladie.animal_id) : undefined;
+        return {
+          maladie,
+          animal,
+          batch,
+        };
+      });
+    }
+
     return maladiesActives.map((maladie) => {
       const animal = (animaux || []).find((a) => a.id === maladie.animal_id);
       return {
         maladie,
         animal,
+        batch: undefined as Batch | undefined,
       };
     });
-  }, [maladies, animaux]);
+  }, [maladies, animaux, isModeBatch, batches]);
 
   // Gestion changement de statut
   const handleChangementStatut = useCallback(
@@ -184,7 +281,12 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
                   ).unwrap();
 
                   // 2. Enregistrer dans mortalites
-                  const categorie = animal.sexe === 'femelle' ? 'truie' : animal.sexe === 'male' ? 'verrat' : 'porcelet';
+                  const categorie =
+                    animal.sexe === 'femelle'
+                      ? 'truie'
+                      : animal.sexe === 'male'
+                        ? 'verrat'
+                        : 'porcelet';
                   await dispatch(
                     createMortalite({
                       projet_id: projetActif.id,
@@ -213,12 +315,10 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
                     'Décès enregistré',
                     `${animal.nom || "L'animal"} a été retiré du cheptel actif.\n\nLe cas de maladie et la cause du décès ont été archivés.`
                   );
-                } catch (error: any) {
+                } catch (error: unknown) {
                   console.error('Erreur changement statut mort:', error);
-                  Alert.alert(
-                    'Erreur',
-                    `Impossible d'enregistrer le décès: ${error?.message || error}`
-                  );
+                  const errorMessage = error instanceof Error ? error.message : String(error) || 'Impossible d\'enregistrer le décès';
+                  Alert.alert('Erreur', `Impossible d'enregistrer le décès: ${errorMessage}`);
                 }
               },
             },
@@ -237,9 +337,10 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
           ).unwrap();
 
           Alert.alert('Succès', `✅ ${animal?.nom || "L'animal"} a été marqué comme guéri !`);
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('Erreur changement statut guéri:', error);
-          Alert.alert('Erreur', `Impossible de marquer comme guéri: ${error?.message || error}`);
+          const errorMessage = error instanceof Error ? error.message : String(error) || 'Impossible de marquer comme guéri';
+          Alert.alert('Erreur', `Impossible de marquer comme guéri: ${errorMessage}`);
         }
       }
     },
@@ -435,7 +536,7 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
             </Text>
           </View>
         ) : (
-          sujetsMalades.map(({ maladie, animal }) => (
+          sujetsMalades.map(({ maladie, animal, batch }) => (
             <View
               key={maladie.id}
               style={[
@@ -449,12 +550,25 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
             >
               <View style={styles.maladeHeader}>
                 <View style={styles.maladeHeaderLeft}>
-                  <Text style={[styles.maladeNom, { color: colors.text }]}>
-                    {animal?.nom || animal?.code || `Porc #${maladie.animal_id?.slice(0, 8)}`}
-                  </Text>
-                  <Text style={[styles.maladeId, { color: colors.textSecondary }]}>
-                    ID: {animal?.code || maladie.animal_id?.slice(0, 12)}
-                  </Text>
+                  {batch ? (
+                    <>
+                      <Text style={[styles.maladeNom, { color: colors.text }]}>
+                        🏠 {batch.pen_name}
+                      </Text>
+                      <Text style={[styles.maladeId, { color: colors.textSecondary }]}>
+                        {maladie.nombre_animaux_affectes || 1} sujet(s) affecté(s)
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={[styles.maladeNom, { color: colors.text }]}>
+                        {animal?.nom || animal?.code || `Porc #${maladie.animal_id?.slice(0, 8)}`}
+                      </Text>
+                      <Text style={[styles.maladeId, { color: colors.textSecondary }]}>
+                        ID: {animal?.code || maladie.animal_id?.slice(0, 12)}
+                      </Text>
+                    </>
+                  )}
                   <View
                     style={[
                       styles.graviteBadge,

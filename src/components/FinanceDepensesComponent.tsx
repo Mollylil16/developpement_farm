@@ -21,20 +21,22 @@ import {
   selectAllDepensesPonctuelles,
   selectAllChargesFixes,
 } from '../store/selectors/financeSelectors';
-import { DepensePonctuelle } from '../types';
+import type { DepensePonctuelle } from '../types/finance';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import DepenseFormModal from './DepenseFormModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { logger } from '../utils/logger';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
-export default function FinanceDepensesComponent() {
+function FinanceDepensesComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const depensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);
-  const loading = useAppSelector((state) => state.finance.loading);
+  const loading = useAppSelector((state) => state.finance?.loading ?? false);
   const [selectedDepense, setSelectedDepense] = useState<DepensePonctuelle | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -45,7 +47,8 @@ export default function FinanceDepensesComponent() {
   const ITEMS_PER_PAGE = 50;
   const [refreshing, setRefreshing] = useState(false);
 
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   useEffect(() => {
     if (projetActif) {
@@ -137,12 +140,12 @@ export default function FinanceDepensesComponent() {
 
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;
-    
+
     setRefreshing(true);
     try {
       await dispatch(loadDepensesPonctuelles(projetActif.id)).unwrap();
     } catch (error) {
-      console.error('Erreur lors du rafraîchissement:', error);
+      logger.error('Erreur lors du rafraîchissement:', error);
     } finally {
       setRefreshing(false);
     }
@@ -297,7 +300,7 @@ export default function FinanceDepensesComponent() {
                 <View style={styles.cardActions}>
                   {(() => {
                     // Filtrer les photos valides
-                    const photosValides = depense.photos?.filter(p => p && p.trim() !== '') || [];
+                    const photosValides = depense.photos?.filter((p) => p && p.trim() !== '') || [];
                     return photosValides.length > 0 ? (
                       <TouchableOpacity
                         style={styles.actionButton}
@@ -354,7 +357,7 @@ export default function FinanceDepensesComponent() {
                 )}
                 {(() => {
                   // Filtrer les photos valides (non vides, non nulles)
-                  const photosValides = depense.photos?.filter(p => p && p.trim() !== '') || [];
+                  const photosValides = depense.photos?.filter((p) => p && p.trim() !== '') || [];
                   return photosValides.length > 0 ? (
                     <View style={styles.photosContainer}>
                       <Text style={[styles.photosLabel, { color: colors.textSecondary }]}>
@@ -404,16 +407,18 @@ export default function FinanceDepensesComponent() {
               </TouchableOpacity>
             </View>
             <ScrollView horizontal pagingEnabled>
-              {viewingPhotos.filter(p => p && p.trim() !== '').map((photo, index) => (
-                <Image
-                  key={index}
-                  source={{ uri: photo }}
-                  style={styles.photoImage}
-                  contentFit="contain"
-                  transition={200}
-                  cachePolicy="memory-disk"
-                />
-              ))}
+              {viewingPhotos
+                .filter((p) => p && p.trim() !== '')
+                .map((photo, index) => (
+                  <Image
+                    key={index}
+                    source={{ uri: photo }}
+                    style={styles.photoImage}
+                    contentFit="contain"
+                    transition={200}
+                    cachePolicy="memory-disk"
+                  />
+                ))}
             </ScrollView>
           </View>
         </View>
@@ -582,3 +587,6 @@ const styles = StyleSheet.create({
     height: 400,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(FinanceDepensesComponent);

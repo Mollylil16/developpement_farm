@@ -1,22 +1,20 @@
 /**
  * Implémentation concrète du repository Animal
- * 
+ *
  * Utilise le repository existant de la base de données
  */
 
 import type { IAnimalRepository } from '../../../domains/production/repositories/IAnimalRepository';
 import type { Animal } from '../../../domains/production/entities/Animal';
 import { AnimalRepository } from '../../../database/repositories/AnimalRepository';
-import type { SQLiteDatabase } from 'expo-sqlite';
-
 /**
  * Implémentation du repository Animal utilisant la base de données
  */
 export class AnimalRepositoryImpl implements IAnimalRepository {
   private repository: AnimalRepository;
 
-  constructor(db: SQLiteDatabase) {
-    this.repository = new AnimalRepository(db);
+  constructor() {
+    this.repository = new AnimalRepository();
   }
 
   async findById(id: string): Promise<Animal | null> {
@@ -29,15 +27,17 @@ export class AnimalRepositoryImpl implements IAnimalRepository {
 
   async findByProjet(projetId: string): Promise<Animal[]> {
     const animaux = await this.repository.findByProjet(projetId);
-    return animaux.map(a => this.mapToDomain(a));
+    return animaux.map((a) => this.mapToDomain(a));
   }
 
   async findActifsByProjet(projetId: string): Promise<Animal[]> {
     const animaux = await this.repository.findActifsByProjet(projetId);
-    return animaux.map(a => this.mapToDomain(a));
+    return animaux.map((a) => this.mapToDomain(a));
   }
 
-  async create(animal: Omit<Animal, 'id' | 'dateCreation' | 'derniereModification'>): Promise<Animal> {
+  async create(
+    animal: Omit<Animal, 'id' | 'dateCreation' | 'derniereModification'>
+  ): Promise<Animal> {
     const created = await this.repository.create({
       code: animal.code,
       nom: animal.nom,
@@ -83,13 +83,13 @@ export class AnimalRepositoryImpl implements IAnimalRepository {
 
   async findReproducteursActifs(projetId: string): Promise<Animal[]> {
     const animaux = await this.repository.findReproducteursActifs(projetId);
-    return animaux.map(a => this.mapToDomain(a));
+    return animaux.map((a) => this.mapToDomain(a));
   }
 
   /**
    * Mappe l'entité de la base de données vers l'entité du domaine
    */
-  private mapToDomain(dbAnimal: any): Animal {
+  private mapToDomain(dbAnimal: unknown): Animal {
     return {
       id: dbAnimal.id,
       code: dbAnimal.code,
@@ -112,4 +112,3 @@ export class AnimalRepositoryImpl implements IAnimalRepository {
     };
   }
 }
-

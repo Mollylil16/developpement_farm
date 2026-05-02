@@ -11,57 +11,57 @@ import { Platform } from 'react-native';
  */
 export const MarketplaceColors = {
   // Couleurs primaires - Palette bleue #2563EB
-  primary: '#2563EB',           // Bleu principal
-  primaryLight: '#3B82F6',      // Bleu clair
-  primaryDark: '#1D4ED8',       // Bleu foncé
-  
+  primary: '#2563EB', // Bleu principal
+  primaryLight: '#3B82F6', // Bleu clair
+  primaryDark: '#1D4ED8', // Bleu foncé
+
   // Couleurs secondaires
-  secondary: '#8B4513',         // Brun
-  secondaryLight: '#A0522D',    // Brun clair
-  
+  secondary: '#8B4513', // Brun
+  secondaryLight: '#A0522D', // Brun clair
+
   // Accents
-  accent: '#FF8C42',            // Orange chaleureux
-  accentLight: '#FFA366',       // Orange clair
-  gold: '#DAA520',              // Or/Ambre
-  sage: '#60A5FA',              // Bleu sauge (ton bleu-gris)
-  
+  accent: '#FF8C42', // Orange chaleureux
+  accentLight: '#FFA366', // Orange clair
+  gold: '#DAA520', // Or/Ambre
+  sage: '#60A5FA', // Bleu sauge (ton bleu-gris)
+
   // États
-  success: '#2563EB',           // Bleu pour succès
-  warning: '#F39C12',           // Jaune/Orange
-  error: '#E74C3C',             // Rouge
-  info: '#3498DB',              // Bleu info
-  
+  success: '#2563EB', // Bleu pour succès
+  warning: '#F39C12', // Jaune/Orange
+  error: '#E74C3C', // Rouge
+  info: '#3498DB', // Bleu info
+
   // Fond et surfaces (Glassmorphism)
-  background: '#EFF6FF',        // Fond bleu très clair pour glassmorphism
-  surface: 'rgba(255, 255, 255, 0.15)',  // Surface translucide pour glassmorphism
+  background: '#EFF6FF', // Fond bleu très clair pour glassmorphism
+  surface: 'rgba(255, 255, 255, 0.15)', // Surface translucide pour glassmorphism
   surfaceLight: 'rgba(255, 255, 255, 0.1)', // Surface très translucide
-  surfaceSolid: '#FFFFFF',     // Surface solide pour contenu
-  
+  surfaceSolid: '#FFFFFF', // Surface solide pour contenu
+
   // Texte
-  text: '#2C3E50',              // Gris foncé
-  textSecondary: '#7F8C8D',     // Gris moyen
-  textLight: '#BDC3C7',         // Gris clair
-  textInverse: '#FFFFFF',       // Blanc
-  
+  text: '#2C3E50', // Gris foncé
+  textSecondary: '#7F8C8D', // Gris moyen
+  textLight: '#BDC3C7', // Gris clair
+  textInverse: '#FFFFFF', // Blanc
+
   // Badges et statuts
-  badgeAvailable: '#FF8C42',    // Orange
-  badgeReserved: '#F39C12',     // Jaune
-  badgeSold: '#95A5A6',         // Gris
-  badgeNew: '#3B82F6',          // Bleu (au lieu de vert)
-  badgeConditions: '#3498DB',   // Bleu
-  
+  badgeAvailable: '#FF8C42', // Orange
+  badgeReserved: '#F39C12', // Jaune
+  badgeSold: '#95A5A6', // Gris
+  badgeNew: '#3B82F6', // Bleu (au lieu de vert)
+  badgeConditions: '#3498DB', // Bleu
+
   // Bordures et dividers (Glassmorphism)
-  border: 'rgba(37, 99, 235, 0.6)',  // Bordure bleue translucide
+  border: 'rgba(37, 99, 235, 0.6)', // Bordure bleue translucide
   divider: 'rgba(37, 99, 235, 0.2)', // Divider bleu translucide
-  
+
   // Overlay
   overlay: 'rgba(0, 0, 0, 0.5)',
   overlayLight: 'rgba(0, 0, 0, 0.3)',
-  
+
   // Gradients (pour les cartes premium) - Palette bleue
   gradientStart: '#2563EB',
   gradientEnd: '#3B82F6',
-  
+
   // Glassmorphism
   glassBackground: 'rgba(255, 255, 255, 0.15)',
   glassBorder: 'rgba(37, 99, 235, 0.6)',
@@ -78,7 +78,7 @@ export const MarketplaceTypography = {
     android: 'Roboto',
     default: 'System',
   }),
-  
+
   fontSizes: {
     xs: 12,
     sm: 14,
@@ -88,14 +88,14 @@ export const MarketplaceTypography = {
     xxl: 24,
     xxxl: 32,
   },
-  
+
   fontWeights: {
     regular: '400' as const,
     medium: '500' as const,
     semibold: '600' as const,
     bold: '700' as const,
   },
-  
+
   lineHeights: {
     tight: 1.2,
     normal: 1.5,
@@ -121,8 +121,8 @@ export const MarketplaceSpacing = {
 export const MarketplaceBorderRadius = {
   xs: 4,
   sm: 6,
-  md: 12,      // Standard pour glassmorphism
-  lg: 16,      // Standard pour glassmorphism
+  md: 12, // Standard pour glassmorphism
+  lg: 16, // Standard pour glassmorphism
   xl: 24,
   round: 9999,
 } as const;
@@ -138,7 +138,7 @@ export const MarketplaceShadows = {
     shadowRadius: 0,
     elevation: 0,
   },
-  
+
   small: {
     shadowColor: 'rgba(37, 99, 235, 0.2)',
     shadowOffset: { width: 0, height: 2 },
@@ -146,7 +146,7 @@ export const MarketplaceShadows = {
     shadowRadius: 8,
     elevation: 3,
   },
-  
+
   medium: {
     shadowColor: 'rgba(37, 99, 235, 0.3)',
     shadowOffset: { width: 0, height: 4 },
@@ -154,7 +154,7 @@ export const MarketplaceShadows = {
     shadowRadius: 12,
     elevation: 5,
   },
-  
+
   large: {
     shadowColor: 'rgba(37, 99, 235, 0.4)',
     shadowOffset: { width: 0, height: 8 },
@@ -162,7 +162,7 @@ export const MarketplaceShadows = {
     shadowRadius: 20,
     elevation: 8,
   },
-  
+
   // Effet hover (élévation) avec teinte bleue
   hover: {
     shadowColor: 'rgba(37, 99, 235, 0.5)',
@@ -171,7 +171,7 @@ export const MarketplaceShadows = {
     shadowRadius: 24,
     elevation: 12,
   },
-  
+
   // Glassmorphism shadow
   glass: {
     shadowColor: 'rgba(37, 99, 235, 0.3)',
@@ -188,10 +188,10 @@ export const MarketplaceShadows = {
 export const MarketplaceAnimations = {
   duration: {
     fast: 200,
-    normal: 350,    // 300-400ms pour transitions fluides
+    normal: 350, // 300-400ms pour transitions fluides
     slow: 500,
   },
-  
+
   easing: {
     default: 'cubic-bezier(0.4, 0, 0.2, 1)',
     easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
@@ -221,7 +221,7 @@ export const MarketplaceLayout = {
     tablet: 2,
     desktop: 3,
   },
-  
+
   // Largeur max des conteneurs
   maxWidth: {
     sm: 640,
@@ -229,7 +229,7 @@ export const MarketplaceLayout = {
     lg: 1024,
     xl: 1280,
   },
-  
+
   // Hauteurs fixes
   headerHeight: 60,
   tabBarHeight: 50,
@@ -305,7 +305,7 @@ export function badgeStyle(type: 'available' | 'reserved' | 'sold' | 'new' | 'co
     new: MarketplaceColors.badgeNew,
     conditions: MarketplaceColors.badgeConditions,
   };
-  
+
   return {
     backgroundColor: withOpacity(colors[type], 0.15),
     borderColor: withOpacity(colors[type], 0.3),
@@ -317,4 +317,3 @@ export function badgeStyle(type: 'available' | 'reserved' | 'sold' | 'new' | 'co
 }
 
 export default MarketplaceTheme;
-

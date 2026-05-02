@@ -9,7 +9,9 @@ import { genererPlusieursNomsAleatoires } from '../../utils/nameGenerator';
 jest.mock('../../database/repositories/AnimalRepository');
 jest.mock('../../utils/nameGenerator');
 
-const mockGenererPlusieursNomsAleatoires = genererPlusieursNomsAleatoires as jest.MockedFunction<typeof genererPlusieursNomsAleatoires>;
+const mockGenererPlusieursNomsAleatoires = genererPlusieursNomsAleatoires as jest.MockedFunction<
+  typeof genererPlusieursNomsAleatoires
+>;
 
 describe('ProjetInitializationService', () => {
   let service: ProjetInitializationService;
@@ -55,8 +57,8 @@ describe('ProjetInitializationService', () => {
       expect(mockAnimalRepo.create).toHaveBeenCalledTimes(8); // 2 truies + 1 verrat + 5 porcelets
 
       // Vérifier les truies
-      const truieCalls = mockAnimalRepo.create.mock.calls.filter(
-        call => call[0].code.startsWith('T')
+      const truieCalls = mockAnimalRepo.create.mock.calls.filter((call) =>
+        call[0].code.startsWith('T')
       );
       expect(truieCalls).toHaveLength(2);
       expect(truieCalls[0][0].code).toBe('T001');
@@ -65,8 +67,8 @@ describe('ProjetInitializationService', () => {
       expect(truieCalls[0][0].nom).toBe('Truie1');
 
       // Vérifier les verrats
-      const verratCalls = mockAnimalRepo.create.mock.calls.filter(
-        call => call[0].code.startsWith('V')
+      const verratCalls = mockAnimalRepo.create.mock.calls.filter((call) =>
+        call[0].code.startsWith('V')
       );
       expect(verratCalls).toHaveLength(1);
       expect(verratCalls[0][0].code).toBe('V001');
@@ -75,8 +77,8 @@ describe('ProjetInitializationService', () => {
       expect(verratCalls[0][0].nom).toBe('Verrat1');
 
       // Vérifier les porcelets
-      const porceletCalls = mockAnimalRepo.create.mock.calls.filter(
-        call => call[0].code.startsWith('P')
+      const porceletCalls = mockAnimalRepo.create.mock.calls.filter((call) =>
+        call[0].code.startsWith('P')
       );
       expect(porceletCalls).toHaveLength(5);
       expect(porceletCalls[0][0].code).toBe('P001');
@@ -102,19 +104,19 @@ describe('ProjetInitializationService', () => {
       await service.createAnimauxInitials(projetId, effectifs);
 
       // Vérifier que les codes commencent après les existants
-      const truieCalls = mockAnimalRepo.create.mock.calls.filter(
-        call => call[0].code.startsWith('T')
+      const truieCalls = mockAnimalRepo.create.mock.calls.filter((call) =>
+        call[0].code.startsWith('T')
       );
       expect(truieCalls[0][0].code).toBe('T002'); // Après T001
       expect(truieCalls[1][0].code).toBe('T003');
 
-      const verratCalls = mockAnimalRepo.create.mock.calls.filter(
-        call => call[0].code.startsWith('V')
+      const verratCalls = mockAnimalRepo.create.mock.calls.filter((call) =>
+        call[0].code.startsWith('V')
       );
       expect(verratCalls[0][0].code).toBe('V002'); // Après V001
 
-      const porceletCalls = mockAnimalRepo.create.mock.calls.filter(
-        call => call[0].code.startsWith('P')
+      const porceletCalls = mockAnimalRepo.create.mock.calls.filter((call) =>
+        call[0].code.startsWith('P')
       );
       expect(porceletCalls[0][0].code).toBe('P002'); // Après P001
     });
@@ -132,7 +134,7 @@ describe('ProjetInitializationService', () => {
 
       // Vérifier que genererPlusieursNomsAleatoires est appelé avec les bons paramètres
       expect(mockGenererPlusieursNomsAleatoires).toHaveBeenCalledTimes(3);
-      
+
       // Vérifier l'appel pour les truies (féminins)
       expect(mockGenererPlusieursNomsAleatoires).toHaveBeenNthCalledWith(
         1,
@@ -171,7 +173,7 @@ describe('ProjetInitializationService', () => {
       });
 
       const createCall = mockAnimalRepo.create.mock.calls[0][0];
-      
+
       expect(createCall.projet_id).toBe(projetId);
       expect(createCall.code).toBe('T001');
       expect(createCall.nom).toBe('Truie1');
@@ -188,7 +190,7 @@ describe('ProjetInitializationService', () => {
       expect(createCall.mere_id).toBeNull();
     });
 
-    it('devrait gérer le cas où aucun animal n\'est à créer', async () => {
+    it("devrait gérer le cas où aucun animal n'est à créer", async () => {
       mockAnimalRepo.findByProjet.mockResolvedValue([]);
       // Le code appelle genererPlusieursNomsAleatoires même avec 0, donc on doit mocker
       mockGenererPlusieursNomsAleatoires
@@ -258,21 +260,20 @@ describe('ProjetInitializationService', () => {
         nombre_porcelets: 1,
       });
 
-      const truieCall = mockAnimalRepo.create.mock.calls.find(
-        call => call[0].code.startsWith('T')
+      const truieCall = mockAnimalRepo.create.mock.calls.find((call) =>
+        call[0].code.startsWith('T')
       );
       expect(truieCall?.[0].code).toBe('T100'); // Après T099
 
-      const verratCall = mockAnimalRepo.create.mock.calls.find(
-        call => call[0].code.startsWith('V')
+      const verratCall = mockAnimalRepo.create.mock.calls.find((call) =>
+        call[0].code.startsWith('V')
       );
       expect(verratCall?.[0].code).toBe('V051'); // Après V050
 
-      const porceletCall = mockAnimalRepo.create.mock.calls.find(
-        call => call[0].code.startsWith('P')
+      const porceletCall = mockAnimalRepo.create.mock.calls.find((call) =>
+        call[0].code.startsWith('P')
       );
       expect(porceletCall?.[0].code).toBe('P201'); // Après P200
     });
   });
 });
-

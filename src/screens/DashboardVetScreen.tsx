@@ -11,11 +11,9 @@ import {
   StyleSheet,
   RefreshControl,
   TouchableOpacity,
-  FlatList,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -23,8 +21,10 @@ import { useRole } from '../contexts/RoleContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useVetData } from '../hooks/useVetData';
 import { useProfilData } from '../hooks/useProfilData';
-import { useAppSelector } from '../store/hooks';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { useDashboardAnimations } from '../hooks/useDashboardAnimations';
+import { loadInvitationsEnAttente } from '../store/slices/collaborationSlice';
+import InvitationsModal from '../components/InvitationsModal';
 import { useMarketplaceNotifications } from '../hooks/useMarketplaceNotifications';
 import { SCREENS } from '../navigation/types';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
@@ -36,6 +36,7 @@ import ProfileMenuModal from '../components/ProfileMenuModal';
 import { NotificationPanel } from '../components/marketplace';
 import SupportContactModal from '../components/SupportContactModal';
 import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
+import VetAppointmentsCard from '../components/dashboard/VetAppointmentsCard';
 import type { VisiteVeterinaire } from '../types/sante';
 
 const DashboardVetScreen: React.FC = () => {
@@ -43,13 +44,47 @@ const DashboardVetScreen: React.FC = () => {
   const { colors, isDark } = useTheme();
   const navigation = useNavigation();
   const route = useRoute();
+  const isFocused = useIsFocused();
+  const dispatch = useAppDispatch();
   const [refreshing, setRefreshing] = useState(false);
   const [profileMenuVisible, setProfileMenuVisible] = useState(false);
   const [notificationPanelVisible, setNotificationPanelVisible] = useState(false);
   const [supportModalVisible, setSupportModalVisible] = useState(false);
-  const { todayConsultations, upcomingConsultations, clientFarms, healthAlerts, loading, error, refresh } = useVetData(currentUser?.id);
-  const { projetActif } = useAppSelector((state) => state.projet);
-  const { planifications } = useAppSelector((state) => state.planification);
+  const [invitationsModalVisible, setInvitationsModalVisible] = useState(false);
+  const {
+    todayConsultations,
+    upcomingConsultations,
+    totalConsultations,
+    loading,
+    error,
+    refresh,
+  } = useVetData(currentUser?.id);
+  const { projetCollaboratifActif, collaborateurActuel, invitationsEnAttente } = useAppSelector((state) => state.collaboration);
+
+  // Recharger les données vétérinaire (dont totalConsultations) à chaque fois que l'écran reprend le focus
+  // → la carte Consultations se met à jour après ajout d'une visite depuis un autre écran
+  useFocusEffect(
+    React.useCallback(() => {
+      if (currentUser?.id) refresh();
+    }, [refresh, currentUser?.id])
+  );
+
+  // Charger les invitations en attente au montage et quand l'écran devient actif
+  React.useEffect(() => {
+    if (isFocused && currentUser) {
+      dispatch(loadInvitationsEnAttente({
+        userId: currentUser.id,
+        email: currentUser.email || undefined,
+        telephone: currentUser.telephone || undefined,
+      }));
+    }
+  }, [dispatch, isFocused, currentUser?.id, currentUser?.email, currentUser?.telephone]);
+
+  // Nombre d'invitations en attente
+  const invitationsCount = Array.isArray(invitationsEnAttente)
+    ? invitationsEnAttente.filter((inv) => inv.statut === 'en_attente').length
+    : 0;
+
   const profil = useProfilData();
   const animations = useDashboardAnimations();
   const {
@@ -57,10 +92,11 @@ const DashboardVetScreen: React.FC = () => {
     unreadCount: marketplaceUnreadCount,
     markAsRead,
     deleteNotification,
-  } = useMarketplaceNotifications();
+  } = useMarketplaceNotifications({ enabled: isFocused });
 
   const vetProfile = currentUser?.roles?.veterinarian;
-  const showPendingBanner = (route.params as { showPendingValidation?: boolean })?.showPendingValidation ||
+  const showPendingBanner =
+    (route.params as { showPendingValidation?: boolean })?.showPendingValidation ||
     vetProfile?.validationStatus === 'pending';
 
   // Greeting state
@@ -92,6 +128,10 @@ const DashboardVetScreen: React.FC = () => {
 
   const handlePressNotifications = useCallback(() => {
     setNotificationPanelVisible(true);
+  }, []);
+
+  const handlePressInvitations = useCallback(() => {
+    setInvitationsModalVisible(true);
   }, []);
 
   const handleCloseProfileMenu = useCallback(() => {
@@ -135,108 +175,144 @@ const DashboardVetScreen: React.FC = () => {
               profilPhotoUri={profil.profilPhotoUri}
               profilInitiales={profil.profilInitiales || ''}
               currentDate={currentDate}
-              projetNom={vetProfile?.qualifications?.licenseNumber ? `License: ${vetProfile.qualifications.licenseNumber}` : undefined}
-              invitationsCount={0}
+              projetNom={
+                vetProfile?.qualifications?.licenseNumber
+                  ? `License: ${vetProfile.qualifications.licenseNumber}`
+                  : undefined
+              }
+              invitationsCount={invitationsCount}
               notificationCount={marketplaceUnreadCount}
               headerAnim={animations.headerAnim}
               onPressPhoto={handlePressPhoto}
-              onPressInvitations={() => {}}
+              onPressInvitations={handlePressInvitations}
               onPressNotifications={handlePressNotifications}
             />
 
-          {/* Banner de validation en attente */}
-          <View style={[styles.pendingBanner, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.pendingIcon, { backgroundColor: colors.warning + '20' }]}>
-              <Ionicons name="time-outline" size={48} color={colors.warning} />
-            </View>
-            <Text style={[styles.pendingTitle, { color: colors.text }]}>Profil en cours de validation</Text>
-            <Text style={[styles.pendingMessage, { color: colors.textSecondary }]}>
-              Votre demande a été soumise avec succès ! Notre équipe vérifie vos documents
-              et validera votre profil sous 24-48 heures.
-            </Text>
-            <View style={styles.pendingSteps}>
-              <View style={styles.pendingStep}>
-                <View style={[styles.stepIcon, { backgroundColor: colors.success }]}>
-                  <Ionicons name="checkmark" size={16} color="#FFF" />
-                </View>
-                <Text style={[styles.stepText, { color: colors.text }]}>Documents soumis</Text>
-              </View>
-              <View style={styles.pendingStep}>
-                <View style={[styles.stepIcon, { backgroundColor: colors.warning }]}>
-                  <Ionicons name="search" size={16} color="#FFF" />
-                </View>
-                <Text style={[styles.stepText, { color: colors.text }]}>Vérification en cours</Text>
-              </View>
-              <View style={styles.pendingStep}>
-                <View style={[styles.stepIcon, { backgroundColor: colors.textSecondary }]}>
-                  <Ionicons name="time-outline" size={16} color="#FFF" />
-                </View>
-                <Text style={[styles.stepText, { color: colors.textSecondary }]}>
-                  Activation du profil
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={[styles.contactButton, { backgroundColor: colors.primary + '15' }]}
-              onPress={() => setSupportModalVisible(true)}
+            {/* Banner de validation en attente */}
+            <View
+              style={[
+                styles.pendingBanner,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
             >
-              <Ionicons name="headset" size={20} color={colors.primary} />
-              <Text style={[styles.contactButtonText, { color: colors.primary }]}>Contacter le support</Text>
-            </TouchableOpacity>
+              <View style={[styles.pendingIcon, { backgroundColor: colors.warning + '20' }]}>
+                <Ionicons name="time-outline" size={48} color={colors.warning} />
+              </View>
+              <Text style={[styles.pendingTitle, { color: colors.text }]}>
+                Profil en cours de validation
+              </Text>
+              <Text style={[styles.pendingMessage, { color: colors.textSecondary }]}>
+                Votre demande a été soumise avec succès ! Notre équipe vérifie vos documents et
+                validera votre profil sous 24-48 heures.
+              </Text>
+              <View style={styles.pendingSteps}>
+                <View style={styles.pendingStep}>
+                  <View style={[styles.stepIcon, { backgroundColor: colors.success }]}>
+                    <Ionicons name="checkmark" size={16} color="#FFF" />
+                  </View>
+                  <Text style={[styles.stepText, { color: colors.text }]}>Documents soumis</Text>
+                </View>
+                <View style={styles.pendingStep}>
+                  <View style={[styles.stepIcon, { backgroundColor: colors.warning }]}>
+                    <Ionicons name="search" size={16} color="#FFF" />
+                  </View>
+                  <Text style={[styles.stepText, { color: colors.text }]}>
+                    Vérification en cours
+                  </Text>
+                </View>
+                <View style={styles.pendingStep}>
+                  <View style={[styles.stepIcon, { backgroundColor: colors.textSecondary }]}>
+                    <Ionicons name="time-outline" size={16} color="#FFF" />
+                  </View>
+                  <Text style={[styles.stepText, { color: colors.textSecondary }]}>
+                    Activation du profil
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[styles.contactButton, { backgroundColor: colors.primary + '15' }]}
+                onPress={() => setSupportModalVisible(true)}
+              >
+                <Ionicons name="headset" size={20} color={colors.primary} />
+                <Text style={[styles.contactButtonText, { color: colors.primary }]}>
+                  Contacter le support
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Aperçu des fonctionnalités */}
+            <View style={styles.previewSection}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Fonctionnalités disponibles après validation
+              </Text>
+
+              <Card
+                style={[
+                  styles.featureCard,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <Ionicons name="people" size={32} color={colors.success} />
+                <Text style={[styles.featureTitle, { color: colors.text }]}>
+                  Proposer mes services
+                </Text>
+                <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
+                  Accédez à une liste de fermes dans votre rayon de service et proposez votre
+                  accompagnement
+                </Text>
+              </Card>
+
+              <Card
+                style={[
+                  styles.featureCard,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <Ionicons name="medical" size={32} color={colors.primary} />
+                <Text style={[styles.featureTitle, { color: colors.text }]}>
+                  Gérer mes consultations
+                </Text>
+                <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
+                  Suivez l'état de santé des cheptels de vos clients et établissez des diagnostics
+                </Text>
+              </Card>
+
+              <Card
+                style={[
+                  styles.featureCard,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <Ionicons name="calendar" size={32} color={colors.warning} />
+                <Text style={[styles.featureTitle, { color: colors.text }]}>
+                  Agenda et planification
+                </Text>
+                <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
+                  Organisez vos visites et consultations avec un agenda intelligent
+                </Text>
+              </Card>
+            </View>
           </View>
-
-          {/* Aperçu des fonctionnalités */}
-          <View style={styles.previewSection}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Fonctionnalités disponibles après validation
-            </Text>
-
-            <Card style={[styles.featureCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Ionicons name="people" size={32} color={colors.success} />
-              <Text style={[styles.featureTitle, { color: colors.text }]}>Proposer mes services</Text>
-              <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
-                Accédez à une liste de fermes dans votre rayon de service et proposez votre accompagnement
-              </Text>
-            </Card>
-
-            <Card style={[styles.featureCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Ionicons name="medical" size={32} color={colors.primary} />
-              <Text style={[styles.featureTitle, { color: colors.text }]}>Gérer mes consultations</Text>
-              <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
-                Suivez l'état de santé des cheptels de vos clients et établissez des diagnostics
-              </Text>
-            </Card>
-
-            <Card style={[styles.featureCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Ionicons name="calendar" size={32} color={colors.warning} />
-              <Text style={[styles.featureTitle, { color: colors.text }]}>Agenda et planification</Text>
-              <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
-                Organisez vos visites et consultations avec un agenda intelligent
-              </Text>
-            </Card>
-          </View>
-        </View>
         </ScrollView>
 
         {/* Profile Menu Modal */}
-        <ProfileMenuModal
-          visible={profileMenuVisible}
-          onClose={handleCloseProfileMenu}
-        />
+        <ProfileMenuModal visible={profileMenuVisible} onClose={handleCloseProfileMenu} />
 
         {/* Notification Panel */}
         <NotificationPanel
           visible={notificationPanelVisible}
           notifications={marketplaceNotifications}
+          unreadCount={marketplaceUnreadCount}
           onClose={() => setNotificationPanelVisible(false)}
           onNotificationPress={(notification) => {
             markAsRead(notification.id);
             // TODO: Navigate to notification target
           }}
-          onDeleteNotification={deleteNotification}
+          onMarkAsRead={markAsRead}
           onMarkAllAsRead={() => {
-            marketplaceNotifications.forEach(n => markAsRead(n.id));
+            marketplaceNotifications.forEach((n) => markAsRead(n.id));
           }}
+          onDelete={deleteNotification}
         />
 
         {/* Support Contact Modal */}
@@ -271,188 +347,104 @@ const DashboardVetScreen: React.FC = () => {
             profilPhotoUri={profil.profilPhotoUri}
             profilInitiales={profil.profilInitiales || ''}
             currentDate={currentDate}
-            projetNom={vetProfile?.qualifications?.licenseNumber ? `License: ${vetProfile.qualifications.licenseNumber}` : undefined}
-            invitationsCount={0}
+            projetNom={
+              projetCollaboratifActif?.nom || (vetProfile?.qualifications?.licenseNumber
+                ? `License: ${vetProfile.qualifications.licenseNumber}`
+                : undefined)
+            }
+            invitationsCount={invitationsCount}
             notificationCount={marketplaceUnreadCount}
             headerAnim={animations.headerAnim}
             onPressPhoto={handlePressPhoto}
-            onPressInvitations={() => {}}
+            onPressInvitations={handlePressInvitations}
             onPressNotifications={handlePressNotifications}
           />
 
-        {/* Stats vétérinaire */}
-        <View style={styles.statsRow}>
-          <Card style={[styles.statCard, { backgroundColor: colors.surface }]}>
-            <Ionicons name="people" size={32} color="#22C55E" />
-            <Text style={[styles.statValue, { color: '#22C55E' }]}>
-              {vetProfile.clients.length || 0}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Clients actifs
-            </Text>
-          </Card>
+          {/* Stats vétérinaire */}
+          <View style={styles.statsRow}>
+            <Card style={[styles.statCard, { backgroundColor: colors.surface }]}>
+              <Ionicons name="people" size={32} color="#22C55E" />
+              <Text style={[styles.statValue, { color: '#22C55E' }]}>
+                {vetProfile.clients.length || 0}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                Clients actifs
+              </Text>
+            </Card>
 
-          <Card style={[styles.statCard, { backgroundColor: colors.surface }]}>
-            <Ionicons name="medical" size={32} color="#3B82F6" />
-            <Text style={[styles.statValue, { color: '#3B82F6' }]}>
-              {vetProfile.stats.totalConsultations || 0}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Consultations
-            </Text>
-          </Card>
-        </View>
-
-        {/* Agenda du jour */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Agenda du jour
-            </Text>
-            {todayConsultations.length > 0 && (
-              <TouchableOpacity
-                onPress={() => navigation.navigate(SCREENS.CONSULTATIONS as never)}
-                style={styles.seeAllButton}
-              >
-                <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-              </TouchableOpacity>
-            )}
+            <Card style={[styles.statCard, { backgroundColor: colors.surface }]}>
+              <Ionicons name="medical" size={32} color="#3B82F6" />
+              <Text style={[styles.statValue, { color: '#3B82F6' }]}>
+                {totalConsultations}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Consultations</Text>
+            </Card>
           </View>
-          {loading ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <LoadingSpinner size="small" />
-            </Card>
-          ) : todayConsultations.length === 0 ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <EmptyState
-                icon="calendar-outline"
-                title="Aucune consultation prévue"
-                message="Votre agenda est libre aujourd'hui"
-                compact
-              />
-            </Card>
-          ) : (
-            <View style={styles.consultationsList}>
-              {todayConsultations.slice(0, 3).map((consultation) => (
-                <ConsultationCard key={consultation.id} consultation={consultation} colors={colors} />
-              ))}
-            </View>
-          )}
-        </View>
 
-        {/* Mes clients */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Mes clients
-            </Text>
-            {clientFarms.length > 0 && (
-              <TouchableOpacity
-                onPress={() => navigation.navigate(SCREENS.MY_CLIENTS as never)}
-                style={styles.seeAllButton}
-              >
-                <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-              </TouchableOpacity>
-            )}
-          </View>
-          {loading ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <LoadingSpinner size="small" />
-            </Card>
-          ) : clientFarms.length === 0 ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <EmptyState
-                icon="people-outline"
-                title="Aucun client"
-                message="Vous n'avez pas encore de clients"
-                compact
-              />
-            </Card>
-          ) : (
-            <View style={styles.clientsList}>
-              {clientFarms.slice(0, 3).map((client) => (
-                <ClientCard key={client.farmId} client={client} colors={colors} />
-              ))}
-            </View>
-          )}
-        </View>
+          {/* Widget Rendez-vous */}
+          <VetAppointmentsCard />
 
-        {/* Planifications du projet actif */}
-        {projetActif && planifications && planifications.length > 0 && (
+          {/* Agenda du jour */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                Planifications ({projetActif.nom})
-              </Text>
-              <TouchableOpacity
-                onPress={() => navigation.navigate(SCREENS.PLANIFICATION as never)}
-                style={styles.seeAllButton}
-              >
-                <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-              </TouchableOpacity>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Agenda du jour</Text>
+              {todayConsultations.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => navigation.navigate(SCREENS.CONSULTATIONS as never)}
+                  style={styles.seeAllButton}
+                >
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>Voir tout</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                </TouchableOpacity>
+              )}
             </View>
-            <View style={styles.consultationsList}>
-              {planifications
-                .filter((p) => p.statut === 'a_faire' || p.statut === 'en_cours')
-                .slice(0, 3)
-                .map((planif) => (
-                  <PlanificationCard key={planif.id} planification={planif} colors={colors} />
+            {loading ? (
+              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+                <LoadingSpinner size="small" />
+              </Card>
+            ) : todayConsultations.length === 0 ? (
+              <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+                <EmptyState
+                  icon="calendar-outline"
+                  title="Aucune consultation prévue"
+                  message="Votre agenda est libre aujourd'hui"
+                  compact
+                />
+              </Card>
+            ) : (
+              <View style={styles.consultationsList}>
+                {todayConsultations.slice(0, 3).map((consultation) => (
+                  <ConsultationCard
+                    key={consultation.id}
+                    consultation={consultation}
+                    colors={colors}
+                  />
                 ))}
-            </View>
+              </View>
+            )}
           </View>
-        )}
 
-        {/* Alertes sanitaires */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Alertes sanitaires
-          </Text>
-          {loading ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <LoadingSpinner size="small" />
-            </Card>
-          ) : healthAlerts.length === 0 ? (
-            <Card style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
-              <EmptyState
-                icon="checkmark-circle-outline"
-                title="Aucune alerte"
-                message="Tout est en ordre"
-                compact
-              />
-            </Card>
-          ) : (
-            <View style={styles.alertsList}>
-              {healthAlerts.slice(0, 3).map((alert, index) => (
-                <AlertCard key={`${alert.farmId}-${index}`} alert={alert} colors={colors} />
-              ))}
-            </View>
-          )}
         </View>
-      </View>
       </ScrollView>
 
       {/* Profile Menu Modal */}
-      <ProfileMenuModal
-        visible={profileMenuVisible}
-        onClose={handleCloseProfileMenu}
-      />
+      <ProfileMenuModal visible={profileMenuVisible} onClose={handleCloseProfileMenu} />
 
       {/* Notification Panel */}
       <NotificationPanel
         visible={notificationPanelVisible}
         notifications={marketplaceNotifications}
+        unreadCount={marketplaceUnreadCount}
         onClose={() => setNotificationPanelVisible(false)}
         onNotificationPress={(notification) => {
           markAsRead(notification.id);
           // TODO: Navigate to notification target
         }}
-        onDeleteNotification={deleteNotification}
+        onMarkAsRead={markAsRead}
         onMarkAllAsRead={() => {
-          marketplaceNotifications.forEach(n => markAsRead(n.id));
+          marketplaceNotifications.forEach((n) => markAsRead(n.id));
         }}
+        onDelete={deleteNotification}
       />
 
       {/* Support Contact Modal */}
@@ -460,6 +452,13 @@ const DashboardVetScreen: React.FC = () => {
         visible={supportModalVisible}
         onClose={() => setSupportModalVisible(false)}
       />
+
+      {/* Modal des invitations en attente */}
+      <InvitationsModal
+        visible={invitationsModalVisible}
+        onClose={() => setInvitationsModalVisible(false)}
+      />
+
       {/* Bouton flottant pour accéder à l'agent conversationnel */}
       <ChatAgentFAB />
     </SafeAreaView>
@@ -636,12 +635,6 @@ const styles = StyleSheet.create({
   consultationsList: {
     gap: SPACING.sm,
   },
-  clientsList: {
-    gap: SPACING.sm,
-  },
-  alertsList: {
-    gap: SPACING.sm,
-  },
   pendingBanner: {
     margin: SPACING.md,
     padding: SPACING.xl,
@@ -727,48 +720,18 @@ const styles = StyleSheet.create({
   },
 });
 
-// Composant Card pour les planifications
-const PlanificationCard: React.FC<{ planification: any; colors: any }> = ({
-  planification,
-  colors,
-}) => {
-  const statutColors: Record<string, string> = {
-    a_faire: colors.warning,
-    en_cours: colors.primary,
-    terminee: colors.success,
-  };
-
-  return (
-    <Card style={[componentStyles.planificationCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <View style={componentStyles.planificationHeader}>
-        <View style={[componentStyles.statutBadge, { backgroundColor: statutColors[planification.statut] + '20' }]}>
-          <Text style={[componentStyles.statutText, { color: statutColors[planification.statut] }]}>
-            {planification.statut === 'a_faire' ? 'À faire' : planification.statut === 'en_cours' ? 'En cours' : 'Terminée'}
-          </Text>
-        </View>
-        <Text style={[componentStyles.planificationDate, { color: colors.textSecondary }]}>
-          {format(new Date(planification.date_prevue), 'd MMM', { locale: fr })}
-        </Text>
-      </View>
-      <Text style={[componentStyles.planificationTitle, { color: colors.text }]}>
-        {planification.titre}
-      </Text>
-      {planification.description && (
-        <Text style={[componentStyles.planificationDescription, { color: colors.textSecondary }]} numberOfLines={1}>
-          {planification.description}
-        </Text>
-      )}
-    </Card>
-  );
-};
-
 // Composant Card pour les consultations
-const ConsultationCard: React.FC<{ consultation: VisiteVeterinaire; colors: any }> = ({
+const ConsultationCard: React.FC<{ consultation: VisiteVeterinaire; colors: unknown }> = ({
   consultation,
   colors,
 }) => {
   return (
-    <Card style={[componentStyles.consultationCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <Card
+      style={[
+        componentStyles.consultationCard,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
+    >
       <View style={componentStyles.consultationHeader}>
         <Ionicons name="calendar" size={20} color={colors.primary} />
         <Text style={[componentStyles.consultationTime, { color: colors.textSecondary }]}>
@@ -779,7 +742,10 @@ const ConsultationCard: React.FC<{ consultation: VisiteVeterinaire; colors: any 
         {consultation.motif}
       </Text>
       {consultation.diagnostic && (
-        <Text style={[componentStyles.consultationDiagnostic, { color: colors.textSecondary }]} numberOfLines={1}>
+        <Text
+          style={[componentStyles.consultationDiagnostic, { color: colors.textSecondary }]}
+          numberOfLines={1}
+        >
           {consultation.diagnostic}
         </Text>
       )}
@@ -787,96 +753,7 @@ const ConsultationCard: React.FC<{ consultation: VisiteVeterinaire; colors: any 
   );
 };
 
-// Composant Card pour les clients
-const ClientCard: React.FC<{ client: { farmId: string; farmName: string; since: string; lastConsultation?: string; consultationCount: number }; colors: any }> = ({
-  client,
-  colors,
-}) => {
-  return (
-    <Card style={[componentStyles.clientCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <View style={componentStyles.clientHeader}>
-        <Ionicons name="business" size={20} color={colors.primary} />
-        <Text style={[componentStyles.clientName, { color: colors.text }]}>
-          {client.farmName}
-        </Text>
-      </View>
-      <Text style={[componentStyles.clientStats, { color: colors.textSecondary }]}>
-        {client.consultationCount} consultation{client.consultationCount > 1 ? 's' : ''}
-      </Text>
-      {client.lastConsultation && (
-        <Text style={[componentStyles.clientLastVisit, { color: colors.textSecondary }]}>
-          Dernière visite: {format(new Date(client.lastConsultation), 'd MMM yyyy', { locale: fr })}
-        </Text>
-      )}
-    </Card>
-  );
-};
-
-// Composant Card pour les alertes
-const AlertCard: React.FC<{ alert: { farmId: string; farmName: string; alertType: string; message: string; severity: string }; colors: any }> = ({
-  alert,
-  colors,
-}) => {
-  const severityColors = {
-    low: colors.info,
-    medium: colors.warning,
-    high: colors.error,
-  };
-
-  const alertIcons = {
-    disease: 'alert-circle',
-    vaccination: 'medical',
-    treatment: 'flask',
-  };
-
-  return (
-    <Card style={[componentStyles.alertCard, { backgroundColor: colors.surface, borderLeftColor: severityColors[alert.severity as keyof typeof severityColors] }]}>
-      <View style={componentStyles.alertHeader}>
-        <Ionicons name={alertIcons[alert.alertType as keyof typeof alertIcons] || 'alert'} size={20} color={severityColors[alert.severity as keyof typeof severityColors]} />
-        <Text style={[componentStyles.alertFarm, { color: colors.text }]}>
-          {alert.farmName}
-        </Text>
-      </View>
-      <Text style={[componentStyles.alertMessage, { color: colors.textSecondary }]}>
-        {alert.message}
-      </Text>
-    </Card>
-  );
-};
-
 const componentStyles = StyleSheet.create({
-  planificationCard: {
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    marginBottom: SPACING.sm,
-  },
-  planificationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.xs,
-  },
-  statutBadge: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 2,
-    borderRadius: BORDER_RADIUS.sm,
-  },
-  statutText: {
-    fontSize: FONT_SIZES.xs,
-    fontWeight: FONT_WEIGHTS.medium,
-  },
-  planificationDate: {
-    fontSize: FONT_SIZES.xs,
-  },
-  planificationTitle: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semiBold,
-    marginBottom: SPACING.xs,
-  },
-  planificationDescription: {
-    fontSize: FONT_SIZES.sm,
-  },
   consultationCard: {
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
@@ -900,48 +777,6 @@ const componentStyles = StyleSheet.create({
   consultationDiagnostic: {
     fontSize: FONT_SIZES.sm,
   },
-  clientCard: {
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-  },
-  clientHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    marginBottom: SPACING.xs,
-  },
-  clientName: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semiBold,
-  },
-  clientStats: {
-    fontSize: FONT_SIZES.sm,
-    marginBottom: SPACING.xs,
-  },
-  clientLastVisit: {
-    fontSize: FONT_SIZES.xs,
-  },
-  alertCard: {
-    padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderLeftWidth: 4,
-  },
-  alertHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-    marginBottom: SPACING.xs,
-  },
-  alertFarm: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semiBold,
-  },
-  alertMessage: {
-    fontSize: FONT_SIZES.sm,
-  },
 });
 
 export default DashboardVetScreen;
-

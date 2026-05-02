@@ -15,9 +15,12 @@ import { doitGenererAlerte } from '../types/reproduction';
 import { loadStocks } from '../store/slices/stocksSlice';
 import { loadPlanificationsParProjet } from '../store/slices/planificationSlice';
 import { loadSevrages } from '../store/slices/reproductionSlice';
-import { Gestation, Sevrage } from '../types';
+import type { Gestation, Sevrage } from '../types/reproduction';
 import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
 import { AlertePlanningProduction } from '../types/planningProduction';
+import type { StockAliment } from '../types/nutrition';
+import type { Planification } from '../types/planification';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 export interface Alerte {
   id: string;
@@ -32,16 +35,15 @@ export default function AlertesWidget() {
   const { colors } = useTheme();
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const gestations: Gestation[] = useAppSelector(selectAllGestations);
   const sevrages: Sevrage[] = useAppSelector(selectAllSevrages);
-  const { stocks } = useAppSelector((state) => state.stocks);
-  const { planifications } = useAppSelector((state) => state.planification);
-  const {
-    alertes: alertesPlanning,
-    simulationResultat,
-    sailliesPlanifiees,
-  } = useAppSelector((state) => state.planningProduction);
+  const stocks = useAppSelector((state) => state.stocks?.stocks ?? []);
+  const planifications = useAppSelector((state) => state.planification?.planifications ?? []);
+  const alertesPlanning = useAppSelector((state) => state.planningProduction?.alertes);
+  const simulationResultat = useAppSelector((state) => state.planningProduction?.simulationResultat);
+  const sailliesPlanifiees = useAppSelector((state) => state.planningProduction?.sailliesPlanifiees);
   const alertesPlanningTyped: AlertePlanningProduction[] = alertesPlanning || [];
 
   // Charger les données nécessaires
@@ -69,7 +71,7 @@ export default function AlertesWidget() {
 
   // Filtrer les stocks en alerte
   const stocksEnAlerte = useMemo(() => {
-    return stocks.filter((stock) => stock.alerte_active);
+    return stocks.filter((stock: StockAliment) => stock.alerte_active);
   }, [stocksLength, stocks]);
 
   const alertes = useMemo(() => {
@@ -99,7 +101,7 @@ export default function AlertesWidget() {
       });
 
     // 2. Stocks faibles (déjà calculé dans la base de données)
-    stocksEnAlerte.forEach((stock) => {
+    stocksEnAlerte.forEach((stock: StockAliment) => {
       const nomStock = stock.nom || 'Stock';
       const quantiteActuelle = stock.quantite_actuelle?.toFixed(1) || '0';
       const unite = stock.unite || '';
@@ -161,8 +163,8 @@ export default function AlertesWidget() {
 
     // 4. Tâches en retard (calcul local)
     planifications
-      .filter((p) => p.statut === 'a_faire' && p.date_echeance && isPast(parseISO(p.date_echeance)))
-      .forEach((p) => {
+      .filter((p: Planification) => p.statut === 'a_faire' && p.date_echeance && isPast(parseISO(p.date_echeance)))
+      .forEach((p: Planification) => {
         if (!p.date_echeance) return;
         const daysOverdue = differenceInDays(new Date(), parseISO(p.date_echeance));
 
@@ -188,12 +190,12 @@ export default function AlertesWidget() {
     demain.setDate(demain.getDate() + 1);
 
     planifications
-      .filter((p) => {
+      .filter((p: Planification) => {
         if (p.statut !== 'a_faire' || !p.date_echeance) return false;
         const dateEcheance = parseISO(p.date_echeance);
         return dateEcheance >= aujourdhui && dateEcheance < demain;
       })
-      .forEach((p) => {
+      .forEach((p: Planification) => {
         const titreTache = p.titre || 'Tâche sans titre';
         alerts.push({
           id: `planification_today_${p.id}`,
@@ -282,17 +284,17 @@ export default function AlertesWidget() {
         },
       ]}
     >
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>
-            ⚠️ {alertesLength} alerte{alertesLength > 1 ? 's' : ''}
+      <View style={styles.header}>
+        <Text style={[styles.title, { color: colors.text }]}>
+          ⚠️ {alertesLength} alerte{alertesLength > 1 ? 's' : ''}
+        </Text>
+        {alertesLength > 3 && (
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {alertesLength - 3} autre{alertesLength - 3 > 1 ? 's' : ''} non affichée
+            {alertesLength - 3 > 1 ? 's' : ''}
           </Text>
-          {alertesLength > 3 && (
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              {alertesLength - 3} autre{alertesLength - 3 > 1 ? 's' : ''} non affichée
-              {alertesLength - 3 > 1 ? 's' : ''}
-            </Text>
-          )}
-        </View>
+        )}
+      </View>
 
       <ScrollView
         horizontal

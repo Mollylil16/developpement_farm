@@ -1,6 +1,6 @@
 /**
  * Migration 3 : Rendre email et telephone facultatifs (email OU telephone requis)
- * 
+ *
  * Version: 3
  */
 
@@ -86,7 +86,7 @@ export async function makeEmailTelephoneOptional(db: SQLiteDatabase): Promise<vo
     console.log(`📊 [Migration] ${countAfter?.count || 0} utilisateurs actifs après migration`);
 
     if ((countBefore?.count || 0) !== (countAfter?.count || 0)) {
-      console.error('❌ [Migration] ERREUR: Nombre d\'utilisateurs différent après migration!');
+      console.error("❌ [Migration] ERREUR: Nombre d'utilisateurs différent après migration!");
       console.error(`Avant: ${countBefore?.count}, Après: ${countAfter?.count}`);
       throw new Error('Migration users échouée: données manquantes');
     }
@@ -97,4 +97,3 @@ export async function makeEmailTelephoneOptional(db: SQLiteDatabase): Promise<vo
     console.log('✅ [Migration] Table users mise à jour avec succès');
   }
 }
-

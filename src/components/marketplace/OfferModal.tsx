@@ -3,7 +3,7 @@
  * Avec sélection de sujets, proposition de prix, et acceptation des conditions
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,21 +21,28 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { MarketplaceTheme } from '../../styles/marketplace.theme';
 import { SPACING } from '../../constants/theme';
 import SaleTermsDisplay from './SaleTermsDisplay';
 import SubjectCard from './SubjectCard';
 import type { SubjectCard as SubjectCardType } from '../../types/marketplace';
 import { formatPrice, calculateTotalPrice } from '../../services/PricingService';
+import { useAppSelector } from '../../store/hooks';
+import marketplaceService from '../../services/MarketplaceService';
 
 interface OfferModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (data: {
-    subjectIds: string[];
-    proposedPrice: number;
-    message?: string;
-  }, listingId: string) => Promise<void>;
+  onSubmit: (
+    data: {
+      subjectIds: string[];
+      proposedPrice: number;
+      message?: string;
+      dateRecuperationSouhaitee?: string;
+    },
+    listingId: string
+  ) => Promise<void>;
   subjects: SubjectCardType[];
   listingId: string;
   originalPrice: number;
@@ -54,10 +61,17 @@ export default function OfferModal({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [proposedPrice, setProposedPrice] = useState('');
   const [message, setMessage] = useState('');
+  const [dateRecuperationSouhaitee, setDateRecuperationSouhaitee] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  
+  const [acceptedSubjectIds, setAcceptedSubjectIds] = useState<Set<string>>(new Set());
+  const [loadingAcceptedSubjects, setLoadingAcceptedSubjects] = useState(false);
+
+  const { user } = useAppSelector((state) => state.auth ?? { user: null });
+
   // Animation pour le swipe
   const pan = useRef(new Animated.ValueXY()).current;
 
@@ -100,24 +114,77 @@ export default function OfferModal({
     })
   ).current;
 
-  // Reset au montage/démontage
+  // ✅ Ref pour tracker si on a déjà initialisé les sélections
+  const hasInitializedRef = useRef(false);
+
+  // Charger les sujets déjà acceptés quand le modal s'ouvre
+  useEffect(() => {
+    if (visible && user?.id && listingId) {
+      setLoadingAcceptedSubjects(true);
+      marketplaceService
+        .getAcceptedSubjectIds(listingId, user.id)
+        .then((ids) => {
+          setAcceptedSubjectIds(new Set(ids));
+        })
+        .catch((error) => {
+          console.error('Erreur chargement sujets acceptés:', error);
+        })
+        .finally(() => {
+          setLoadingAcceptedSubjects(false);
+        });
+    }
+    // ✅ Reset hasInitializedRef quand le modal se ferme
+    if (!visible) {
+      hasInitializedRef.current = false;
+    }
+  }, [visible, user?.id, listingId]);
+
+  // ✅ Mémoriser les sujets disponibles pour éviter les boucles infinies
+  const availableSubjects = useMemo(
+    () => subjects.filter((s) => !acceptedSubjectIds.has(s.id)),
+    [subjects, acceptedSubjectIds]
+  );
+
+  // Reset et initialisation - UNE SEULE FOIS quand le modal s'ouvre
   useEffect(() => {
     if (!visible) {
+      // Reset complet quand le modal se ferme
       setSelectedIds(new Set());
       setProposedPrice('');
       setMessage('');
+      setDateRecuperationSouhaitee('');
       setTermsAccepted(false);
+      setAcceptedSubjectIds(new Set());
       pan.setValue({ x: 0, y: 0 });
-    } else {
-      // Pré-sélectionner tous les sujets par défaut (ils sont tous disponibles puisqu'ils sont passés)
-      if (subjects.length > 0) {
-        const idsToSelect = subjects.map((s) => s.id);
-        setSelectedIds(new Set(idsToSelect));
-      }
+    } else if (!hasInitializedRef.current && availableSubjects.length > 0) {
+      // ✅ Initialiser UNE SEULE FOIS quand le modal s'ouvre
+      hasInitializedRef.current = true;
+      
+      // Pré-sélectionner tous les sujets disponibles par défaut
+      const idsToSelect = availableSubjects.map((s) => s.id);
+      setSelectedIds(new Set(idsToSelect));
+      
       // Pré-remplir avec le prix original
       setProposedPrice(originalPrice.toString());
+      
+      // Pré-remplir la date de récupération avec 7 jours à partir d'aujourd'hui
+      const defaultDate = new Date();
+      defaultDate.setDate(defaultDate.getDate() + 7);
+      setSelectedDate(defaultDate);
+      setDateRecuperationSouhaitee(defaultDate.toISOString().split('T')[0]);
     }
-  }, [visible, subjects, originalPrice]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, availableSubjects.length, originalPrice]);
+
+  const handleDateChange = (event: any, date?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (date) {
+      setSelectedDate(date);
+      setDateRecuperationSouhaitee(date.toISOString().split('T')[0]);
+    }
+  };
 
   const toggleSelection = (id: string) => {
     const newSelected = new Set(selectedIds);
@@ -130,7 +197,7 @@ export default function OfferModal({
   };
 
   const getSelectedSubjects = () => {
-    return subjects.filter((s) => selectedIds.has(s.id));
+    return availableSubjects.filter((s) => selectedIds.has(s.id));
   };
 
   const getTotalWeight = () => {
@@ -163,6 +230,13 @@ export default function OfferModal({
 
   const handleSubmit = async () => {
     // Validations
+    if (availableSubjects.length === 0) {
+      Alert.alert(
+        'Aucun sujet disponible',
+        'Tous les sujets de cette annonce ont déjà une offre acceptée. Vous ne pouvez pas faire de nouvelle offre.'
+      );
+      return;
+    }
     if (selectedIds.size === 0) {
       Alert.alert('Erreur', 'Veuillez sélectionner au moins un sujet');
       return;
@@ -177,36 +251,60 @@ export default function OfferModal({
     if (!termsAccepted) {
       Alert.alert(
         'Conditions de vente',
-        'Vous devez accepter les conditions de vente pour continuer. Le transport et l\'abattage seront à votre charge.'
+        "Vous devez accepter les conditions de vente pour continuer. Le transport et l'abattage seront à votre charge."
       );
+      return;
+    }
+
+    // Validation de la date de récupération
+    if (!dateRecuperationSouhaitee) {
+      Alert.alert('Erreur', 'Veuillez sélectionner une date de récupération souhaitée');
+      return;
+    }
+
+    const selectedDate = new Date(dateRecuperationSouhaitee);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    selectedDate.setHours(0, 0, 0, 0);
+
+    if (selectedDate < today) {
+      Alert.alert('Erreur', 'La date de récupération doit être supérieure ou égale à aujourd\'hui');
       return;
     }
 
     try {
       setLoading(true);
-      await onSubmit({
-        subjectIds: Array.from(selectedIds),
-        proposedPrice: price,
-        message: message.trim() || undefined,
-      }, listingId);
-      
+      await onSubmit(
+        {
+          subjectIds: Array.from(selectedIds),
+          proposedPrice: price,
+          message: message.trim() || undefined,
+          dateRecuperationSouhaitee: dateRecuperationSouhaitee,
+        },
+        listingId
+      );
+
       Alert.alert(
         'Offre envoyée',
         'Votre offre a été envoyée au producteur. Vous serez notifié de sa réponse.',
         [{ text: 'OK', onPress: onClose }]
       );
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible d\'envoyer l\'offre');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Impossible d'envoyer l'offre";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
   // Vérifier si le bouton doit être activé
-  const isSubmitEnabled = selectedIds.size > 0 && 
-    proposedPrice.trim() !== '' && 
-    !isNaN(parseFloat(proposedPrice)) && 
-    parseFloat(proposedPrice) > 0 && 
+  const isSubmitEnabled =
+    availableSubjects.length > 0 &&
+    selectedIds.size > 0 &&
+    proposedPrice.trim() !== '' &&
+    !isNaN(parseFloat(proposedPrice)) &&
+    parseFloat(proposedPrice) > 0 &&
+    dateRecuperationSouhaitee !== '' &&
     termsAccepted;
 
   return (
@@ -224,7 +322,11 @@ export default function OfferModal({
         <SafeAreaView style={styles.safeArea} edges={['top']}>
           {/* Header fixe */}
           <View style={[styles.header, { backgroundColor: colors.surface }]}>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.closeButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Ionicons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { color: colors.text }]}>Faire une offre</Text>
@@ -244,186 +346,257 @@ export default function OfferModal({
               />
             }
           >
-          {/* Sélection des sujets */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Sujets sélectionnés ({selectedIds.size})
-            </Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
-              Poids total : {getTotalWeight().toFixed(1)} kg
-            </Text>
-
-            <View style={styles.subjectsList} key="subjects-list">
-              {subjects.map((subject) => (
-                <SubjectCard
-                  key={subject.id}
-                  subject={subject}
-                  onPress={() => toggleSelection(subject.id)}
-                  selected={selectedIds.has(subject.id)}
-                  selectable={true}
-                  onSelect={() => toggleSelection(subject.id)}
-                />
-              ))}
-            </View>
-          </View>
-
-          {/* Proposition de prix */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Votre offre</Text>
-            
-            <View style={[styles.priceInputContainer, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>
-                Prix total proposé
+            {/* Sélection des sujets */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Sujets sélectionnés ({selectedIds.size})
               </Text>
-              <View style={styles.priceInputRow}>
-                <TextInput
-                  style={[styles.priceInput, { color: colors.text }]}
-                  placeholder="0"
-                  placeholderTextColor={colors.textSecondary}
-                  keyboardType="numeric"
-                  value={proposedPrice}
-                  onChangeText={setProposedPrice}
+              <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+                Poids total : {getTotalWeight().toFixed(1)} kg
+              </Text>
+
+              {loadingAcceptedSubjects ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                    Chargement des sujets disponibles...
+                  </Text>
+                </View>
+              ) : availableSubjects.length === 0 ? (
+                <View style={[styles.infoBox, { backgroundColor: colors.warning + '20' }]}>
+                  <Ionicons name="information-circle" size={20} color={colors.warning} />
+                  <Text style={[styles.infoText, { color: colors.text }]}>
+                    Tous les sujets de cette annonce ont déjà une offre acceptée. Vous ne pouvez pas faire de nouvelle offre pour ces sujets.
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {acceptedSubjectIds.size > 0 && (
+                    <View style={[styles.infoBox, { backgroundColor: colors.info + '20', marginBottom: SPACING.sm }]}>
+                      <Ionicons name="checkmark-circle" size={20} color={colors.info} />
+                      <Text style={[styles.infoText, { color: colors.text }]}>
+                        {acceptedSubjectIds.size} sujet(s) déjà accepté(s) - non disponible(s) pour une nouvelle offre
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.subjectsList} key="subjects-list">
+                    {availableSubjects.map((subject) => (
+                      <SubjectCard
+                        key={subject.id}
+                        subject={subject}
+                        onPress={() => toggleSelection(subject.id)}
+                        selected={selectedIds.has(subject.id)}
+                        selectable={true}
+                        onSelect={() => toggleSelection(subject.id)}
+                      />
+                    ))}
+                  </View>
+                </>
+              )}
+            </View>
+
+            {/* Proposition de prix */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Votre offre</Text>
+
+              <View style={[styles.priceInputContainer, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>
+                  Prix total proposé
+                </Text>
+                <View style={styles.priceInputRow}>
+                  <TextInput
+                    style={[styles.priceInput, { color: colors.text }]}
+                    placeholder="0"
+                    placeholderTextColor={colors.textSecondary}
+                    keyboardType="numeric"
+                    value={proposedPrice}
+                    onChangeText={setProposedPrice}
+                  />
+                  <Text style={[styles.priceUnit, { color: colors.textSecondary }]}>FCFA</Text>
+                </View>
+              </View>
+
+              {/* Comparaison prix */}
+              <View style={[styles.priceComparison, { backgroundColor: colors.surfaceLight }]}>
+                <View key="price-requested" style={styles.comparisonRow}>
+                  <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
+                    Prix demandé
+                  </Text>
+                  <Text style={[styles.comparisonValue, { color: colors.text }]}>
+                    {formatPrice(originalPrice)}
+                  </Text>
+                </View>
+                <View key="price-offered" style={styles.comparisonRow}>
+                  <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
+                    Votre offre
+                  </Text>
+                  <Text style={[styles.comparisonValue, { color: colors.primary }]}>
+                    {formatPrice(getCalculatedTotal())}
+                  </Text>
+                </View>
+                <View
+                  key="price-divider"
+                  style={[styles.divider, { backgroundColor: colors.divider }]}
                 />
-                <Text style={[styles.priceUnit, { color: colors.textSecondary }]}>FCFA</Text>
+                <View key="price-difference" style={styles.comparisonRow}>
+                  <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
+                    Différence
+                  </Text>
+                  <Text
+                    style={[
+                      styles.comparisonValue,
+                      {
+                        color:
+                          getDifference() >= 0
+                            ? colors.success
+                            : getDifference() > -originalPrice * 0.1
+                              ? colors.warning
+                              : colors.error,
+                        fontWeight: typography.fontWeights.bold,
+                      },
+                    ]}
+                  >
+                    {getDifference() >= 0 ? '+' : ''}
+                    {formatPrice(getDifference())} ({getDifferencePercent()}%)
+                  </Text>
+                </View>
               </View>
             </View>
 
-            {/* Comparaison prix */}
-            <View style={[styles.priceComparison, { backgroundColor: colors.surfaceLight }]}>
-              <View key="price-requested" style={styles.comparisonRow}>
-                <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
-                  Prix demandé
+            {/* Date de récupération souhaitée */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Date de récupération souhaitée *
+              </Text>
+              <TouchableOpacity
+                style={[styles.datePickerButton, { backgroundColor: colors.surface }]}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+                <Text style={[styles.datePickerText, { color: colors.text }]}>
+                  {dateRecuperationSouhaitee
+                    ? new Date(dateRecuperationSouhaitee).toLocaleDateString('fr-FR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                      })
+                    : 'Sélectionner une date'}
                 </Text>
-                <Text style={[styles.comparisonValue, { color: colors.text }]}>
-                  {formatPrice(originalPrice)}
-                </Text>
-              </View>
-              <View key="price-offered" style={styles.comparisonRow}>
-                <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
-                  Votre offre
-                </Text>
-                <Text style={[styles.comparisonValue, { color: colors.primary }]}>
-                  {formatPrice(getCalculatedTotal())}
-                </Text>
-              </View>
-              <View key="price-divider" style={[styles.divider, { backgroundColor: colors.divider }]} />
-              <View key="price-difference" style={styles.comparisonRow}>
-                <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
-                  Différence
-                </Text>
-                <Text
+              </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={selectedDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={handleDateChange}
+                  minimumDate={new Date()} // Date minimum : aujourd'hui
+                  locale="fr-FR"
+                />
+              )}
+              {Platform.OS === 'ios' && showDatePicker && (
+                <TouchableOpacity
+                  style={[styles.confirmDateButton, { backgroundColor: colors.primary }]}
+                  onPress={() => setShowDatePicker(false)}
+                >
+                  <Text style={[styles.confirmDateText, { color: colors.textInverse }]}>
+                    Confirmer
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Message optionnel */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Message (optionnel)</Text>
+              <TextInput
+                style={[
+                  styles.messageInput,
+                  { backgroundColor: colors.surface, color: colors.text },
+                ]}
+                placeholder="Ajoutez un message pour le producteur..."
+                placeholderTextColor={colors.textSecondary}
+                value={message}
+                onChangeText={setMessage}
+                multiline
+                numberOfLines={4}
+                maxLength={500}
+                textAlignVertical="top"
+              />
+              <Text style={[styles.characterCount, { color: colors.textSecondary }]}>
+                {message.length}/500
+              </Text>
+            </View>
+
+            {/* Conditions de vente */}
+            <View style={styles.section}>
+              <SaleTermsDisplay expandable={true} />
+
+              {/* Checkbox acceptation */}
+              <TouchableOpacity
+                style={styles.termsCheckbox}
+                onPress={() => setTermsAccepted(!termsAccepted)}
+                activeOpacity={0.7}
+              >
+                <View
                   style={[
-                    styles.comparisonValue,
+                    styles.checkbox,
                     {
-                      color:
-                        getDifference() >= 0
-                          ? colors.success
-                          : getDifference() > -originalPrice * 0.1
-                          ? colors.warning
-                          : colors.error,
-                      fontWeight: typography.fontWeights.bold,
+                      borderColor: termsAccepted ? colors.primary : colors.border,
+                      backgroundColor: termsAccepted ? colors.primary : 'transparent',
                     },
                   ]}
                 >
-                  {getDifference() >= 0 ? '+' : ''}
-                  {formatPrice(getDifference())} ({getDifferencePercent()}%)
+                  {termsAccepted && (
+                    <Ionicons name="checkmark" size={16} color={colors.textInverse} />
+                  )}
+                </View>
+                <Text style={[styles.termsCheckboxText, { color: colors.text }]}>
+                  J'accepte les conditions de vente (transport et abattage à ma charge)
                 </Text>
-              </View>
+              </TouchableOpacity>
+
+              {!termsAccepted && (
+                <View
+                  key="warning-box"
+                  style={[styles.warningBox, { backgroundColor: colors.warning + '15' }]}
+                >
+                  <Ionicons name="warning" size={16} color={colors.warning} />
+                  <Text style={[styles.warningText, { color: colors.warning }]}>
+                    Vous devez accepter les conditions pour continuer
+                  </Text>
+                </View>
+              )}
             </View>
-          </View>
+          </ScrollView>
 
-          {/* Message optionnel */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Message (optionnel)
-            </Text>
-            <TextInput
-              style={[
-                styles.messageInput,
-                { backgroundColor: colors.surface, color: colors.text },
-              ]}
-              placeholder="Ajoutez un message pour le producteur..."
-              placeholderTextColor={colors.textSecondary}
-              value={message}
-              onChangeText={setMessage}
-              multiline
-              numberOfLines={4}
-              maxLength={500}
-              textAlignVertical="top"
-            />
-            <Text style={[styles.characterCount, { color: colors.textSecondary }]}>
-              {message.length}/500
-            </Text>
-          </View>
-
-          {/* Conditions de vente */}
-          <View style={styles.section}>
-            <SaleTermsDisplay expandable={true} />
-            
-            {/* Checkbox acceptation */}
+          {/* Footer fixe */}
+          <View style={[styles.footer, { backgroundColor: colors.surface }]}>
             <TouchableOpacity
-              style={styles.termsCheckbox}
-              onPress={() => setTermsAccepted(!termsAccepted)}
-              activeOpacity={0.7}
+              style={[styles.cancelButton, { borderColor: colors.border }]}
+              onPress={onClose}
             >
-              <View
-                style={[
-                  styles.checkbox,
-                  {
-                    borderColor: termsAccepted ? colors.primary : colors.border,
-                    backgroundColor: termsAccepted ? colors.primary : 'transparent',
-                  },
-                ]}
-              >
-                {termsAccepted && (
-                  <Ionicons name="checkmark" size={16} color={colors.textInverse} />
-                )}
-              </View>
-              <Text style={[styles.termsCheckboxText, { color: colors.text }]}>
-                J'accepte les conditions de vente (transport et abattage à ma charge)
-              </Text>
+              <Text style={[styles.cancelButtonText, { color: colors.text }]}>Annuler</Text>
             </TouchableOpacity>
 
-            {!termsAccepted && (
-              <View key="warning-box" style={[styles.warningBox, { backgroundColor: colors.warning + '15' }]}>
-                <Ionicons name="warning" size={16} color={colors.warning} />
-                <Text style={[styles.warningText, { color: colors.warning }]}>
-                  Vous devez accepter les conditions pour continuer
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                {
+                  backgroundColor: isSubmitEnabled ? colors.primary : colors.textLight,
+                  opacity: isSubmitEnabled ? 1 : 0.5,
+                },
+              ]}
+              onPress={handleSubmit}
+              disabled={loading || !isSubmitEnabled}
+            >
+              {loading ? (
+                <ActivityIndicator color={colors.textInverse} />
+              ) : (
+                <Text style={[styles.submitButtonText, { color: colors.textInverse }]}>
+                  Envoyer l'offre
                 </Text>
-              </View>
-            )}
+              )}
+            </TouchableOpacity>
           </View>
-        </ScrollView>
-
-        {/* Footer fixe */}
-        <View style={[styles.footer, { backgroundColor: colors.surface }]}>
-          <TouchableOpacity
-            style={[styles.cancelButton, { borderColor: colors.border }]}
-            onPress={onClose}
-          >
-            <Text style={[styles.cancelButtonText, { color: colors.text }]}>Annuler</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.submitButton,
-              {
-                backgroundColor: isSubmitEnabled ? colors.primary : colors.textLight,
-                opacity: isSubmitEnabled ? 1 : 0.5,
-              },
-            ]}
-            onPress={handleSubmit}
-            disabled={loading || !isSubmitEnabled}
-          >
-            {loading ? (
-              <ActivityIndicator color={colors.textInverse} />
-            ) : (
-              <Text style={[styles.submitButtonText, { color: colors.textInverse }]}>
-                Envoyer l'offre
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
         </SafeAreaView>
       </Animated.View>
     </Modal>
@@ -570,6 +743,50 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: MarketplaceTheme.typography.fontSizes.xs,
   },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: MarketplaceTheme.spacing.sm,
+    padding: MarketplaceTheme.spacing.md,
+    borderRadius: MarketplaceTheme.borderRadius.md,
+    marginBottom: MarketplaceTheme.spacing.sm,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: MarketplaceTheme.typography.fontSizes.sm,
+    lineHeight: 20,
+  },
+  loadingContainer: {
+    padding: MarketplaceTheme.spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: MarketplaceTheme.typography.fontSizes.sm,
+    marginTop: MarketplaceTheme.spacing.sm,
+  },
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: MarketplaceTheme.spacing.md,
+    borderRadius: MarketplaceTheme.borderRadius.md,
+    gap: MarketplaceTheme.spacing.sm,
+    ...MarketplaceTheme.shadows.small,
+  },
+  datePickerText: {
+    flex: 1,
+    fontSize: MarketplaceTheme.typography.fontSizes.md,
+  },
+  confirmDateButton: {
+    marginTop: MarketplaceTheme.spacing.sm,
+    padding: MarketplaceTheme.spacing.md,
+    borderRadius: MarketplaceTheme.borderRadius.md,
+    alignItems: 'center',
+  },
+  confirmDateText: {
+    fontSize: MarketplaceTheme.typography.fontSizes.md,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+  },
   footer: {
     flexDirection: 'row',
     gap: MarketplaceTheme.spacing.sm,
@@ -604,4 +821,3 @@ const styles = StyleSheet.create({
     fontWeight: MarketplaceTheme.typography.fontWeights.bold,
   },
 });
-

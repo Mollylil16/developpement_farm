@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch } from '../../../store/hooks';
-import { signOut } from '../../../store/slices/authSlice';
+import { signOut, deleteAccount } from '../../../store/slices/authSlice';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../../../constants/theme';
 import ChangeEmailModal from './modals/ChangeEmailModal';
@@ -33,6 +33,29 @@ export default function SettingsAccountView({ onBack }: SettingsAccountViewProps
         },
       },
     ]);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Supprimer définitivement votre compte ?',
+      'Toutes vos données seront supprimées de façon irréversible. Vous pourrez recréer un compte plus tard, mais sans récupérer les anciennes données.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer mon compte',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(deleteAccount()).unwrap();
+              // La navigation sera gérée automatiquement par AppNavigator après suppression
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : 'Échec de la suppression, réessayez.';
+              Alert.alert('Erreur', errorMessage);
+            }
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -69,7 +92,7 @@ export default function SettingsAccountView({ onBack }: SettingsAccountViewProps
           onPress={() => {
             Alert.alert(
               'Gérer authentification',
-              'Les méthodes d\'authentification disponibles sont gérées lors de la connexion. Vous pouvez vous connecter avec email/mot de passe, Google, Apple ou téléphone.',
+              "Les méthodes d'authentification disponibles sont gérées lors de la connexion. Vous pouvez vous connecter avec email/mot de passe, Google, Apple ou téléphone.",
               [{ text: 'OK' }]
             );
           }}
@@ -121,6 +144,30 @@ export default function SettingsAccountView({ onBack }: SettingsAccountViewProps
             <Text style={[styles.actionCardArrow, { color: colors.error }]}>›</Text>
           </View>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.actionCard,
+            { 
+              backgroundColor: colors.surface, 
+              borderColor: colors.border, 
+              ...colors.shadow.small,
+              marginTop: 12,
+            },
+          ]}
+          onPress={handleDeleteAccount}
+          activeOpacity={0.7}
+        >
+          <View style={styles.actionCardContent}>
+            <Text style={[styles.actionCardTitle, { color: '#FF3B30' }]}>Supprimer mon compte</Text>
+            <Text style={[styles.actionCardDescription, { color: colors.textSecondary }]}>
+              Suppression définitive de toutes vos données
+            </Text>
+          </View>
+          <View style={[styles.actionCardArrowContainer, { backgroundColor: '#FF3B30' + '10' }]}>
+            <Text style={[styles.actionCardArrow, { color: '#FF3B30' }]}>›</Text>
+          </View>
+        </TouchableOpacity>
       </View>
 
       {/* Section Gestion des données */}
@@ -142,8 +189,9 @@ export default function SettingsAccountView({ onBack }: SettingsAccountViewProps
                   onPress: async () => {
                     try {
                       Alert.alert('Information', 'Le cache a été vidé');
-                    } catch (error: any) {
-                      Alert.alert('Erreur', error.message || 'Erreur lors du vidage du cache');
+                    } catch (error: unknown) {
+                      const errorMessage = error instanceof Error ? error.message : 'Erreur lors du vidage du cache';
+                      Alert.alert('Erreur', errorMessage);
                     }
                   },
                 },
@@ -189,8 +237,9 @@ export default function SettingsAccountView({ onBack }: SettingsAccountViewProps
                         'Information',
                         "La réinitialisation complète de la base de données n'est pas encore implémentée. Pour réinitialiser, supprimez et réinstallez l'application."
                       );
-                    } catch (error: any) {
-                      Alert.alert('Erreur', error.message || 'Erreur lors de la réinitialisation');
+                    } catch (error: unknown) {
+                      const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la réinitialisation';
+                      Alert.alert('Erreur', errorMessage);
                     }
                   },
                 },
@@ -356,4 +405,3 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
 });
-

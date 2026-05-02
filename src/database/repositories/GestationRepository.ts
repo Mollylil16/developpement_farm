@@ -1,119 +1,72 @@
 /**
  * GestationRepository - Gestion des gestations
- * 
+ *
  * Responsabilités:
  * - CRUD des gestations
  * - Suivi des saillies et mises bas
  * - Alertes de mise bas imminente
  * - Statistiques de reproduction
+ * 
+ * Utilise maintenant l'API REST du backend (PostgreSQL)
  */
 
-import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
 import { Gestation } from '../../types/reproduction';
 import { ProductionAnimal } from '../../types/production';
-import uuid from 'react-native-uuid';
-import { addDays, differenceInDays, parseISO } from 'date-fns';
+import { addDays } from 'date-fns';
 import { AnimalRepository } from './AnimalRepository';
 import { genererPlusieursNomsAleatoires } from '../../utils/nameGenerator';
 
 export class GestationRepository extends BaseRepository<Gestation> {
-  constructor(db: SQLite.SQLiteDatabase) {
-    super(db, 'gestations');
+  constructor() {
+    super('gestations', '/reproduction/gestations');
   }
 
   /**
    * Créer une nouvelle gestation
    */
   async create(data: Partial<Gestation>): Promise<Gestation> {
-    const id = uuid.v4().toString();
-    const now = new Date().toISOString();
-
-    // Calculer la date de mise bas prévue (114 jours après saillie)
-    const dateSautage = data.date_sautage || now;
+    const dateSautage = data.date_sautage || new Date().toISOString();
     const dateMiseBasPrevue = addDays(new Date(dateSautage), 114).toISOString();
 
-    await this.execute(
-      `INSERT INTO gestations (
-        id, projet_id, truie_id, verrat_id, date_sautage,
-        date_mise_bas_prevue, statut, nombre_porcelets_prevu,
-        notes, date_creation, derniere_modification
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        data.projet_id,
-        data.truie_id,
-        data.verrat_id || null,
-        dateSautage,
-        dateMiseBasPrevue,
-        data.statut || 'en_cours',
-        data.nombre_porcelets_prevu || null,
-        data.notes || null,
-        now,
-        now,
-      ]
-    );
+    const gestationData = {
+      projet_id: data.projet_id,
+      truie_id: data.truie_id,
+      verrat_id: data.verrat_id || null,
+      date_sautage: dateSautage,
+      date_mise_bas_prevue: dateMiseBasPrevue,
+      statut: data.statut || 'en_cours',
+      nombre_porcelets_prevu: data.nombre_porcelets_prevu || null,
+      notes: data.notes || null,
+    };
 
-    const created = await this.findById(id);
-    if (!created) {
-      throw new Error('Impossible de créer la gestation');
-    }
-    return created;
+    return this.executePost<Gestation>('/reproduction/gestations', gestationData);
   }
 
   /**
    * Mettre à jour une gestation
    */
   async update(id: string, data: Partial<Gestation>): Promise<Gestation> {
-    const now = new Date().toISOString();
-    const fields: string[] = [];
-    const values: any[] = [];
+    const updateData: Record<string, unknown> = {};
 
-    if (data.verrat_id !== undefined) {
-      fields.push('verrat_id = ?');
-      values.push(data.verrat_id);
-    }
+    if (data.verrat_id !== undefined) updateData.verrat_id = data.verrat_id;
     if (data.date_sautage !== undefined) {
-      fields.push('date_sautage = ?');
-      values.push(data.date_sautage);
-      // Recalculer date_mise_bas_prevue
-      fields.push('date_mise_bas_prevue = ?');
-      values.push(addDays(new Date(data.date_sautage), 114).toISOString());
+      updateData.date_sautage = data.date_sautage;
+      updateData.date_mise_bas_prevue = addDays(new Date(data.date_sautage), 114).toISOString();
     }
-    if (data.date_mise_bas_reelle !== undefined) {
-      fields.push('date_mise_bas_reelle = ?');
-      values.push(data.date_mise_bas_reelle);
-    }
-    if (data.statut !== undefined) {
-      fields.push('statut = ?');
-      values.push(data.statut);
-    }
-    if (data.nombre_porcelets_prevu !== undefined) {
-      fields.push('nombre_porcelets_prevu = ?');
-      values.push(data.nombre_porcelets_prevu);
-    }
-    if (data.nombre_porcelets_reel !== undefined) {
-      fields.push('nombre_porcelets_reel = ?');
-      values.push(data.nombre_porcelets_reel);
-    }
-    if (data.notes !== undefined) {
-      fields.push('notes = ?');
-      values.push(data.notes);
+    if (data.date_mise_bas_reelle !== undefined) updateData.date_mise_bas_reelle = data.date_mise_bas_reelle;
+    if (data.statut !== undefined) updateData.statut = data.statut;
+    if (data.nombre_porcelets_prevu !== undefined) updateData.nombre_porcelets_prevu = data.nombre_porcelets_prevu;
+    if (data.nombre_porcelets_reel !== undefined) updateData.nombre_porcelets_reel = data.nombre_porcelets_reel;
+    if (data.notes !== undefined) updateData.notes = data.notes;
+
+    const updated = await this.executePatch<Gestation>(`/reproduction/gestations/${id}`, updateData);
+    
+    // Si la gestation est terminée, créer les porcelets
+    if (updated.statut === 'terminee' && updated.nombre_porcelets_reel) {
+      await this.creerPorceletsDepuisGestation(updated);
     }
 
-    fields.push('derniere_modification = ?');
-    values.push(now);
-    values.push(id);
-
-    await this.execute(
-      `UPDATE gestations SET ${fields.join(', ')} WHERE id = ?`,
-      values
-    );
-
-    const updated = await this.findById(id);
-    if (!updated) {
-      throw new Error('Gestation introuvable après mise à jour');
-    }
     return updated;
   }
 
@@ -121,55 +74,61 @@ export class GestationRepository extends BaseRepository<Gestation> {
    * Récupérer les gestations en cours d'un projet
    */
   async findEnCoursByProjet(projetId: string): Promise<Gestation[]> {
-    return this.query<Gestation>(
-      `SELECT * FROM gestations 
-       WHERE projet_id = ? AND statut = 'en_cours'
-       ORDER BY date_mise_bas_prevue ASC`,
-      [projetId]
-    );
+    try {
+      return this.query<Gestation>('/reproduction/gestations', {
+        projet_id: projetId,
+        en_cours: true,
+      });
+    } catch (error) {
+      console.error('Error finding gestations en cours:', error);
+      return [];
+    }
   }
 
   /**
    * Récupérer les gestations par truie
    */
   async findByTruie(truieId: string): Promise<Gestation[]> {
-    return this.query<Gestation>(
-      `SELECT * FROM gestations 
-       WHERE truie_id = ?
-       ORDER BY date_sautage DESC`,
-      [truieId]
-    );
+    try {
+      const gestations = await this.query<Gestation>('/reproduction/gestations', {});
+      return gestations.filter(g => g.truie_id === truieId)
+        .sort((a, b) => new Date(b.date_sautage).getTime() - new Date(a.date_sautage).getTime());
+    } catch (error) {
+      console.error('Error finding gestations by truie:', error);
+      return [];
+    }
   }
 
   /**
    * Récupérer la gestation en cours d'une truie
    */
   async findGestationEnCoursForTruie(truieId: string): Promise<Gestation | null> {
-    return this.queryOne<Gestation>(
-      `SELECT * FROM gestations 
-       WHERE truie_id = ? AND statut = 'en_cours'
-       ORDER BY date_sautage DESC
-       LIMIT 1`,
-      [truieId]
-    );
+    try {
+      const gestations = await this.findByTruie(truieId);
+      return gestations.find(g => g.statut === 'en_cours') || null;
+    } catch (error) {
+      console.error('Error finding gestation en cours for truie:', error);
+      return null;
+    }
   }
 
   /**
    * Récupérer les gestations nécessitant une alerte (mise bas imminente)
    */
   async findGestationsAvecAlerte(projetId: string, joursAvant: number = 7): Promise<Gestation[]> {
-    const dateAujourdhui = new Date().toISOString();
-    const dateLimite = addDays(new Date(), joursAvant).toISOString();
+    try {
+      const gestations = await this.findEnCoursByProjet(projetId);
+      const dateLimite = addDays(new Date(), joursAvant).toISOString();
+      const aujourdhui = new Date().toISOString();
 
-    return this.query<Gestation>(
-      `SELECT * FROM gestations 
-       WHERE projet_id = ? 
-       AND statut = 'en_cours'
-       AND date_mise_bas_prevue >= ?
-       AND date_mise_bas_prevue <= ?
-       ORDER BY date_mise_bas_prevue ASC`,
-      [projetId, dateAujourdhui, dateLimite]
-    );
+      return gestations.filter(g => {
+        const dateMiseBas = g.date_mise_bas_prevue;
+        return dateMiseBas >= aujourdhui && dateMiseBas <= dateLimite;
+      }).sort((a, b) => new Date(a.date_mise_bas_prevue).getTime() - new Date(b.date_mise_bas_prevue).getTime());
+    } catch (error) {
+      console.error('Error finding gestations avec alerte:', error);
+      return [];
+    }
   }
 
   /**
@@ -209,72 +168,95 @@ export class GestationRepository extends BaseRepository<Gestation> {
     moyennePorcelets: number;
     tauxReussite: number;
   }> {
-    const stats = await this.queryOne<any>(
-      `SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN statut = 'en_cours' THEN 1 ELSE 0 END) as enCours,
-        SUM(CASE WHEN statut = 'terminee' THEN 1 ELSE 0 END) as terminees,
-        SUM(CASE WHEN statut = 'annulee' THEN 1 ELSE 0 END) as annulees,
-        AVG(CASE WHEN statut = 'terminee' AND nombre_porcelets_reel IS NOT NULL 
-            THEN nombre_porcelets_reel ELSE NULL END) as moyennePorcelets
-       FROM gestations
-       WHERE projet_id = ?`,
-      [projetId]
-    );
+    try {
+      // Utiliser l'endpoint backend si disponible
+      const result = await this.queryOne<{
+        total: number;
+        en_cours: number;
+        terminees: number;
+        annulees: number;
+        moyenne_porcelets: number;
+        taux_reussite: number;
+      }>(`/reproduction/stats/gestations`, { projet_id: projetId });
 
-    const total = stats?.total || 0;
-    const terminees = stats?.terminees || 0;
-    const tauxReussite = total > 0 ? (terminees / total) * 100 : 0;
+      if (result) {
+        return {
+          total: result.total,
+          enCours: result.en_cours,
+          terminees: result.terminees,
+          annulees: result.annulees,
+          moyennePorcelets: result.moyenne_porcelets || 0,
+          tauxReussite: result.taux_reussite || 0,
+        };
+      }
 
-    return {
-      total,
-      enCours: stats?.enCours || 0,
-      terminees,
-      annulees: stats?.annulees || 0,
-      moyennePorcelets: stats?.moyennePorcelets || 0,
-      tauxReussite,
-    };
+      // Fallback: calculer côté client
+      const gestations = await this.query<Gestation>('/reproduction/gestations', { projet_id: projetId });
+      
+      const total = gestations.length;
+      const enCours = gestations.filter(g => g.statut === 'en_cours').length;
+      const terminees = gestations.filter(g => g.statut === 'terminee').length;
+      const annulees = gestations.filter(g => g.statut === 'annulee').length;
+      
+      const gestationsTerminees = gestations.filter(g => g.statut === 'terminee' && g.nombre_porcelets_reel);
+      const moyennePorcelets = gestationsTerminees.length > 0
+        ? gestationsTerminees.reduce((sum, g) => sum + (g.nombre_porcelets_reel || 0), 0) / gestationsTerminees.length
+        : 0;
+      
+      const tauxReussite = total > 0 ? (terminees / total) * 100 : 0;
+
+      return {
+        total,
+        enCours,
+        terminees,
+        annulees,
+        moyennePorcelets,
+        tauxReussite,
+      };
+    } catch (error) {
+      console.error('Error getting stats:', error);
+      return {
+        total: 0,
+        enCours: 0,
+        terminees: 0,
+        annulees: 0,
+        moyennePorcelets: 0,
+        tauxReussite: 0,
+      };
+    }
   }
 
   /**
    * Récupérer les gestations par période
    */
-  async findByPeriod(
-    projetId: string,
-    dateDebut: string,
-    dateFin: string
-  ): Promise<Gestation[]> {
-    return this.query<Gestation>(
-      `SELECT * FROM gestations 
-       WHERE projet_id = ? 
-       AND date_sautage >= ? 
-       AND date_sautage <= ?
-       ORDER BY date_sautage DESC`,
-      [projetId, dateDebut, dateFin]
-    );
+  async findByPeriod(projetId: string, dateDebut: string, dateFin: string): Promise<Gestation[]> {
+    try {
+      const gestations = await this.query<Gestation>('/reproduction/gestations', { projet_id: projetId });
+      return gestations.filter(g => g.date_sautage >= dateDebut && g.date_sautage <= dateFin)
+        .sort((a, b) => new Date(b.date_sautage).getTime() - new Date(a.date_sautage).getTime());
+    } catch (error) {
+      console.error('Error finding gestations by period:', error);
+      return [];
+    }
   }
 
   /**
    * Vérifier si une truie a déjà une gestation en cours
    */
   async truieAGestationEnCours(truieId: string): Promise<boolean> {
-    const result = await this.queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM gestations 
-       WHERE truie_id = ? AND statut = 'en_cours'`,
-      [truieId]
-    );
-    return (result?.count || 0) > 0;
+    try {
+      const gestation = await this.findGestationEnCoursForTruie(truieId);
+      return gestation !== null;
+    } catch (error) {
+      console.error('Error checking gestation en cours:', error);
+      return false;
+    }
   }
 
   /**
    * Créer automatiquement les porcelets dans la table production_animaux
-   * lorsqu'une gestation est terminée
-   * 
-   * Cette méthode est appelée automatiquement lors de la mise à jour d'une gestation
-   * pour créer les porcelets correspondants dans le cheptel.
    */
   async creerPorceletsDepuisGestation(gestation: Gestation): Promise<ProductionAnimal[]> {
-    // Vérifier que la gestation est bien terminée
     if (
       gestation.statut !== 'terminee' ||
       !gestation.nombre_porcelets_reel ||
@@ -283,66 +265,56 @@ export class GestationRepository extends BaseRepository<Gestation> {
       return [];
     }
 
-    const animalRepo = new AnimalRepository(this.db);
+    const animalRepo = new AnimalRepository();
     const dateMiseBas = gestation.date_mise_bas_reelle || gestation.date_mise_bas_prevue;
 
-    // Vérifier si les porcelets n'ont pas déjà été créés pour cette gestation
-    const porceletsExistants = await animalRepo.query<ProductionAnimal>(
-      `SELECT * FROM production_animaux 
-       WHERE projet_id = ? 
-       AND mere_id = ? 
-       AND date_naissance = ? 
-       AND reproducteur = 0`,
-      [gestation.projet_id, gestation.truie_id, dateMiseBas]
+    // Vérifier si les porcelets n'ont pas déjà été créés
+    const animauxProjet = await animalRepo.findByProjet(gestation.projet_id);
+    const porceletsExistants = animauxProjet.filter(
+      a => a.mere_id === gestation.truie_id && a.date_naissance === dateMiseBas && !a.reproducteur
     );
 
-    if (porceletsExistants && porceletsExistants.length > 0) {
+    if (porceletsExistants.length > 0) {
       console.log(`Les porcelets pour la gestation ${gestation.id} ont déjà été créés.`);
       return porceletsExistants;
     }
 
-    // Récupérer tous les animaux du projet pour générer des codes uniques
-    const animauxExistants = await animalRepo.findByProjet(gestation.projet_id);
-
-    // Trouver les vrais IDs des parents dans production_animaux
-    // truie_id et verrat_id dans gestations peuvent être des codes ou des IDs
+    // Trouver les IDs réels des parents
     let mereIdReel: string | null = null;
     let pereIdReel: string | null = null;
 
-    // Chercher la truie par ID ou par code
-    const truieTrouvee = animauxExistants.find(
-      (a) => a.id === gestation.truie_id || a.code === gestation.truie_id
+    const truieTrouvee = animauxProjet.find(
+      a => a.id === gestation.truie_id || a.code === gestation.truie_id
     );
     if (truieTrouvee) {
       mereIdReel = truieTrouvee.id;
     }
 
-    // Chercher le verrat par ID ou par code (si renseigné)
     if (gestation.verrat_id) {
-      const verratTrouve = animauxExistants.find(
-        (a) => a.id === gestation.verrat_id || a.code === gestation.verrat_id
+      const verratTrouve = animauxProjet.find(
+        a => a.id === gestation.verrat_id || a.code === gestation.verrat_id
       );
       if (verratTrouve) {
         pereIdReel = verratTrouve.id;
       }
     }
 
-    // Trouver le prochain numéro de porcelet disponible
-    const codesPorcelets = animauxExistants
-      .map((a) => a.code)
-      .filter((code) => code.startsWith('P'))
-      .map((code) => {
+    // Trouver le prochain numéro de porcelet
+    const codesPorcelets = animauxProjet
+      .map(a => a.code)
+      .filter(code => code.startsWith('P'))
+      .map(code => {
         const match = code.match(/P(\d+)/);
         return match ? parseInt(match[1], 10) : 0;
       })
-      .filter((num) => !isNaN(num));
+      .filter(num => !isNaN(num));
 
     const maxNumero = codesPorcelets.length > 0 ? Math.max(...codesPorcelets) : 0;
     let prochainNumero = maxNumero + 1;
 
-    // Générer des noms uniques et aléatoires pour les porcelets
-    const nomsDejaUtilises = animauxExistants
-      .map((a) => a.nom)
+    // Générer des noms uniques
+    const nomsDejaUtilises = animauxProjet
+      .map(a => a.nom)
       .filter((nom): nom is string => nom !== undefined && nom !== null && nom !== '');
 
     const nombrePorcelets = gestation.nombre_porcelets_reel;
@@ -350,7 +322,7 @@ export class GestationRepository extends BaseRepository<Gestation> {
       nombrePorcelets,
       nomsDejaUtilises,
       'tous',
-      'indetermine' // Les porcelets ont un sexe indéterminé à la naissance
+      'indetermine'
     );
 
     // Créer les porcelets
@@ -375,14 +347,13 @@ export class GestationRepository extends BaseRepository<Gestation> {
           reproducteur: false,
           pere_id: pereIdReel,
           mere_id: mereIdReel,
-          notes: `Né de la gestation ${gestation.truie_nom || gestation.truie_id}${gestation.verrat_nom ? ` x ${gestation.verrat_nom}` : ''}`,
+          notes: `Né de la gestation ${gestation.truie_id}`,
         });
 
         porceletsCreees.push(porcelet);
         prochainNumero++;
       } catch (error) {
         console.error(`Erreur lors de la création du porcelet ${codePorcelet}:`, error);
-        // Continuer avec les autres porcelets même en cas d'erreur
       }
     }
 
@@ -403,26 +374,37 @@ export class GestationRepository extends BaseRepository<Gestation> {
     totalPorcelets: number;
     moyennePorceletsParPortee: number;
   }> {
-    const stats = await this.queryOne<any>(
-      `SELECT 
-        COUNT(*) as nombreGestations,
-        SUM(CASE WHEN statut = 'terminee' THEN 1 ELSE 0 END) as nombreReussies,
-        SUM(CASE WHEN statut = 'annulee' THEN 1 ELSE 0 END) as nombreAnnulees,
-        SUM(CASE WHEN statut = 'terminee' AND nombre_porcelets_reel IS NOT NULL 
-            THEN nombre_porcelets_reel ELSE 0 END) as totalPorcelets,
-        AVG(CASE WHEN statut = 'terminee' AND nombre_porcelets_reel IS NOT NULL 
-            THEN nombre_porcelets_reel ELSE NULL END) as moyennePorceletsParPortee
-       FROM gestations
-       WHERE truie_id = ?`,
-      [truieId]
-    );
+    try {
+      const gestations = await this.findByTruie(truieId);
+      
+      const nombreGestations = gestations.length;
+      const nombreReussies = gestations.filter(g => g.statut === 'terminee').length;
+      const nombreAnnulees = gestations.filter(g => g.statut === 'annulee').length;
+      const totalPorcelets = gestations
+        .filter(g => g.statut === 'terminee' && g.nombre_porcelets_reel)
+        .reduce((sum, g) => sum + (g.nombre_porcelets_reel || 0), 0);
+      
+      const gestationsReussies = gestations.filter(g => g.statut === 'terminee' && g.nombre_porcelets_reel);
+      const moyennePorceletsParPortee = gestationsReussies.length > 0
+        ? totalPorcelets / gestationsReussies.length
+        : 0;
 
-    return {
-      nombreGestations: stats?.nombreGestations || 0,
-      nombreReussies: stats?.nombreReussies || 0,
-      nombreAnnulees: stats?.nombreAnnulees || 0,
-      totalPorcelets: stats?.totalPorcelets || 0,
-      moyennePorceletsParPortee: stats?.moyennePorceletsParPortee || 0,
-    };
+      return {
+        nombreGestations,
+        nombreReussies,
+        nombreAnnulees,
+        totalPorcelets,
+        moyennePorceletsParPortee,
+      };
+    } catch (error) {
+      console.error('Error getting historique reproduction:', error);
+      return {
+        nombreGestations: 0,
+        nombreReussies: 0,
+        nombreAnnulees: 0,
+        totalPorcelets: 0,
+        moyennePorceletsParPortee: 0,
+      };
+    }
   }
 }

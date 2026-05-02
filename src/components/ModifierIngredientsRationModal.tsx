@@ -58,7 +58,7 @@ export default function ModifierIngredientsRationModal({
   // Calculer les pourcentages automatiquement à partir des quantités
   const ingredientsAvecPourcentages = useMemo(() => {
     if (totalQuantiteKg === 0) return ingredientsModifies;
-    
+
     return ingredientsModifies.map((ing) => ({
       ...ing,
       pourcentage: (ing.quantite_kg / totalQuantiteKg) * 100,
@@ -77,7 +77,7 @@ export default function ModifierIngredientsRationModal({
 
   const handleSupprimerIngredient = (index: number) => {
     Alert.alert(
-      'Supprimer l\'ingrédient',
+      "Supprimer l'ingrédient",
       `Voulez-vous retirer "${ingredientsModifies[index].nom}" de la ration ?`,
       [
         { text: 'Annuler', style: 'cancel' },
@@ -161,7 +161,7 @@ export default function ModifierIngredientsRationModal({
   const handleVoirAlternatives = (nomIngredient: string) => {
     if (!hasAlternatives(nomIngredient)) {
       Alert.alert(
-        'Pas d\'alternative',
+        "Pas d'alternative",
         `Aucune alternative n'est référencée pour "${nomIngredient}". \n\nVous pouvez néanmoins utiliser des ingrédients locaux similaires disponibles dans votre région.`
       );
       return;
@@ -196,9 +196,7 @@ export default function ModifierIngredientsRationModal({
           {/* En-tête */}
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.title, { color: colors.text }]}>
-                Modifier les ingrédients
-              </Text>
+              <Text style={[styles.title, { color: colors.text }]}>Modifier les ingrédients</Text>
               <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{rationNom}</Text>
             </View>
             <TouchableOpacity onPress={onClose}>
@@ -232,10 +230,9 @@ export default function ModifierIngredientsRationModal({
           {/* Liste des ingrédients */}
           <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
             {ingredientsModifies.map((ingredient, index) => {
-              const pourcentageCalcule = totalQuantiteKg > 0 
-                ? (ingredient.quantite_kg / totalQuantiteKg) * 100 
-                : 0;
-              
+              const pourcentageCalcule =
+                totalQuantiteKg > 0 ? (ingredient.quantite_kg / totalQuantiteKg) * 100 : 0;
+
               return (
                 <View
                   key={index}
@@ -254,7 +251,11 @@ export default function ModifierIngredientsRationModal({
                           style={[styles.altButton, { backgroundColor: colors.info + '20' }]}
                           onPress={() => handleVoirAlternatives(ingredient.nom)}
                         >
-                          <Ionicons name="information-circle-outline" size={20} color={colors.info} />
+                          <Ionicons
+                            name="information-circle-outline"
+                            size={20}
+                            color={colors.info}
+                          />
                         </TouchableOpacity>
                       )}
                       <TouchableOpacity
@@ -273,7 +274,11 @@ export default function ModifierIngredientsRationModal({
                     <TextInput
                       style={[
                         styles.quantiteInput,
-                        { backgroundColor: colors.background, color: colors.text, borderColor: colors.border },
+                        {
+                          backgroundColor: colors.background,
+                          color: colors.text,
+                          borderColor: colors.border,
+                        },
                       ]}
                       value={ingredient.quantite_kg.toString()}
                       onChangeText={(value) => handleChangeQuantite(index, value)}
@@ -297,7 +302,10 @@ export default function ModifierIngredientsRationModal({
 
             {/* Bouton Ajouter */}
             <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: colors.primary + '20', borderColor: colors.primary }]}
+              style={[
+                styles.addButton,
+                { backgroundColor: colors.primary + '20', borderColor: colors.primary },
+              ]}
               onPress={handleAjouterIngredient}
             >
               <Ionicons name="add-circle-outline" size={24} color={colors.primary} />
@@ -312,7 +320,10 @@ export default function ModifierIngredientsRationModal({
           {/* Boutons de validation */}
           <View style={styles.footer}>
             <TouchableOpacity
-              style={[styles.cancelButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[
+                styles.cancelButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
               onPress={onClose}
             >
               <Text style={[styles.cancelButtonText, { color: colors.text }]}>Annuler</Text>
@@ -417,15 +428,10 @@ export default function ModifierIngredientsRationModal({
                 ]}
                 onPress={() => setShowSelectIngredientModal(false)}
               >
-                <Text style={[styles.selectModalCancelText, { color: colors.text }]}>
-                  Annuler
-                </Text>
+                <Text style={[styles.selectModalCancelText, { color: colors.text }]}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.selectModalConfirmButton,
-                  { backgroundColor: colors.primary },
-                ]}
+                style={[styles.selectModalConfirmButton, { backgroundColor: colors.primary }]}
                 onPress={handleConfirmerAjout}
               >
                 <Text style={styles.selectModalConfirmText}>Ajouter</Text>
@@ -718,4 +724,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

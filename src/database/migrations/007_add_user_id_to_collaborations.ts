@@ -1,7 +1,7 @@
 /**
  * Migration 7 : Ajouter user_id à la table collaborations
  * Permet de lier les collaborations à un utilisateur spécifique
- * 
+ *
  * Version: 7
  */
 
@@ -34,4 +34,3 @@ export async function addUserIdToCollaborations(db: SQLiteDatabase): Promise<voi
     console.log('✅ Migration: Colonne user_id ajoutée à collaborations');
   }
 }
-

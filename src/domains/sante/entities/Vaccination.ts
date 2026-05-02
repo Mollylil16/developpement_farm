@@ -1,6 +1,6 @@
 /**
  * Entité Vaccination - Domaine Santé
- * 
+ *
  * Représente une vaccination dans le domaine métier
  */
 
@@ -93,4 +93,3 @@ export class VaccinationEntity {
     return Math.floor(diffTime / (1000 * 60 * 60 * 24));
   }
 }
-

@@ -13,6 +13,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import {
   loadProductionAnimaux,
   deleteProductionAnimal,
@@ -20,7 +21,8 @@ import {
   loadPeseesRecents,
 } from '../store/slices/productionSlice';
 import { selectAllAnimaux, selectProductionLoading } from '../store/selectors/productionSelectors';
-import { ProductionAnimal, StatutAnimal, STATUT_ANIMAL_LABELS } from '../types';
+import type { ProductionAnimal, StatutAnimal } from '../types/production';
+import { STATUT_ANIMAL_LABELS } from '../types/production';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from './LoadingSpinner';
@@ -29,12 +31,14 @@ import Button from './Button';
 import ProductionAnimalFormModal from './ProductionAnimalFormModal';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { Ionicons } from '@expo/vector-icons';
 import Card from './Card';
 import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { calculerAge, getStatutColor } from '../utils/animalUtils';
-import { 
-  loadMortalitesParProjet, 
+import {
+  loadMortalitesParProjet,
   loadStatistiquesMortalite,
   deleteMortalite,
 } from '../store/slices/mortalitesSlice';
@@ -47,11 +51,22 @@ export default function ProductionHistoriqueComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canUpdate, canDelete } = useActionPermissions();
-  const navigation = useNavigation<any>();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const navigation = useNavigation<NavigationProp<any>>();
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const animaux = useAppSelector(selectAllAnimaux);
   const loading = useAppSelector(selectProductionLoading);
   const mortalites = useAppSelector(selectAllMortalites);
+  
+  // Enrichir les animaux avec leur statut marketplace
+  const { animauxEnrichis } = useMarketplaceStatusForAnimals();
+  const animauxEnrichisMap = React.useMemo(() => {
+    const map = new Map<string, typeof animauxEnrichis[0]>();
+    animauxEnrichis.forEach((animal) => {
+      map.set(animal.id, animal);
+    });
+    return map;
+  }, [animauxEnrichis]);
 
   const [showAnimalModal, setShowAnimalModal] = useState(false);
   const [selectedAnimal, setSelectedAnimal] = useState<ProductionAnimal | null>(null);
@@ -107,8 +122,9 @@ export default function ProductionHistoriqueComponent() {
           onPress: async () => {
             try {
               await dispatch(deleteProductionAnimal(animal.id)).unwrap();
-            } catch (error: any) {
-              Alert.alert('Erreur', error || 'Erreur lors de la suppression');
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : String(error) || 'Erreur lors de la suppression';
+              Alert.alert('Erreur', errorMessage);
             }
           },
         },
@@ -121,12 +137,12 @@ export default function ProductionHistoriqueComponent() {
       Alert.alert('Permission refusée', "Vous n'avez pas la permission de modifier les animaux.");
       return;
     }
-    
-    const messageSupplementaire = 
+
+    const messageSupplementaire =
       animal.statut === 'mort' && nouveauStatut === 'actif'
         ? "\n\nL'entrée de mortalité associée sera supprimée."
         : '';
-    
+
     Alert.alert(
       'Changer le statut',
       `Voulez-vous changer le statut de ${animal.code}${animal.nom ? ` (${animal.nom})` : ''} en "${STATUT_ANIMAL_LABELS[nouveauStatut]}" ?${messageSupplementaire}`,
@@ -147,11 +163,11 @@ export default function ProductionHistoriqueComponent() {
                 const mortaliteCorrespondante = mortalites.find(
                   (m) => m.animal_code === animal.code && m.projet_id === projetActif.id
                 );
-                
+
                 if (mortaliteCorrespondante) {
                   try {
                     await dispatch(deleteMortalite(mortaliteCorrespondante.id)).unwrap();
-                  } catch (deleteError: any) {
+                  } catch (deleteError: unknown) {
                     console.warn('Erreur lors de la suppression de la mortalité:', deleteError);
                     // Ne pas bloquer si la suppression échoue
                   }
@@ -165,13 +181,13 @@ export default function ProductionHistoriqueComponent() {
                   updates: { statut: nouveauStatut },
                 })
               ).unwrap();
-              
+
               // 3. Recharger toutes les données pertinentes
               await Promise.all([
                 dispatch(loadProductionAnimaux({ projetId: projetActif.id })).unwrap(),
                 dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 })).unwrap(),
               ]);
-              
+
               // Si on a touché au statut "mort", recharger les mortalités
               if (animal.statut === 'mort' || nouveauStatut === 'mort') {
                 await Promise.all([
@@ -179,13 +195,14 @@ export default function ProductionHistoriqueComponent() {
                   dispatch(loadStatistiquesMortalite(projetActif.id)).unwrap(),
                 ]);
               }
-              
+
               // Si le statut devient "actif", naviguer vers le cheptel
               if (nouveauStatut === 'actif') {
                 navigation.goBack();
               }
-            } catch (error: any) {
-              Alert.alert('Erreur', error || 'Erreur lors de la mise à jour du statut');
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : String(error) || 'Erreur lors de la mise à jour du statut';
+              Alert.alert('Erreur', errorMessage);
             }
           },
         },
@@ -207,6 +224,10 @@ export default function ProductionHistoriqueComponent() {
   const renderAnimal = ({ item }: { item: ProductionAnimal }) => {
     const age = calculerAge(item.date_naissance);
     const statutColor = getStatutColor(item.statut, colors);
+    
+    // Enrichir avec les données marketplace
+    const animalEnrichi = animauxEnrichisMap.get(item.id) || item;
+    const marketplaceStatus = (animalEnrichi as any).marketplace_status;
 
     return (
       <Card elevation="small" padding="medium" style={styles.animalCard}>
@@ -225,6 +246,32 @@ export default function ProductionHistoriqueComponent() {
               <View style={[styles.reproducteurBadge, { backgroundColor: colors.success + '18' }]}>
                 <Text style={[styles.reproducteurText, { color: colors.success }]}>
                   Reproducteur
+                </Text>
+              </View>
+            )}
+            {marketplaceStatus === 'available' && (
+              <View
+                style={[
+                  styles.marketplaceBadge,
+                  { backgroundColor: '#FF8C42' + '25', borderColor: '#FF8C42', borderWidth: 1.5 },
+                ]}
+              >
+                <Ionicons name="storefront" size={12} color="#FF8C42" />
+                <Text style={[styles.marketplaceText, { color: '#FF8C42', fontWeight: '700' }]}>
+                  En vente
+                </Text>
+              </View>
+            )}
+            {marketplaceStatus === 'reserved' && (
+              <View
+                style={[
+                  styles.marketplaceBadge,
+                  { backgroundColor: '#F39C12' + '25', borderColor: '#F39C12', borderWidth: 1.5 },
+                ]}
+              >
+                <Ionicons name="lock-closed" size={12} color="#F39C12" />
+                <Text style={[styles.marketplaceText, { color: '#F39C12', fontWeight: '700' }]}>
+                  Réservé
                 </Text>
               </View>
             )}
@@ -561,6 +608,25 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
   reproducteurText: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '600',
+  },
+  marketplaceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 3,
+    borderRadius: BORDER_RADIUS.xs,
+    marginTop: SPACING.xs,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  marketplaceText: {
     fontSize: FONT_SIZES.xs,
     fontWeight: '600',
   },

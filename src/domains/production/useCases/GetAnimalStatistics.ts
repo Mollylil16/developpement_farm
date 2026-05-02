@@ -1,6 +1,6 @@
 /**
  * Use Case : Obtenir les statistiques des animaux
- * 
+ *
  * Calcule les statistiques des animaux d'un projet
  */
 
@@ -23,4 +23,3 @@ export class GetAnimalStatisticsUseCase {
     return await this.statisticsService.calculateStatistics(projetId);
   }
 }
-

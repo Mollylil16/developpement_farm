@@ -1,351 +1,663 @@
-/**
- * Écran Dashboard Refactorisé - Version simplifiée avec hooks et composants
- * Réduit de ~923 lignes à ~250 lignes
- */
-
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   ScrollView,
-  RefreshControl,
+  TouchableOpacity,
   Dimensions,
-  Text,
+  Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAppSelector } from '../store/hooks';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState, AppDispatch } from '../store/store';
+import { calculateAlertes } from '../store/slices/alertesSlice';
+import { savePorc, loadPorcs } from '../store/slices/porcsSlice';
+import { saveGestation, loadGestations } from '../store/slices/reproductionSlice';
+import { saveTransaction } from '../store/slices/financeSlice';
+import { StatCard, QuickActionButton, AlertItem, Section } from '../components/UIComponents';
+import { CustomModal, FormField, TypeSelector } from '../components/UIComponents';
+import { LoadingSpinner, ErrorMessage, EmptyState } from '../components/LoadingStates';
+import { ValidationFormulaires } from '../utils/validation';
+import { useEnregistrerActivite } from '../hooks/useCollaboration';
+import { useAsync } from '../hooks/useAsyncStates';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import { LineChart } from 'react-native-chart-kit';
+import { Porc, Gestation, Transaction } from '../types';
 import { useNavigation } from '@react-navigation/native';
-import type { NavigationProp } from '@react-navigation/native';
-import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
-import { useTheme } from '../contexts/ThemeContext';
-import { useRolePermissions } from '../hooks/useRolePermissions';
-import { useRole } from '../contexts/RoleContext';
-import { SCREENS } from '../navigation/types';
-import { SPACING } from '../constants/theme';
-import { SafeTextWrapper } from '../utils/textRenderingGuard';
 
-// Custom Hooks
-import { useDashboardData } from '../hooks/useDashboardData';
-import { useDashboardAnimations } from '../hooks/useDashboardAnimations';
-import { useDashboardExport } from '../hooks/useDashboardExport';
-import { useProfilData } from '../hooks/useProfilData';
-import { useMarketplaceNotifications } from '../hooks/useMarketplaceNotifications';
+const { width } = Dimensions.get('window');
 
-// Components
-import LoadingSpinner from '../components/LoadingSpinner';
-import EmptyState from '../components/EmptyState';
-import DashboardHeader from '../components/dashboard/DashboardHeader';
-import DashboardMainWidgets from '../components/dashboard/DashboardMainWidgets';
-import DashboardSecondaryWidgets from '../components/dashboard/DashboardSecondaryWidgets';
-import AlertesWidget from '../components/AlertesWidget';
-import GlobalSearchModal from '../components/GlobalSearchModal';
-import InvitationsModal from '../components/InvitationsModal';
-import ProfileMenuModal from '../components/ProfileMenuModal';
-import { NotificationPanel } from '../components/marketplace';
-import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
+const DashboardScreen: React.FC = () => {
+  const dispatch = useDispatch<AppDispatch>();
+  const navigation = useNavigation();
+  
+  const { porcs } = useSelector((state: RootState) => state.porcs);
+  const { gestations } = useSelector((state: RootState) => state.reproduction);
+  const { transactions } = useSelector((state: RootState) => state.finance);
+  const { alertes } = useSelector((state: RootState) => state.alertes);
+  const { deviseConfig } = useSelector((state: RootState) => state.parametres);
+  const { activites } = useSelector((state: RootState) => state.collaboration);
 
-// Type pour la navigation - définit toutes les routes possibles
-type RootStackParamList = {
-  [SCREENS.PROFIL]: undefined;
-  [SCREENS.WELCOME]: undefined;
-  [SCREENS.AUTH]: undefined;
-  [SCREENS.CREATE_PROJECT]: undefined;
-  [SCREENS.ADMIN]: undefined;
-  Main: { screen?: string };
-};
+  // Hook pour enregistrer les activités
+  const enregistrerActivitePorc = useEnregistrerActivite('ajout', 'porc', 'Nouveau porc ajouté');
+  const enregistrerActiviteGestation = useEnregistrerActivite('ajout', 'gestation', 'Nouvelle gestation enregistrée');
+  const enregistrerActiviteTransaction = useEnregistrerActivite('ajout', 'finance', 'Nouvelle transaction enregistrée');
 
-export default function DashboardScreen() {
-  const { colors } = useTheme();
-  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const [showNewPorcModal, setShowNewPorcModal] = useState(false);
+  const [showNewGestationModal, setShowNewGestationModal] = useState(false);
+  const [showNewTransactionModal, setShowNewTransactionModal] = useState(false);
   
-  // Redux State
-  const { projetActif, loading } = useAppSelector((state) => state.projet);
-  const { invitationsEnAttente, collaborateurActuel } = useAppSelector((state) => state.collaboration);
-  const currentUser = useAppSelector((state) => state.auth.user);
-  
-  // Permissions basées sur les rôles
-  const { activeRole } = useRole();
-  const rolePermissions = useRolePermissions();
-  
-  // Helper pour vérifier les permissions par module (compatibilité avec l'ancien système)
-  const hasPermission = useCallback((module: string): boolean => {
-    if (activeRole === 'producer') {
-      // Pour les producteurs, tous les modules sont accessibles
-      return true;
-    }
-    
-    // Pour technicien et vétérinaire, vérifier les permissions de collaboration
-    if ((activeRole === 'technician' || activeRole === 'veterinarian') && collaborateurActuel?.permissions) {
-      // Vérifier les permissions spécifiques à la ferme via la collaboration
-      switch (module) {
-        case 'reproduction':
-          return collaborateurActuel.permissions.reproduction ?? false;
-        case 'nutrition':
-          return collaborateurActuel.permissions.nutrition ?? false;
-        case 'planification':
-          return collaborateurActuel.permissions.planification ?? false;
-        case 'mortalites':
-          return collaborateurActuel.permissions.mortalites ?? false;
-        case 'finance':
-          return collaborateurActuel.permissions.finance ?? false;
-        case 'rapports':
-          return collaborateurActuel.permissions.rapports ?? false; // Permission spécifique à la ferme
-        case 'sante':
-          return collaborateurActuel.permissions.sante ?? false;
-        default:
-          return false;
-      }
-    }
-    
-    // Pour les autres rôles, utiliser les permissions spécifiques
-    switch (module) {
-      case 'reproduction':
-      case 'nutrition':
-      case 'planification':
-      case 'mortalites':
-        return rolePermissions.canViewHerd;
-      case 'finance':
-        return rolePermissions.canViewFinances;
-      case 'rapports':
-        return rolePermissions.canGenerateReports;
-      case 'sante':
-        return rolePermissions.canViewHealthRecords;
-      default:
-        return false;
-    }
-  }, [activeRole, rolePermissions, collaborateurActuel]);
-  
-  // Vérifier si l'utilisateur est propriétaire du projet actif
-  const isProprietaire = activeRole === 'producer' && 
-    projetActif && 
-    currentUser && 
-    (projetActif.proprietaire_id === currentUser.id || (projetActif as any).user_id === currentUser.id);
-  
-  // UI State (modals)
-  const [searchModalVisible, setSearchModalVisible] = useState(false);
-  const [invitationsModalVisible, setInvitationsModalVisible] = useState(false);
-  const [profileMenuVisible, setProfileMenuVisible] = useState(false);
-  const [notificationPanelVisible, setNotificationPanelVisible] = useState(false);
-  
-  // Greeting state
-  const [greeting] = useState(() => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) return 'Bonjour 👋';
-    if (hour >= 12 && hour < 18) return 'Bonne après-midi 👋';
-    return 'Bonsoir 👋';
+  const [porcForm, setPorcForm] = useState({
+    numeroIdentification: '',
+    sexe: 'male',
+    race: '',
+    poidsActuel: '',
+    poidsCible: '',
+    statut: 'croissance',
   });
 
-  // Custom Hooks
-  const profil = useProfilData();
-  const { isInitialLoading, refreshing, onRefresh } = useDashboardData({
-    projetId: projetActif?.id,
-    onProfilPhotoLoad: profil.loadProfilPhoto,
+  const [gestationForm, setGestationForm] = useState({
+    truieId: '',
+    nombrePorceletsPrevu: '',
+    notes: '',
   });
-  const animations = useDashboardAnimations();
-  const { exportingPDF, handleExportPDF } = useDashboardExport(projetActif);
-  const {
-    notifications: marketplaceNotifications,
-    unreadCount: marketplaceUnreadCount,
-    markAsRead,
-    deleteNotification,
-  } = useMarketplaceNotifications();
 
-  // Date formatting - mémorisé pour éviter les recalculs
-  const currentDate = useMemo(() => {
+  const [transactionForm, setTransactionForm] = useState({
+    type: 'vente',
+    montant: '',
+    description: '',
+    categorie: '',
+  });
+
+  // États d'erreur pour les formulaires
+  const [porcErrors, setPorcErrors] = useState<Record<string, string>>({});
+  const [gestationErrors, setGestationErrors] = useState<Record<string, string>>({});
+  const [transactionErrors, setTransactionErrors] = useState<Record<string, string>>({});
+
+  // Charger les données au montage
+  useEffect(() => {
+    dispatch(loadPorcs());
+    dispatch(loadGestations());
+  }, [dispatch]);
+
+  // Calculer les alertes au chargement
+  useEffect(() => {
+    dispatch(calculateAlertes({ porcs, gestations, transactions }));
+  }, [dispatch, porcs, gestations, transactions]);
+
+  // Fonctions pour les actions rapides
+  const handleNouveauPorc = () => {
+    setShowNewPorcModal(true);
+  };
+
+  const handleNouvelleGestation = () => {
+    setShowNewGestationModal(true);
+  };
+
+  const handleCalculerRation = () => {
+    navigation.navigate('Nutrition' as never);
+  };
+
+  const handleNouvelleVente = () => {
+    setShowNewTransactionModal(true);
+  };
+
+  const handleVoirReproduction = () => {
+    navigation.navigate('Reproduction' as never);
+  };
+
+  const handleVoirFinance = () => {
+    navigation.navigate('Finance' as never);
+  };
+
+  const handleVoirRapports = () => {
+    navigation.navigate('Reports' as never);
+  };
+
+  // Fonctions de sauvegarde avec validation
+  const saveNouveauPorc = async () => {
+    const validation = ValidationFormulaires.validerPorc(porcForm);
+    
+    if (!validation.isValid) {
+      setPorcErrors(validation.errors);
+      return;
+    }
+
+    setPorcErrors({});
+    
     try {
-      return format(new Date(), 'EEEE d MMMM yyyy', { locale: fr });
+      const porcData = ValidationFormulaires.formaterPorc(porcForm);
+      await dispatch(savePorc(porcData)).unwrap();
+      
+      // Enregistrer l'activité
+      enregistrerActivitePorc();
+      
+      setShowNewPorcModal(false);
+      setPorcForm({
+        numeroIdentification: '',
+        sexe: 'male',
+        race: '',
+        poidsActuel: '',
+        poidsCible: '',
+        statut: 'croissance',
+      });
+      
+      Alert.alert('Succès', 'Porc ajouté avec succès');
     } catch (error) {
-      console.error('Erreur formatage date:', error);
-      return new Date().toLocaleDateString('fr-FR');
+      Alert.alert('Erreur', 'Erreur lors de la sauvegarde du porc');
     }
-  }, []); // Ne change qu'une fois par jour, mais on le recalcule à chaque render pour l'instant
+  };
 
-  // Build secondary widgets list - mémorisé pour éviter les recalculs
-  const secondaryWidgets = useMemo(() => {
-    const widgets: Array<{ type: any; screen: string }> = [];
-
-    if (hasPermission('sante')) {
-      widgets.push({ type: 'sante', screen: SCREENS.SANTE });
-    }
-    // Production juste après Santé
-    widgets.push({ type: 'production', screen: SCREENS.PRODUCTION });
+  const saveNouvelleGestation = async () => {
+    const validation = ValidationFormulaires.validerGestation(gestationForm);
     
-    // Marketplace - Toujours accessible
-    widgets.push({ type: 'marketplace', screen: SCREENS.MARKETPLACE });
+    if (!validation.isValid) {
+      setGestationErrors(validation.errors);
+      return;
+    }
+
+    setGestationErrors({});
     
-    if (hasPermission('nutrition')) {
-      widgets.push({ type: 'nutrition', screen: SCREENS.NUTRITION });
+    try {
+      const gestationData = ValidationFormulaires.formaterGestation(gestationForm);
+      await dispatch(saveGestation(gestationData)).unwrap();
+      
+      // Enregistrer l'activité
+      enregistrerActiviteGestation();
+      
+      setShowNewGestationModal(false);
+      setGestationForm({
+        truieId: '',
+        nombrePorceletsPrevu: '',
+        notes: '',
+      });
+      
+      Alert.alert('Succès', 'Gestation ajoutée avec succès');
+    } catch (error) {
+      Alert.alert('Erreur', 'Erreur lors de la sauvegarde de la gestation');
     }
-    if (hasPermission('planification')) {
-      widgets.push({ type: 'planning', screen: SCREENS.PLANIFICATION });
+  };
+
+  const saveNouvelleTransaction = async () => {
+    const validation = ValidationFormulaires.validerTransaction(transactionForm);
+    
+    if (!validation.isValid) {
+      setTransactionErrors(validation.errors);
+      return;
     }
-    if (isProprietaire) {
-      widgets.push({ type: 'collaboration', screen: SCREENS.COLLABORATION });
+
+    setTransactionErrors({});
+    
+    try {
+      const transactionData = ValidationFormulaires.formaterTransaction(transactionForm);
+      await dispatch(saveTransaction(transactionData)).unwrap();
+      
+      // Enregistrer l'activité
+      enregistrerActiviteTransaction();
+      
+      setShowNewTransactionModal(false);
+      setTransactionForm({
+        type: 'vente',
+        montant: '',
+        description: '',
+        categorie: '',
+      });
+      
+      Alert.alert('Succès', 'Transaction ajoutée avec succès');
+    } catch (error) {
+      Alert.alert('Erreur', 'Erreur lors de la sauvegarde de la transaction');
     }
+  };
 
-    return widgets;
-  }, [hasPermission, isProprietaire]);
+  // Calculs pour le dashboard
+  const totalPorcs = porcs.length;
+  const truiesGestantes = gestations.filter((g: Gestation) => g.statut === 'en_cours').length;
+  const porcsEnCroissance = porcs.filter((p: Porc) => p.statut === 'croissance').length;
+  const chiffreAffairesMois = transactions
+    .filter((t: Transaction) => t.type === 'vente' && 
+      new Date(t.date).getMonth() === new Date().getMonth())
+    .reduce((sum: number, t: Transaction) => sum + t.montant, 0);
 
-  // Navigation handler - mémorisé pour éviter les re-créations
-  const handleNavigateToScreen = useCallback((screen: string) => {
-    // @ts-ignore - navigation typée
-    navigation.navigate('Main', { screen });
-  }, [navigation]);
+  // Données pour le graphique de poids moyen
+  const poidsMoyenParMois = [
+    { month: 'Jan', poids: 45 },
+    { month: 'Fév', poids: 52 },
+    { month: 'Mar', poids: 48 },
+    { month: 'Avr', poids: 55 },
+    { month: 'Mai', poids: 58 },
+    { month: 'Juin', poids: 62 },
+  ];
 
-  // Handlers pour les modals - mémorisés pour éviter les re-créations
-  const handleCloseSearchModal = useCallback(() => setSearchModalVisible(false), []);
-  const handleCloseInvitationsModal = useCallback(() => setInvitationsModalVisible(false), []);
-  const handleCloseProfileMenu = useCallback(() => setProfileMenuVisible(false), []);
-  const handleCloseNotificationPanel = useCallback(() => setNotificationPanelVisible(false), []);
-  
-  const handleNotificationPress = useCallback((notification: any) => {
-    setNotificationPanelVisible(false);
-    // Navigation vers l'écran approprié selon le type de notification
-    // @ts-ignore - navigation typée
-    if (notification.type === 'offer_accepted' && notification.relatedId && notification.relatedType === 'transaction') {
-      // @ts-ignore - navigation typée
-      navigation.navigate(SCREENS.MARKETPLACE_CHAT as never, { transactionId: notification.relatedId } as never);
-    } else if (notification.type === 'message_received' && notification.relatedId) {
-      // @ts-ignore - navigation typée
-      navigation.navigate(SCREENS.MARKETPLACE_CHAT as never, { transactionId: notification.relatedId } as never);
-    } else if (notification.type === 'offer_received') {
-      // @ts-ignore - navigation typée
-      navigation.navigate(SCREENS.MARKETPLACE as never);
-    }
-  }, [navigation]);
+  const chartData = {
+    labels: poidsMoyenParMois.map(item => item.month),
+    datasets: [
+      {
+        data: poidsMoyenParMois.map(item => item.poids),
+        color: (opacity = 1) => `rgba(46, 125, 50, ${opacity})`,
+        strokeWidth: 2,
+      },
+    ],
+  };
 
-  const handleMarkAllAsRead = useCallback(async () => {
-    // Marquer toutes les notifications comme lues
-    for (const notification of marketplaceNotifications) {
-      if (!notification.read) {
-        await markAsRead(notification.id);
-      }
-    }
-  }, [marketplaceNotifications, markAsRead]);
+  // Fonctions utilitaires
+  const getAvatarColor = (nom: string) => {
+    const colors = ['#FF5722', '#2196F3', '#4CAF50', '#FF9800', '#9C27B0', '#F44336'];
+    const index = nom.charCodeAt(0) % colors.length;
+    return colors[index];
+  };
 
-  // Handlers pour les boutons du header
-  const handlePressPhoto = useCallback(() => setProfileMenuVisible(true), []);
-  const handlePressInvitations = useCallback(() => setInvitationsModalVisible(true), []);
-  const handlePressNotifications = useCallback(() => setNotificationPanelVisible(true), []);
+  // États de chargement et d'erreur
+  const { loading: loadingPorcs, error: errorPorcs } = useSelector((state: RootState) => state.porcs);
+  const { loading: loadingGestations, error: errorGestations } = useSelector((state: RootState) => state.reproduction);
+  const { loading: loadingTransactions, error: errorTransactions } = useSelector((state: RootState) => state.finance);
+  const { loading: loadingAlertes, error: errorAlertes } = useSelector((state: RootState) => state.alertes);
 
-  // Loading states
-  if (loading && !projetActif) {
-    return <LoadingSpinner message="Chargement du projet..." />;
+  const isLoading = loadingPorcs || loadingGestations || loadingTransactions || loadingAlertes;
+  const hasError = errorPorcs || errorGestations || errorTransactions || errorAlertes;
+
+  // Fonction de retry pour recharger les données
+  const handleRetry = () => {
+    dispatch(loadPorcs());
+    dispatch(loadGestations());
+    dispatch(calculateAlertes({ porcs, gestations, transactions }));
+  };
+
+  // Affichage des états de chargement et d'erreur
+  if (isLoading && porcs.length === 0) {
+    return <LoadingSpinner message="Chargement des données..." />;
   }
 
-  if (!projetActif) {
+  if (hasError && porcs.length === 0) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <EmptyState
-          title="Aucun projet actif"
-          message="Créez un projet pour commencer à gérer votre élevage"
-        />
-      </SafeAreaView>
+      <ErrorMessage 
+        message={hasError} 
+        onRetry={handleRetry}
+        retryText="Recharger les données"
+      />
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
-            title="Actualisation..."
-            titleColor={colors.textSecondary}
-          />
-        }
-      >
-        <SafeTextWrapper componentName="DashboardScreen">
-          <View style={styles.content}>
-            {/* Header */}
-            <DashboardHeader
-              greeting={greeting}
-              profilPrenom={profil.profilPrenom || ''}
-              profilPhotoUri={profil.profilPhotoUri}
-              profilInitiales={profil.profilInitiales || ''}
-              currentDate={currentDate}
-              projetNom={projetActif?.nom || ''}
-              invitationsCount={
-                Array.isArray(invitationsEnAttente) ? invitationsEnAttente.length : 0
-              }
-              notificationCount={marketplaceUnreadCount}
-              headerAnim={animations.headerAnim}
-              onPressPhoto={handlePressPhoto}
-              onPressInvitations={handlePressInvitations}
-              onPressNotifications={handlePressNotifications}
-            />
+    <ScrollView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.welcomeText}>Bienvenue dans Fermier Pro</Text>
+        <Text style={styles.subtitle}>Tableau de bord de votre élevage</Text>
+      </View>
 
-            {/* Secondary Widgets - Modules complémentaires en haut avec scroll horizontal */}
-            <DashboardSecondaryWidgets
-              widgets={secondaryWidgets}
-              animations={animations.secondaryWidgetsAnim}
-              onPressWidget={handleNavigateToScreen}
-              horizontal={true}
-            />
-
-            {/* Alertes Widget */}
-            <View style={styles.alertesContainer}>
-              <AlertesWidget />
-            </View>
-
-            {/* Main Widgets */}
-            <DashboardMainWidgets
-              projetId={projetActif.id}
-              animations={animations.mainWidgetsAnim}
-              isLoading={isInitialLoading}
-            />
-          </View>
-        </SafeTextWrapper>
-      </ScrollView>
-
-      {/* Modals */}
-      {searchModalVisible && (
-        <GlobalSearchModal
-          visible={searchModalVisible}
-          onClose={handleCloseSearchModal}
+      {/* Statistiques principales */}
+      <View style={styles.statsContainer}>
+        <StatCard
+          title="Total Porcs"
+          value={totalPorcs}
+          icon="pets"
+          color="#2E7D32"
+          onPress={handleVoirReproduction}
         />
+        <StatCard
+          title="Gestations"
+          value={truiesGestantes}
+          icon="pregnant-woman"
+          color="#FF9800"
+          onPress={handleVoirReproduction}
+        />
+        <StatCard
+          title="En Croissance"
+          value={porcsEnCroissance}
+          icon="trending-up"
+          color="#2196F3"
+          onPress={handleVoirReproduction}
+        />
+        <StatCard
+          title="CA du Mois"
+          value={`${chiffreAffairesMois.toLocaleString()} €`}
+          icon="euro"
+          color="#4CAF50"
+          onPress={handleVoirFinance}
+        />
+      </View>
+
+      {/* Graphique de poids moyen */}
+      <View style={styles.chartContainer}>
+        <Text style={styles.chartTitle}>Poids Moyen Mensuel (kg)</Text>
+        <LineChart
+          data={chartData}
+          width={width - 40}
+          height={220}
+          chartConfig={{
+            backgroundColor: '#ffffff',
+            backgroundGradientFrom: '#ffffff',
+            backgroundGradientTo: '#ffffff',
+            decimalPlaces: 0,
+            color: (opacity = 1) => `rgba(46, 125, 50, ${opacity})`,
+            labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+            style: {
+              borderRadius: 16,
+            },
+            propsForDots: {
+              r: '6',
+              strokeWidth: '2',
+              stroke: '#2E7D32',
+            },
+          }}
+          bezier
+          style={styles.chart}
+        />
+      </View>
+
+      {/* Actions rapides */}
+      <Section title="Actions Rapides">
+        <View style={styles.quickActions}>
+          <QuickActionButton
+            title="Nouveau Porc"
+            icon="add"
+            color="#2E7D32"
+            onPress={handleNouveauPorc}
+          />
+          <QuickActionButton
+            title="Nouvelle Gestation"
+            icon="pregnant-woman"
+            color="#FF9800"
+            onPress={handleNouvelleGestation}
+          />
+          <QuickActionButton
+            title="Calculer Ration"
+            icon="restaurant"
+            color="#2196F3"
+            onPress={handleCalculerRation}
+          />
+          <QuickActionButton
+            title="Nouvelle Vente"
+            icon="euro"
+            color="#4CAF50"
+            onPress={handleNouvelleVente}
+          />
+        </View>
+      </Section>
+
+      {/* Alertes dynamiques */}
+      {/* Activités récentes */}
+      {activites.length > 0 && (
+        <Section title="Activités Récentes" action={{ text: 'Voir tout', onPress: () => navigation.navigate('Collaboration' as never) }}>
+          {activites.slice(0, 3).map((activite) => (
+            <View key={activite.id} style={styles.activiteItem}>
+              <View style={styles.activiteHeader}>
+                <View style={[styles.activiteAvatar, { backgroundColor: getAvatarColor(activite.utilisateurNom) }]}>
+                  <Text style={styles.activiteAvatarText}>
+                    {activite.utilisateurNom.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.activiteInfo}>
+                  <Text style={styles.activiteUtilisateur}>{activite.utilisateurNom}</Text>
+                  <Text style={styles.activiteDescription}>{activite.description}</Text>
+                </View>
+                <Text style={styles.activiteDate}>
+                  {activite.date.toLocaleTimeString()}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </Section>
       )}
-      <InvitationsModal
-        visible={invitationsModalVisible}
-        onClose={handleCloseInvitationsModal}
-      />
-      <ProfileMenuModal
-        visible={profileMenuVisible}
-        onClose={handleCloseProfileMenu}
-      />
-      <NotificationPanel
-        visible={notificationPanelVisible}
-        notifications={marketplaceNotifications}
-        unreadCount={marketplaceUnreadCount}
-        onClose={handleCloseNotificationPanel}
-        onNotificationPress={handleNotificationPress}
-        onMarkAsRead={markAsRead}
-        onMarkAllAsRead={handleMarkAllAsRead}
-        onDelete={deleteNotification}
-      />
-      {/* Bouton flottant pour accéder à l'agent conversationnel */}
-      <ChatAgentFAB />
-    </SafeAreaView>
+
+      <Section title="Alertes" action={{ text: 'Voir tout', onPress: () => {} }}>
+        {alertes.slice(0, 3).map((alerte) => (
+          <AlertItem
+            key={alerte.id}
+            type={alerte.type}
+            message={alerte.message}
+          />
+        ))}
+        {alertes.length === 0 && (
+          <View style={styles.noAlertsContainer}>
+            <Icon name="check-circle" size={24} color="#4CAF50" />
+            <Text style={styles.noAlertsText}>Aucune alerte pour le moment</Text>
+          </View>
+        )}
+      </Section>
+
+      {/* Modales */}
+      <CustomModal
+        visible={showNewPorcModal}
+        title="Nouveau Porc"
+        onClose={() => setShowNewPorcModal(false)}
+        onSave={saveNouveauPorc}
+      >
+        <FormField
+          label="Numéro d'identification"
+          value={porcForm.numeroIdentification}
+          onChangeText={(text) => setPorcForm({...porcForm, numeroIdentification: text})}
+          placeholder="Ex: PORC001"
+          required
+          error={porcErrors.numeroIdentification}
+        />
+        <TypeSelector
+          label="Sexe"
+          value={porcForm.sexe}
+          options={[
+            { value: 'male', label: 'Mâle' },
+            { value: 'femelle', label: 'Femelle' }
+          ]}
+          onSelect={(value) => setPorcForm({...porcForm, sexe: value})}
+          required
+        />
+        <FormField
+          label="Race"
+          value={porcForm.race}
+          onChangeText={(text) => setPorcForm({...porcForm, race: text})}
+          placeholder="Ex: Pietrain, Landrace"
+          required
+          error={porcErrors.race}
+        />
+        <FormField
+          label="Poids actuel (kg)"
+          value={porcForm.poidsActuel}
+          onChangeText={(text) => setPorcForm({...porcForm, poidsActuel: text})}
+          placeholder="Ex: 25.5"
+          keyboardType="numeric"
+          required
+          error={porcErrors.poidsActuel}
+        />
+        <FormField
+          label="Poids cible (kg)"
+          value={porcForm.poidsCible}
+          onChangeText={(text) => setPorcForm({...porcForm, poidsCible: text})}
+          placeholder="Ex: 120"
+          keyboardType="numeric"
+          required
+          error={porcErrors.poidsCible}
+        />
+      </CustomModal>
+
+      <CustomModal
+        visible={showNewGestationModal}
+        title="Nouvelle Gestation"
+        onClose={() => setShowNewGestationModal(false)}
+        onSave={saveNouvelleGestation}
+      >
+        <TypeSelector
+          label="Truie"
+          value={gestationForm.truieId}
+          options={porcs.filter(p => p.sexe === 'femelle').map(p => ({
+            value: p.id,
+            label: `${p.numeroIdentification} - ${p.race}`
+          }))}
+          onSelect={(value) => setGestationForm({...gestationForm, truieId: value})}
+          required
+        />
+        <FormField
+          label="Nombre de porcelets prévu"
+          value={gestationForm.nombrePorceletsPrevu}
+          onChangeText={(text) => setGestationForm({...gestationForm, nombrePorceletsPrevu: text})}
+          placeholder="Ex: 12"
+          keyboardType="numeric"
+          required
+          error={gestationErrors.nombrePorceletsPrevu}
+        />
+        <FormField
+          label="Notes"
+          value={gestationForm.notes}
+          onChangeText={(text) => setGestationForm({...gestationForm, notes: text})}
+          placeholder="Notes additionnelles..."
+          multiline
+        />
+      </CustomModal>
+
+      <CustomModal
+        visible={showNewTransactionModal}
+        title="Nouvelle Transaction"
+        onClose={() => setShowNewTransactionModal(false)}
+        onSave={saveNouvelleTransaction}
+      >
+        <TypeSelector
+          label="Type de transaction"
+          value={transactionForm.type}
+          options={[
+            { value: 'vente', label: 'Vente' },
+            { value: 'achat', label: 'Achat' },
+            { value: 'depense', label: 'Dépense' },
+            { value: 'recette', label: 'Recette' }
+          ]}
+          onSelect={(value) => setTransactionForm({...transactionForm, type: value})}
+          required
+        />
+        <FormField
+          label="Montant (€)"
+          value={transactionForm.montant}
+          onChangeText={(text) => setTransactionForm({...transactionForm, montant: text})}
+          placeholder="Ex: 1500"
+          keyboardType="numeric"
+          required
+          error={transactionErrors.montant}
+        />
+        <FormField
+          label="Description"
+          value={transactionForm.description}
+          onChangeText={(text) => setTransactionForm({...transactionForm, description: text})}
+          placeholder="Ex: Vente de 10 porcs"
+          required
+          error={transactionErrors.description}
+        />
+        <FormField
+          label="Catégorie"
+          value={transactionForm.categorie}
+          onChangeText={(text) => setTransactionForm({...transactionForm, categorie: text})}
+          placeholder="Ex: Vente porcs, Aliments"
+        />
+      </CustomModal>
+    </ScrollView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f5f5f5',
   },
-  content: {
-    padding: SPACING.xl,
-    paddingTop: SPACING.lg + 10,
-    paddingBottom: 100,
+  header: {
+    backgroundColor: '#2E7D32',
+    padding: 20,
+    paddingTop: 40,
   },
-  alertesContainer: {
-    marginTop: SPACING.md,
-    marginBottom: SPACING.md,
+  welcomeText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#fff',
+    marginTop: 5,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 20,
+    justifyContent: 'space-between',
+  },
+  chartContainer: {
+    backgroundColor: '#fff',
+    margin: 20,
+    borderRadius: 10,
+    padding: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+  },
+  chart: {
+    borderRadius: 16,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  noAlertsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  noAlertsText: {
+    fontSize: 14,
+    color: '#4CAF50',
+    marginLeft: 10,
+  },
+  activiteItem: {
+    backgroundColor: '#fff',
+    padding: 12,
+    marginBottom: 8,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#4CAF50',
+  },
+  activiteHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  activiteAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  activiteAvatarText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  activiteInfo: {
+    flex: 1,
+  },
+  activiteUtilisateur: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  activiteDescription: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  activiteDate: {
+    fontSize: 10,
+    color: '#999',
   },
 });
 
+export default DashboardScreen;

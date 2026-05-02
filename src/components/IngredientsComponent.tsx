@@ -20,21 +20,23 @@ import {
   deleteIngredient,
   createIngredient,
 } from '../store/slices/nutritionSlice';
-import { Ingredient } from '../types';
+import type { Ingredient } from '../types/nutrition';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import IngredientFormModal from './IngredientFormModal';
 import PriceScannerModal from './PriceScannerModal';
 import LoadingSpinner from './LoadingSpinner';
 import { useActionPermissions } from '../hooks/useActionPermissions';
-import { FORMULES_RECOMMANDEES, getValeursNutritionnelles } from '../types';
+import { FORMULES_RECOMMANDEES, getValeursNutritionnelles } from '../types/nutrition';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
-export default function IngredientsComponent() {
+function IngredientsComponent() {
   const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canDelete, canUpdate } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet);
-  const { ingredients, loading } = useAppSelector((state) => state.nutrition);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
+  const { ingredients = [], loading = false } = useAppSelector((state) => state.nutrition ?? { ingredients: [], loading: false });
   const [showIngredientModal, setShowIngredientModal] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -49,12 +51,24 @@ export default function IngredientsComponent() {
   }, [dispatch, projetActif?.id]);
 
   // Enrichir automatiquement la liste avec les ingrédients des formulations industrielles
+  // Cet effet s'exécute après le chargement initial pour ajouter les ingrédients par défaut
+  const [enrichmentDone, setEnrichmentDone] = useState(false);
+  
   useEffect(() => {
-    if (!projetActif || !canCreate('nutrition') || ingredients.length === 0) {
+    // Reset enrichment flag when project changes
+    setEnrichmentDone(false);
+  }, [projetActif?.id]);
+
+  useEffect(() => {
+    // Attendre que le chargement initial soit terminé
+    if (loading || !projetActif || !canCreate('nutrition') || enrichmentDone) {
       return;
     }
 
     const enrichirIngredients = async () => {
+      // Marquer immédiatement l'enrichissement comme en cours pour éviter les exécutions concurrentes
+      setEnrichmentDone(true);
+
       // Extraire tous les ingrédients uniques des formulations recommandées
       const ingredientsFormulations = new Set<string>();
       Object.values(FORMULES_RECOMMANDEES).forEach((formule) => {
@@ -63,9 +77,13 @@ export default function IngredientsComponent() {
         });
       });
 
-      // Vérifier quels ingrédients manquent
+      // Recharger la liste actuelle pour avoir les données les plus récentes
+      // Cela évite les problèmes de race condition
+      const currentIngredients = await dispatch(loadIngredients(projetActif.id)).unwrap();
+
+      // Vérifier quels ingrédients manquent (en ignorant la casse et les espaces)
       const ingredientsExistants = new Set(
-        ingredients.map((ing) => ing.nom.toLowerCase().trim())
+        currentIngredients.map((ing: Ingredient) => ing.nom.toLowerCase().trim())
       );
       const ingredientsManquants = Array.from(ingredientsFormulations).filter(
         (nom) => !ingredientsExistants.has(nom.toLowerCase().trim())
@@ -73,14 +91,19 @@ export default function IngredientsComponent() {
 
       // Créer les ingrédients manquants
       if (ingredientsManquants.length > 0) {
+        console.log(`[Nutrition] Création de ${ingredientsManquants.length} ingrédients par défaut...`);
         let successCount = 0;
         for (const nomIngredient of ingredientsManquants) {
           try {
-            // Vérifier à nouveau si l'ingrédient n'existe pas (éviter les doublons)
-            const existeDeja = ingredients.some(
-              (ing) => ing.nom.toLowerCase().trim() === nomIngredient.toLowerCase().trim()
+            // Vérifier à nouveau si l'ingrédient n'existe pas déjà (double vérification)
+            const existeDeja = currentIngredients.some(
+              (ing: Ingredient) => ing.nom.toLowerCase().trim() === nomIngredient.toLowerCase().trim()
             );
-            if (existeDeja) continue;
+            
+            if (existeDeja) {
+              console.log(`[Nutrition] L'ingrédient "${nomIngredient}" existe déjà, ignoré`);
+              continue;
+            }
 
             // Obtenir les valeurs nutritionnelles si disponibles
             const valeursNutri = getValeursNutritionnelles(nomIngredient);
@@ -96,13 +119,14 @@ export default function IngredientsComponent() {
             ).unwrap();
             successCount++;
           } catch (error) {
-            // Ignorer les erreurs silencieusement
+            // Ignorer les erreurs silencieusement (peut être un doublon côté backend)
             console.warn(`Erreur lors de la création de ${nomIngredient}:`, error);
           }
         }
 
         // Recharger la liste si des ingrédients ont été créés
         if (successCount > 0) {
+          console.log(`[Nutrition] ${successCount} ingrédients créés avec succès`);
           dispatch(loadIngredients(projetActif.id));
         }
       }
@@ -111,14 +135,14 @@ export default function IngredientsComponent() {
     // Attendre un peu pour éviter les conflits avec le chargement initial
     const timer = setTimeout(() => {
       enrichirIngredients();
-    }, 1000);
+    }, 500);
 
     return () => clearTimeout(timer);
-  }, [projetActif?.id, ingredients.length, canCreate, dispatch]);
+  }, [projetActif?.id, loading, canCreate, dispatch, enrichmentDone]);
 
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;
-    
+
     setRefreshing(true);
     try {
       await dispatch(loadIngredients(projetActif.id)).unwrap();
@@ -133,14 +157,14 @@ export default function IngredientsComponent() {
   const filteredIngredients = useMemo(() => {
     if (!searchQuery.trim()) return ingredients;
     const query = searchQuery.toLowerCase();
-    return ingredients.filter((ing) => ing.nom.toLowerCase().includes(query));
+    return ingredients.filter((ing: Ingredient) => ing.nom.toLowerCase().includes(query));
   }, [ingredients, searchQuery]);
 
   // Statistiques
   const stats = useMemo(() => {
     const total = ingredients.length;
     const prixMoyen =
-      total > 0 ? ingredients.reduce((sum, ing) => sum + ing.prix_unitaire, 0) / total : 0;
+      total > 0 ? ingredients.reduce((sum: number, ing: Ingredient) => sum + ing.prix_unitaire, 0) / total : 0;
     return { total, prixMoyen };
   }, [ingredients]);
 
@@ -178,8 +202,9 @@ export default function IngredientsComponent() {
             try {
               await dispatch(deleteIngredient(ingredient.id)).unwrap();
               Alert.alert('Succès', 'Ingrédient supprimé avec succès');
-            } catch (error: any) {
-              Alert.alert('Erreur', error || 'Erreur lors de la suppression');
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la suppression';
+              Alert.alert('Erreur', errorMessage);
             }
           },
         },
@@ -337,8 +362,9 @@ export default function IngredientsComponent() {
     return <LoadingSpinner message="Chargement des ingrédients..." />;
   }
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+  // En-tête de la liste
+  const renderHeader = () => (
+    <>
       {/* En-tête */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
@@ -390,14 +416,40 @@ export default function IngredientsComponent() {
           <Text style={styles.addButtonText}>➕ Ajouter un ingrédient</Text>
         </TouchableOpacity>
       )}
+    </>
+  );
 
+  // Footer de la liste (pour permettre de scroller jusqu'en bas)
+  const renderFooter = () => (
+    <View style={styles.listFooter} />
+  );
+
+  // Composant d'état vide
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+        {searchQuery ? 'Aucun ingrédient trouvé' : 'Aucun ingrédient'}
+      </Text>
+      <Text style={[styles.emptyHint, { color: colors.textSecondary }]}>
+        Commencez par ajouter des ingrédients avec leurs prix
+      </Text>
+    </View>
+  );
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Liste des ingrédients */}
-      {filteredIngredients.length > 0 ? (
         <FlatList
           data={filteredIngredients}
           renderItem={renderIngredientCard}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={[
+          styles.listContainer,
+          filteredIngredients.length === 0 && styles.listContainerEmpty
+        ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -408,16 +460,6 @@ export default function IngredientsComponent() {
             />
           }
         />
-      ) : (
-        <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-            {searchQuery ? 'Aucun ingrédient trouvé' : 'Aucun ingrédient'}
-          </Text>
-          <Text style={[styles.emptyHint, { color: colors.textSecondary }]}>
-            Commencez par ajouter des ingrédients avec leurs prix
-          </Text>
-        </View>
-      )}
 
       {/* Modal Ajout/Modification Ingrédient */}
       <IngredientFormModal
@@ -443,7 +485,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    padding: SPACING.lg,
+    paddingTop: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
     paddingBottom: SPACING.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -474,7 +517,6 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: SPACING.lg,
     gap: SPACING.md,
     marginBottom: SPACING.md,
   },
@@ -495,7 +537,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   addButton: {
-    marginHorizontal: SPACING.lg,
     marginBottom: SPACING.md,
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
@@ -507,14 +548,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   listContainer: {
-    padding: SPACING.lg,
-    paddingTop: 0,
+    flexGrow: 1,
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: 0,
+  },
+  listContainerEmpty: {
+    flexGrow: 1,
+  },
+  listFooter: {
+    height: 120,
   },
   ingredientCard: {
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
     marginBottom: SPACING.md,
+    marginHorizontal: 0,
   },
   ingredientHeader: {
     flexDirection: 'row',
@@ -604,3 +653,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(IngredientsComponent);

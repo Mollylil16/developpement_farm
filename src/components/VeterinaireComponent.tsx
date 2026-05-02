@@ -40,6 +40,7 @@ import SearchVetModal from './SearchVetModal';
 import Button from './Button';
 import { SCREENS } from '../navigation/types';
 import { Veterinarian } from '../types/veterinarian';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface VeterinaireComponentProps {
   refreshControl?: React.ReactElement<RefreshControlProps>;
@@ -78,12 +79,13 @@ const PERIODICITE_JOURS: Record<Periodicite, number> = {
   personnalise: 0,
 };
 
-export default function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
+function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<unknown>();
 
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const collaborateurs = useAppSelector((state) => selectAllCollaborateurs(state));
   const visites = useAppSelector((state) => selectAllVisitesVeterinaires(state));
 
@@ -206,7 +208,7 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
         'Succès',
         `Planning créé avec succès !\n\n${planning.length} visites vétérinaires ont été créées sur 6 mois.`
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       Alert.alert(
         'Erreur',
         error?.message || 'Impossible de créer le planning. Vérifiez vos données et réessayez.'
@@ -244,7 +246,7 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
               try {
                 await dispatch(deleteVisiteVeterinaire(visite.id)).unwrap();
                 Alert.alert('Succès', 'Visite supprimée avec succès');
-              } catch (error: any) {
+              } catch (error: unknown) {
                 Alert.alert('Erreur', error || 'Erreur lors de la suppression de la visite');
               }
             },
@@ -318,7 +320,9 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
               <Button
                 title="Rechercher un vétérinaire"
                 onPress={() => {
-                  console.log('🔍 [VeterinaireComponent] Bouton recherche cliqué, ouverture modal...');
+                  console.log(
+                    '🔍 [VeterinaireComponent] Bouton recherche cliqué, ouverture modal...'
+                  );
                   setShowSearchModal(true);
                 }}
                 variant="outline"
@@ -496,7 +500,7 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
                   </View>
 
                   {/* Animaux examinés - Toujours visible */}
-                  {visite.animaux_examines && (
+                  {visite.animaux_examines ? (
                     <View style={styles.visiteSection}>
                       <View style={styles.visiteSectionHeader}>
                         <Ionicons name="paw" size={14} color={colors.info} />
@@ -508,7 +512,7 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
                         {visite.animaux_examines}
                       </Text>
                     </View>
-                  )}
+                  ) : null}
 
                   {/* Bouton Voir détails / Masquer détails */}
                   <TouchableOpacity
@@ -529,7 +533,7 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
                   {detailsOuverts && (
                     <View style={styles.detailsContainer}>
                       {/* Diagnostic */}
-                      {visite.diagnostic && (
+                      {visite.diagnostic ? (
                         <View style={styles.visiteSection}>
                           <View style={styles.visiteSectionHeader}>
                             <Ionicons name="medical" size={14} color={colors.warning} />
@@ -541,10 +545,10 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
                             {visite.diagnostic}
                           </Text>
                         </View>
-                      )}
+                      ) : null}
 
                       {/* Prescriptions / Produits administrés */}
-                      {visite.prescriptions && (
+                      {visite.prescriptions ? (
                         <View style={styles.visiteSection}>
                           <View style={styles.visiteSectionHeader}>
                             <Ionicons name="flask" size={14} color={colors.success} />
@@ -556,10 +560,10 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
                             {visite.prescriptions}
                           </Text>
                         </View>
-                      )}
+                      ) : null}
 
                       {/* Recommandations du vétérinaire */}
-                      {visite.recommandations && (
+                      {visite.recommandations ? (
                         <View
                           style={[
                             styles.visiteSection,
@@ -577,10 +581,10 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
                             {visite.recommandations}
                           </Text>
                         </View>
-                      )}
+                      ) : null}
 
                       {/* Notes supplémentaires */}
-                      {visite.notes && (
+                      {visite.notes ? (
                         <View style={styles.visiteSection}>
                           <View style={styles.visiteSectionHeader}>
                             <Ionicons
@@ -598,19 +602,19 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
                             {visite.notes}
                           </Text>
                         </View>
-                      )}
+                      ) : null}
 
                       {/* Footer: Coût et prochaine visite */}
                       <View style={styles.visiteFooter}>
-                        {visite.cout && (
+                        {visite.cout != null ? (
                           <View style={styles.visiteCout}>
                             <Ionicons name="cash-outline" size={16} color={colors.success} />
                             <Text style={[styles.visiteCoutText, { color: colors.success }]}>
                               {visite.cout.toLocaleString()} F CFA
                             </Text>
                           </View>
-                        )}
-                        {visite.prochaine_visite && (
+                        ) : null}
+                        {visite.prochaine_visite ? (
                           <View
                             style={[
                               styles.prochainVisiteBadge,
@@ -622,7 +626,7 @@ export default function VeterinaireComponent({ refreshControl }: VeterinaireComp
                               Prochaine: {formatDisplayDate(visite.prochaine_visite)}
                             </Text>
                           </View>
-                        )}
+                        ) : null}
                       </View>
                     </View>
                   )}
@@ -1398,3 +1402,6 @@ const styles = StyleSheet.create({
     height: SPACING.xl,
   },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(VeterinaireComponent);

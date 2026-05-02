@@ -14,8 +14,9 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { loadStocks, loadMouvementsParAliment } from '../store/slices/stocksSlice';
-import { StockAliment, StockMouvement } from '../types';
+import type { StockAliment, StockMouvement } from '../types/nutrition';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from './LoadingSpinner';
@@ -29,7 +30,8 @@ const ITEMS_PER_PAGE = 50;
 export default function StockMouvementsHistoryComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { stocks, mouvementsParAliment, loading } = useAppSelector((state) => state.stocks);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -243,7 +245,11 @@ export default function StockMouvementsHistoryComponent() {
           <TextInput
             style={[
               styles.searchInput,
-              { borderColor: colors.border, backgroundColor: colors.background, color: colors.text },
+              {
+                borderColor: colors.border,
+                backgroundColor: colors.background,
+                color: colors.text,
+              },
             ]}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -355,7 +361,9 @@ export default function StockMouvementsHistoryComponent() {
           ]}
         >
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{mouvementsFiltres.length}</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>
+              {mouvementsFiltres.length}
+            </Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
               Mouvement{mouvementsFiltres.length > 1 ? 's' : ''}
             </Text>
@@ -416,7 +424,9 @@ export default function StockMouvementsHistoryComponent() {
                         {alimentNom}
                       </Text>
                     </View>
-                    <View style={[styles.mouvementTypeBadge, { backgroundColor: typeColor + '20' }]}>
+                    <View
+                      style={[styles.mouvementTypeBadge, { backgroundColor: typeColor + '20' }]}
+                    >
                       <Text style={[styles.mouvementTypeText, { color: typeColor }]}>
                         {getTypeLabel(mouvement.type)}
                       </Text>

@@ -63,7 +63,7 @@ describe('UpdateAnimalUseCase - Integration', () => {
       expect(result.nom).toBe('Truie Modifiée');
     });
 
-    it('devrait rejeter si l\'animal n\'existe pas', async () => {
+    it("devrait rejeter si l'animal n'existe pas", async () => {
       const input: UpdateAnimalInput = {
         id: 'animal-inexistant',
         nom: 'Nouveau nom',
@@ -72,7 +72,7 @@ describe('UpdateAnimalUseCase - Integration', () => {
       mockRepository.findById.mockResolvedValueOnce(null);
 
       await expect(useCase.execute(input)).rejects.toThrow(
-        'Animal avec l\'ID animal-inexistant introuvable'
+        "Animal avec l'ID animal-inexistant introuvable"
       );
     });
 
@@ -85,7 +85,7 @@ describe('UpdateAnimalUseCase - Integration', () => {
       mockRepository.findById.mockResolvedValueOnce(mockAnimal);
 
       await expect(useCase.execute(input)).rejects.toThrow(
-        'Le code de l\'animal ne peut pas être vide'
+        "Le code de l'animal ne peut pas être vide"
       );
     });
 
@@ -109,7 +109,7 @@ describe('UpdateAnimalUseCase - Integration', () => {
       );
     });
 
-    it('devrait désactiver l\'animal si actif = false', async () => {
+    it("devrait désactiver l'animal si actif = false", async () => {
       const input: UpdateAnimalInput = {
         id: 'animal-1',
         actif: false,
@@ -148,4 +148,3 @@ describe('UpdateAnimalUseCase - Integration', () => {
     });
   });
 });
-

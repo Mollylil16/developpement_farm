@@ -1,6 +1,6 @@
 /**
  * Tests pour VaccinationEntity
- * 
+ *
  * Tests de la logique métier de l'entité Vaccination
  */
 
@@ -45,7 +45,7 @@ describe('VaccinationEntity', () => {
       expect(entity.isEffectuee()).toBe(true);
     });
 
-    it('devrait retourner false si le statut n\'est pas effectue', () => {
+    it("devrait retourner false si le statut n'est pas effectue", () => {
       const vaccination = createMockVaccination({
         statut: 'planifie',
       });
@@ -69,7 +69,7 @@ describe('VaccinationEntity', () => {
       expect(entity.isEnRetard()).toBe(true);
     });
 
-    it('devrait retourner false si le statut n\'est pas en_retard', () => {
+    it("devrait retourner false si le statut n'est pas en_retard", () => {
       const dateVaccination = new Date();
       dateVaccination.setDate(dateVaccination.getDate() - 10);
 
@@ -82,7 +82,7 @@ describe('VaccinationEntity', () => {
       expect(entity.isEnRetard()).toBe(false);
     });
 
-    it('devrait retourner false si dateVaccination n\'est pas définie', () => {
+    it("devrait retourner false si dateVaccination n'est pas définie", () => {
       const vaccination = createMockVaccination({
         statut: 'en_retard',
         dateVaccination: '',
@@ -111,7 +111,7 @@ describe('VaccinationEntity', () => {
       expect(entity.isRappelNecessaire()).toBe(true);
     });
 
-    it('devrait retourner false si dateRappel n\'est pas définie', () => {
+    it("devrait retourner false si dateRappel n'est pas définie", () => {
       const vaccination = createMockVaccination({
         statut: 'effectue',
         dateRappel: undefined,
@@ -150,7 +150,7 @@ describe('VaccinationEntity', () => {
       expect(jours).toBeLessThanOrEqual(31);
     });
 
-    it('devrait retourner null si dateVaccination n\'est pas définie', () => {
+    it("devrait retourner null si dateVaccination n'est pas définie", () => {
       const vaccination = createMockVaccination({
         dateVaccination: '',
       });
@@ -160,4 +160,3 @@ describe('VaccinationEntity', () => {
     });
   });
 });
-

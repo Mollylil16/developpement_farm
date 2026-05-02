@@ -5,8 +5,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { loadIngredients, createRation } from '../store/slices/nutritionSlice';
-import { TypePorc, CreateRationInput, RECOMMANDATIONS_NUTRITION, getTypePorcLabel } from '../types';
+import type { TypePorc, CreateRationInput } from '../types/nutrition';
+import { RECOMMANDATIONS_NUTRITION, getTypePorcLabel } from '../types/nutrition';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import FormField from './FormField';
@@ -38,7 +40,8 @@ export default function RationCalculatorComponent() {
     }>;
   } | null>(null);
 
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   useEffect(() => {
     if (projetActif) {
@@ -156,8 +159,9 @@ export default function RationCalculatorComponent() {
       setNombrePorcs('');
       setSelectedIngredients([]);
       setResult(null);
-    } catch (error: any) {
-      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error) || "Erreur lors de l'enregistrement";
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setCalculating(false);
     }

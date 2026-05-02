@@ -7,7 +7,7 @@ import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { loadMortalitesParProjet } from '../../store/slices/mortalitesSlice';
 import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
 import { startOfMonth, parseISO, isAfter } from 'date-fns';
-import { Mortalite } from '../../types';
+import type { Mortalite } from '../../types/mortalites';
 import { useEffect, useRef } from 'react';
 
 export interface MortalitesWidgetData {
@@ -57,4 +57,3 @@ export function useMortalitesWidget(projetId?: string): MortalitesWidgetData | n
     };
   }, [projetId, mortalites]);
 }
-

@@ -1,543 +1,254 @@
-/**
- * Slice Redux pour la gestion des collaborations
- */
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { Projet, Utilisateur, ActiviteUtilisateur, InvitationProjet, PermissionsProjet } from '../../types';
 
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { getErrorMessage } from '../../types/common';
-import {
-  Collaborateur,
-  CreateCollaborateurInput,
-  UpdateCollaborateurInput,
-  DEFAULT_PERMISSIONS,
-} from '../../types';
+// Actions asynchrones pour la gestion des projets
+export const creerProjet = createAsyncThunk(
+  'collaboration/creerProjet',
+  async (donneesProjet: { nom: string; description?: string; proprietaireId: string; proprietaireNom: string }) => {
+    // Simulation d'un appel API
+    const dateNow = new Date().toISOString();
+    
+    const nouveauProjet: Projet = {
+      id: `projet_${Date.now()}`,
+      nom: donneesProjet.nom,
+      description: donneesProjet.description,
+      proprietaireId: donneesProjet.proprietaireId,
+      proprietaireNom: donneesProjet.proprietaireNom,
+      dateCreation: dateNow,
+      derniereModification: dateNow,
+      statut: 'actif',
+      utilisateurs: [{
+        id: donneesProjet.proprietaireId,
+        nom: donneesProjet.proprietaireNom,
+        email: 'proprietaire@example.com',
+        role: 'proprietaire',
+        dateAjout: dateNow,
+      }],
+      lienPartage: `farmtrack://projet/${Date.now()}`,
+      permissions: {
+        peutModifierPorcs: true,
+        peutModifierGestations: true,
+        peutModifierNutrition: true,
+        peutModifierFinance: true,
+        peutModifierPlanification: true,
+        peutInviterUtilisateurs: true,
+        peutVoirRapports: true,
+      },
+    };
+    
+    // Simuler un délai d'API
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return nouveauProjet;
+  }
+);
+
+export const rejoindreProjet = createAsyncThunk(
+  'collaboration/rejoindreProjet',
+  async (lienPartage: string) => {
+    // Simulation d'un appel API pour rejoindre un projet
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Simuler la récupération du projet
+    const projet: Projet = {
+      id: 'projet_exemple',
+      nom: 'Ferme Exemple',
+      description: 'Projet partagé',
+      proprietaireId: 'proprietaire_123',
+      proprietaireNom: 'Jean Dupont',
+      dateCreation: new Date('2024-01-01').toISOString(),
+      derniereModification: new Date().toISOString(),
+      statut: 'actif',
+      utilisateurs: [],
+      lienPartage,
+      permissions: {
+        peutModifierPorcs: true,
+        peutModifierGestations: true,
+        peutModifierNutrition: true,
+        peutModifierFinance: false,
+        peutModifierPlanification: false,
+        peutInviterUtilisateurs: false,
+        peutVoirRapports: true,
+      },
+    };
+    
+    return projet;
+  }
+);
+
+export const inviterUtilisateur = createAsyncThunk(
+  'collaboration/inviterUtilisateur',
+  async (donneesInvitation: { projetId: string; email: string; role: 'collaborateur' | 'lecteur' }) => {
+    // Simulation d'un appel API
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const dateNow = Date.now();
+    const invitation: InvitationProjet = {
+      id: `invitation_${dateNow}`,
+      projetId: donneesInvitation.projetId,
+      projetNom: 'Ferme Exemple',
+      emailInvite: donneesInvitation.email,
+      rolePropose: donneesInvitation.role,
+      statut: 'en_attente',
+      dateEnvoi: new Date(dateNow).toISOString(),
+      dateExpiration: new Date(dateNow + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 jours
+      codeInvitation: Math.random().toString(36).substring(2, 8).toUpperCase(),
+    };
+    
+    return invitation;
+  }
+);
+
+export const enregistrerActivite = createAsyncThunk(
+  'collaboration/enregistrerActivite',
+  async (activite: Omit<ActiviteUtilisateur, 'id' | 'date'>) => {
+    // Simulation d'un appel API
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    const nouvelleActivite: ActiviteUtilisateur = {
+      ...activite,
+      id: `activite_${Date.now()}`,
+      date: new Date().toISOString(),
+    };
+    
+    return nouvelleActivite;
+  }
+);
 
 interface CollaborationState {
-  collaborateurs: Collaborateur[];
-  collaborateurActuel: Collaborateur | null; // Collaborateur actuel pour le projet actif
-  invitationsEnAttente: Collaborateur[]; // Invitations en attente pour l'utilisateur connecté
+  projets: Projet[];
+  projetActuel: Projet | null;
+  utilisateurActuel: Utilisateur | null;
+  activites: ActiviteUtilisateur[];
+  invitations: InvitationProjet[];
   loading: boolean;
-  error: string | null;
+  error?: string;
 }
 
 const initialState: CollaborationState = {
-  collaborateurs: [],
-  collaborateurActuel: null,
-  invitationsEnAttente: [],
+  projets: [],
+  projetActuel: null,
+  utilisateurActuel: {
+    id: 'utilisateur_123',
+    nom: 'Utilisateur Local',
+    email: 'utilisateur@example.com',
+    role: 'proprietaire',
+    dateAjout: new Date().toISOString(),
+  },
+  activites: [],
+  invitations: [],
   loading: false,
-  error: null,
 };
-
-// Thunks pour Collaborations
-export const createCollaborateur = createAsyncThunk(
-  'collaboration/createCollaborateur',
-  async (input: CreateCollaborateurInput, { rejectWithValue }) => {
-    try {
-      const { getDatabase } = await import('../../services/database');
-      const { CollaborateurRepository, UserRepository, ProjetRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const collaborateurRepo = new CollaborateurRepository(db);
-      const userRepo = new UserRepository(db);
-      const projetRepo = new ProjetRepository(db);
-      
-      const permissions = input.permissions
-        ? { ...DEFAULT_PERMISSIONS[input.role], ...input.permissions }
-        : DEFAULT_PERMISSIONS[input.role];
-      
-      const collaborateur = await collaborateurRepo.create({
-        ...input,
-        statut: input.statut || 'en_attente',
-        permissions,
-        date_invitation: new Date().toISOString(),
-      });
-
-      // Si c'est une collaboration vétérinaire avec un user_id et statut actif, synchroniser avec vetProfile.clients
-      if (input.role === 'veterinaire' && input.user_id && (input.statut === 'actif' || !input.statut)) {
-        try {
-          const vet = await userRepo.findById(input.user_id);
-          if (vet && vet.roles?.veterinarian) {
-            const vetProfile = vet.roles.veterinarian;
-            const farm = await projetRepo.findById(input.projet_id);
-            
-            // Vérifier si la ferme n'est pas déjà dans les clients
-            const existingClient = vetProfile.clients.find(c => c.farmId === input.projet_id);
-            if (!existingClient && farm) {
-              const updatedClients = [
-                ...vetProfile.clients,
-                {
-                  farmId: input.projet_id,
-                  farmName: farm.nom || 'Ferme',
-                  since: new Date().toISOString(),
-                  status: 'active' as const,
-                  contractType: 'consultation' as const,
-                },
-              ];
-
-              const updatedRoles = {
-                ...vet.roles,
-                veterinarian: {
-                  ...vetProfile,
-                  clients: updatedClients,
-                },
-              };
-
-              await userRepo.update(input.user_id, {
-                roles: updatedRoles,
-              });
-            }
-          }
-        } catch (syncError) {
-          // Ne pas faire échouer la création de collaboration si la synchronisation échoue
-          console.warn('Erreur lors de la synchronisation avec vetProfile.clients:', syncError);
-        }
-      }
-
-      return collaborateur;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-export const loadCollaborateurs = createAsyncThunk(
-  'collaboration/loadCollaborateurs',
-  async (projetId: string, { rejectWithValue }) => {
-    try {
-      const { getDatabase } = await import('../../services/database');
-      const { CollaborateurRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const collaborateurRepo = new CollaborateurRepository(db);
-      const collaborateurs = await collaborateurRepo.findByProjet(projetId);
-      return collaborateurs;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-export const loadCollaborateursParProjet = createAsyncThunk(
-  'collaboration/loadCollaborateursParProjet',
-  async (projetId: string, { rejectWithValue }) => {
-    try {
-      const { getDatabase } = await import('../../services/database');
-      const { CollaborateurRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const collaborateurRepo = new CollaborateurRepository(db);
-      const collaborateurs = await collaborateurRepo.findByProjet(projetId);
-      return collaborateurs;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-export const updateCollaborateur = createAsyncThunk(
-  'collaboration/updateCollaborateur',
-  async (
-    { id, updates }: { id: string; updates: UpdateCollaborateurInput },
-    { rejectWithValue }
-  ) => {
-    try {
-      const { getDatabase } = await import('../../services/database');
-      const { CollaborateurRepository, UserRepository, ProjetRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const collaborateurRepo = new CollaborateurRepository(db);
-      const userRepo = new UserRepository(db);
-      const projetRepo = new ProjetRepository(db);
-      
-      // Récupérer la collaboration avant la mise à jour
-      const existingCollaborateur = await collaborateurRepo.findById(id);
-      if (!existingCollaborateur) {
-        throw new Error('Collaboration non trouvée');
-      }
-
-      const collaborateur = await collaborateurRepo.update(id, updates);
-
-      // Si la collaboration devient active et que c'est un vétérinaire avec user_id, synchroniser
-      if (
-        collaborateur.role === 'veterinaire' &&
-        collaborateur.user_id &&
-        (updates.statut === 'actif' || (existingCollaborateur.statut !== 'actif' && collaborateur.statut === 'actif'))
-      ) {
-        try {
-          const vet = await userRepo.findById(collaborateur.user_id);
-          if (vet && vet.roles?.veterinarian) {
-            const vetProfile = vet.roles.veterinarian;
-            const farm = await projetRepo.findById(collaborateur.projet_id);
-            
-            // Vérifier si la ferme n'est pas déjà dans les clients
-            const existingClient = vetProfile.clients.find(c => c.farmId === collaborateur.projet_id);
-            if (!existingClient && farm) {
-              const updatedClients = [
-                ...vetProfile.clients,
-                {
-                  farmId: collaborateur.projet_id,
-                  farmName: farm.nom || 'Ferme',
-                  since: new Date().toISOString(),
-                  status: 'active' as const,
-                  contractType: 'consultation' as const,
-                },
-              ];
-
-              const updatedRoles = {
-                ...vet.roles,
-                veterinarian: {
-                  ...vetProfile,
-                  clients: updatedClients,
-                },
-              };
-
-              await userRepo.update(collaborateur.user_id, {
-                roles: updatedRoles,
-              });
-            }
-          }
-        } catch (syncError) {
-          // Ne pas faire échouer la mise à jour si la synchronisation échoue
-          console.warn('Erreur lors de la synchronisation avec vetProfile.clients:', syncError);
-        }
-      }
-
-      return collaborateur;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-export const deleteCollaborateur = createAsyncThunk(
-  'collaboration/deleteCollaborateur',
-  async (id: string, { rejectWithValue }) => {
-    try {
-      const { getDatabase } = await import('../../services/database');
-      const { CollaborateurRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const collaborateurRepo = new CollaborateurRepository(db);
-      await collaborateurRepo.deleteById(id);
-      return id;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-export const accepterInvitation = createAsyncThunk(
-  'collaboration/accepterInvitation',
-  async (id: string, { rejectWithValue }) => {
-    try {
-      const { getDatabase } = await import('../../services/database');
-      const { CollaborateurRepository, UserRepository, ProjetRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const collaborateurRepo = new CollaborateurRepository(db);
-      const userRepo = new UserRepository(db);
-      const projetRepo = new ProjetRepository(db);
-      
-      // Récupérer la collaboration avant la mise à jour pour vérifier le rôle
-      const existingCollaborateur = await collaborateurRepo.findById(id);
-      if (!existingCollaborateur) {
-        throw new Error('Collaboration non trouvée');
-      }
-
-      const collaborateur = await collaborateurRepo.update(id, {
-        statut: 'actif',
-        date_acceptation: new Date().toISOString(),
-      });
-
-      // Si c'est une collaboration vétérinaire avec un user_id, synchroniser avec vetProfile.clients
-      if (collaborateur.role === 'veterinaire' && collaborateur.user_id) {
-        try {
-          const vet = await userRepo.findById(collaborateur.user_id);
-          if (vet && vet.roles?.veterinarian) {
-            const vetProfile = vet.roles.veterinarian;
-            const farm = await projetRepo.findById(collaborateur.projet_id);
-            
-            // Vérifier si la ferme n'est pas déjà dans les clients
-            const existingClient = vetProfile.clients.find(c => c.farmId === collaborateur.projet_id);
-            if (!existingClient && farm) {
-              const updatedClients = [
-                ...vetProfile.clients,
-                {
-                  farmId: collaborateur.projet_id,
-                  farmName: farm.nom || 'Ferme',
-                  since: new Date().toISOString(),
-                  status: 'active' as const,
-                  contractType: 'consultation' as const,
-                },
-              ];
-
-              const updatedRoles = {
-                ...vet.roles,
-                veterinarian: {
-                  ...vetProfile,
-                  clients: updatedClients,
-                },
-              };
-
-              await userRepo.update(collaborateur.user_id, {
-                roles: updatedRoles,
-              });
-            }
-          }
-        } catch (syncError) {
-          // Ne pas faire échouer l'acceptation si la synchronisation échoue
-          console.warn('Erreur lors de la synchronisation avec vetProfile.clients:', syncError);
-        }
-      }
-
-      return collaborateur;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-/**
- * Charger le collaborateur actuel pour le projet actif et l'utilisateur connecté
- */
-export const loadCollaborateurActuel = createAsyncThunk(
-  'collaboration/loadCollaborateurActuel',
-  async ({ userId, projetId }: { userId: string; projetId: string }, { rejectWithValue }) => {
-    try {
-      const { getDatabase } = await import('../../services/database');
-      const { CollaborateurRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const collaborateurRepo = new CollaborateurRepository(db);
-      // Chercher le collaborateur actif pour cet utilisateur et ce projet
-      const collaborateurs = await collaborateurRepo.findActifsByUserId(userId);
-      const collaborateur = collaborateurs.find(
-        (c) => c.projet_id === projetId && c.statut === 'actif'
-      );
-
-      return collaborateur || null;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-/**
- * Charger les invitations en attente pour un utilisateur
- * Utilise user_id si disponible, sinon email
- */
-export const loadInvitationsEnAttente = createAsyncThunk(
-  'collaboration/loadInvitationsEnAttente',
-  async ({ userId, email }: { userId?: string; email?: string }, { rejectWithValue }) => {
-    try {
-      if (!userId && !email) {
-        return [];
-      }
-
-      const { getDatabase } = await import('../../services/database');
-      const { CollaborateurRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const collaborateurRepo = new CollaborateurRepository(db);
-
-      let invitations: Collaborateur[] = [];
-
-      // D'abord essayer par user_id si disponible
-      if (userId) {
-        invitations = await collaborateurRepo.findInvitationsEnAttenteByUserId(userId);
-      }
-
-      // Si pas d'invitations par user_id, essayer par email
-      if (invitations.length === 0 && email) {
-        invitations = await collaborateurRepo.findInvitationsEnAttenteByEmail(email);
-        // Si on trouve des invitations par email et qu'on a un userId, les lier
-        if (invitations.length > 0 && userId) {
-          for (const invitation of invitations) {
-            if (!invitation.user_id) {
-              await collaborateurRepo.lierAUserParEmail(email, userId);
-            }
-          }
-          // Recharger après liaison
-          invitations = await collaborateurRepo.findInvitationsEnAttenteByUserId(userId);
-        }
-      }
-
-      return invitations;
-    } catch (error: unknown) {
-      return rejectWithValue(
-        getErrorMessage(error)
-      );
-    }
-  }
-);
-
-/**
- * Rejeter une invitation
- */
-export const rejeterInvitation = createAsyncThunk(
-  'collaboration/rejeterInvitation',
-  async (id: string, { rejectWithValue }) => {
-    try {
-      const { getDatabase } = await import('../../services/database');
-      const { CollaborateurRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const collaborateurRepo = new CollaborateurRepository(db);
-      await collaborateurRepo.update(id, {
-        statut: 'inactif',
-      });
-      return id;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
 
 const collaborationSlice = createSlice({
   name: 'collaboration',
   initialState,
   reducers: {
+    setProjetActuel: (state, action: PayloadAction<Projet>) => {
+      state.projetActuel = action.payload;
+    },
+    setUtilisateurActuel: (state, action: PayloadAction<Utilisateur>) => {
+      state.utilisateurActuel = action.payload;
+    },
+    ajouterActiviteLocale: (state, action: PayloadAction<ActiviteUtilisateur>) => {
+      state.activites.unshift(action.payload);
+      // Garder seulement les 100 dernières activités
+      if (state.activites.length > 100) {
+        state.activites = state.activites.slice(0, 100);
+      }
+    },
+    mettreAJourPermissions: (state, action: PayloadAction<{ utilisateurId: string; permissions: Partial<PermissionsProjet> }>) => {
+      if (state.projetActuel) {
+        const utilisateur = state.projetActuel.utilisateurs.find(u => u.id === action.payload.utilisateurId);
+        if (utilisateur) {
+          // Mettre à jour les permissions dans le projet
+          state.projetActuel.permissions = { ...state.projetActuel.permissions, ...action.payload.permissions };
+        }
+      }
+    },
+    setLoading: (state, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
+    },
+    setError: (state, action: PayloadAction<string>) => {
+      state.error = action.payload;
+    },
     clearError: (state) => {
-      state.error = null;
-    },
-    clearCollaborateurActuel: (state) => {
-      state.collaborateurActuel = null;
-    },
-    clearInvitationsEnAttente: (state) => {
-      state.invitationsEnAttente = [];
+      state.error = undefined;
     },
   },
   extraReducers: (builder) => {
     builder
-      // createCollaborateur
-      .addCase(createCollaborateur.pending, (state) => {
+      // Créer un projet
+      .addCase(creerProjet.pending, (state) => {
         state.loading = true;
-        state.error = null;
+        state.error = undefined;
       })
-      .addCase(createCollaborateur.fulfilled, (state, action) => {
+      .addCase(creerProjet.fulfilled, (state, action) => {
         state.loading = false;
-        state.collaborateurs.unshift(action.payload);
+        state.projets.push(action.payload);
+        state.projetActuel = action.payload;
       })
-      .addCase(createCollaborateur.rejected, (state, action) => {
+      .addCase(creerProjet.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload as string;
+        state.error = action.error.message || 'Erreur lors de la création du projet';
       })
-      // loadCollaborateurs
-      .addCase(loadCollaborateurs.pending, (state) => {
+      
+      // Rejoindre un projet
+      .addCase(rejoindreProjet.pending, (state) => {
         state.loading = true;
-        state.error = null;
+        state.error = undefined;
       })
-      .addCase(loadCollaborateurs.fulfilled, (state, action) => {
+      .addCase(rejoindreProjet.fulfilled, (state, action) => {
         state.loading = false;
-        state.collaborateurs = action.payload;
-      })
-      .addCase(loadCollaborateurs.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // loadCollaborateursParProjet
-      .addCase(loadCollaborateursParProjet.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(loadCollaborateursParProjet.fulfilled, (state, action) => {
-        state.loading = false;
-        state.collaborateurs = action.payload;
-      })
-      .addCase(loadCollaborateursParProjet.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // updateCollaborateur
-      .addCase(updateCollaborateur.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(updateCollaborateur.fulfilled, (state, action) => {
-        state.loading = false;
-        const index = state.collaborateurs.findIndex(
-          (c: Collaborateur) => c.id === action.payload.id
-        );
-        if (index !== -1) {
-          state.collaborateurs[index] = action.payload;
+        state.projetActuel = action.payload;
+        // Ajouter le projet à la liste s'il n'y est pas déjà
+        if (!state.projets.find(p => p.id === action.payload.id)) {
+          state.projets.push(action.payload);
         }
       })
-      .addCase(updateCollaborateur.rejected, (state, action) => {
+      .addCase(rejoindreProjet.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload as string;
+        state.error = action.error.message || 'Erreur lors de la connexion au projet';
       })
-      // deleteCollaborateur
-      .addCase(deleteCollaborateur.pending, (state) => {
+      
+      // Inviter un utilisateur
+      .addCase(inviterUtilisateur.pending, (state) => {
         state.loading = true;
-        state.error = null;
+        state.error = undefined;
       })
-      .addCase(deleteCollaborateur.fulfilled, (state, action) => {
+      .addCase(inviterUtilisateur.fulfilled, (state, action) => {
         state.loading = false;
-        state.collaborateurs = state.collaborateurs.filter(
-          (c: Collaborateur) => c.id !== action.payload
-        );
+        state.invitations.push(action.payload);
       })
-      .addCase(deleteCollaborateur.rejected, (state, action) => {
+      .addCase(inviterUtilisateur.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload as string;
+        state.error = action.error.message || 'Erreur lors de l\'invitation';
       })
-      // accepterInvitation
-      .addCase(accepterInvitation.pending, (state) => {
-        state.loading = true;
-        state.error = null;
+      
+      // Enregistrer une activité
+      .addCase(enregistrerActivite.pending, (state) => {
+        // Pas de loading pour les activités
       })
-      .addCase(accepterInvitation.fulfilled, (state, action) => {
-        state.loading = false;
-        const index = state.collaborateurs.findIndex(
-          (c: Collaborateur) => c.id === action.payload.id
-        );
-        if (index !== -1) {
-          state.collaborateurs[index] = action.payload;
+      .addCase(enregistrerActivite.fulfilled, (state, action) => {
+        state.activites.unshift(action.payload);
+        // Garder seulement les 100 dernières activités
+        if (state.activites.length > 100) {
+          state.activites = state.activites.slice(0, 100);
         }
-        // Retirer de la liste des invitations en attente
-        state.invitationsEnAttente = state.invitationsEnAttente.filter(
-          (inv) => inv.id !== action.payload.id
-        );
       })
-      .addCase(accepterInvitation.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // loadCollaborateurActuel
-      .addCase(loadCollaborateurActuel.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(loadCollaborateurActuel.fulfilled, (state, action) => {
-        state.loading = false;
-        state.collaborateurActuel = action.payload;
-      })
-      .addCase(loadCollaborateurActuel.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-        state.collaborateurActuel = null;
-      })
-      // loadInvitationsEnAttente
-      .addCase(loadInvitationsEnAttente.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(loadInvitationsEnAttente.fulfilled, (state, action) => {
-        state.loading = false;
-        state.invitationsEnAttente = action.payload;
-      })
-      .addCase(loadInvitationsEnAttente.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // rejeterInvitation
-      .addCase(rejeterInvitation.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(rejeterInvitation.fulfilled, (state, action) => {
-        state.loading = false;
-        state.invitationsEnAttente = state.invitationsEnAttente.filter(
-          (inv) => inv.id !== action.payload
-        );
-      })
-      .addCase(rejeterInvitation.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
+      .addCase(enregistrerActivite.rejected, (state, action) => {
+        console.error('Erreur lors de l\'enregistrement de l\'activité:', action.error);
       });
   },
 });
 
-export const { clearError, clearCollaborateurActuel, clearInvitationsEnAttente } =
-  collaborationSlice.actions;
+export const {
+  setProjetActuel,
+  setUtilisateurActuel,
+  ajouterActiviteLocale,
+  mettreAJourPermissions,
+  setLoading,
+  setError,
+  clearError,
+} = collaborationSlice.actions;
+
 export default collaborationSlice.reducer;

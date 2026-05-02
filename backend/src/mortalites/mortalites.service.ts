@@ -1,0 +1,342 @@
+import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import { DatabaseService } from '../database/database.service';
+import { CacheService } from '../common/services/cache.service';
+import { CreateMortaliteDto } from './dto/create-mortalite.dto';
+import { UpdateMortaliteDto } from './dto/update-mortalite.dto';
+
+@Injectable()
+export class MortalitesService {
+  private readonly logger = new Logger(MortalitesService.name);
+
+  constructor(
+    private databaseService: DatabaseService,
+    private cacheService: CacheService
+  ) {}
+
+  /**
+   * Génère un ID comme le frontend : mortalite_${Date.now()}_${random}
+   */
+  private generateMortaliteId(): string {
+    return `mortalite_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * Vérifie que le projet appartient à l'utilisateur OU qu'il est collaborateur actif
+   * avec les permissions appropriées (mortalites ou gestion_complete)
+   */
+  private async checkProjetOwnership(projetId: string, userId: string): Promise<void> {
+    const result = await this.databaseService.query(
+      'SELECT proprietaire_id FROM projets WHERE id = $1',
+      [projetId]
+    );
+    if (result.rows.length === 0) {
+      throw new NotFoundException('Projet introuvable');
+    }
+    const rawProprietaireId = result.rows[0].proprietaire_id;
+    const proprietaireId = String(rawProprietaireId || '').trim();
+    const normalizedUserId = String(userId || '').trim();
+    this.logger.debug(`checkProjetOwnership: projetId=${projetId}, proprietaire_id=${proprietaireId}, userId=${normalizedUserId}`);
+    
+    // ✅ Si l'utilisateur est le propriétaire, OK
+    if (proprietaireId === normalizedUserId) {
+      return;
+    }
+    
+    // ✅ Sinon, vérifier s'il est collaborateur actif avec permission 'mortalites'
+    const collabResult = await this.databaseService.query(
+      `SELECT id, permission_mortalites, permission_gestion_complete FROM collaborations 
+       WHERE projet_id = $1 
+       AND (user_id = $2 OR profile_id LIKE $3)
+       AND statut = 'actif'`,
+      [projetId, normalizedUserId, `%${normalizedUserId}%`]
+    );
+    
+    if (collabResult.rows.length > 0) {
+      const collab = collabResult.rows[0];
+      // Vérifier si la permission mortalites ou gestion_complete est accordée
+      if (collab.permission_mortalites === true || collab.permission_gestion_complete === true) {
+        return;
+      }
+    }
+    
+    throw new ForbiddenException('Vous n\'avez pas accès à ce projet ou les permissions nécessaires');
+  }
+
+  /**
+   * Mappe une ligne de base de données vers un objet Mortalite
+   */
+  private mapRowToMortalite(row: any): any {
+    return {
+      id: row.id,
+      projet_id: row.projet_id,
+      nombre_porcs: row.nombre_porcs,
+      date: row.date,
+      cause: row.cause || undefined,
+      categorie: row.categorie,
+      animal_code: row.animal_code || undefined,
+      batch_id: row.batch_id || undefined,
+      poids_kg: row.poids_kg ? parseFloat(row.poids_kg) : undefined,
+      notes: row.notes || undefined,
+      date_creation: row.date_creation,
+    };
+  }
+
+  async create(createMortaliteDto: CreateMortaliteDto, userId: string) {
+    await this.checkProjetOwnership(createMortaliteDto.projet_id, userId);
+
+    // Utiliser une transaction pour garantir la cohérence des données
+    return await this.databaseService.transaction(async (client) => {
+      const id = this.generateMortaliteId();
+      const now = new Date().toISOString();
+
+      // Si un animal_code est fourni, mettre à jour le statut de l'animal
+      if (createMortaliteDto.animal_code) {
+        try {
+          await client.query(
+            `UPDATE production_animaux 
+             SET statut = 'mort', actif = FALSE, derniere_modification = $1
+             WHERE code = $2 AND projet_id = $3 AND statut != 'mort'`,
+            [now, createMortaliteDto.animal_code, createMortaliteDto.projet_id]
+          );
+        } catch (error) {
+          // Ne pas faire échouer la création de mortalité si la mise à jour échoue
+          // (animal peut ne pas exister ou être déjà marqué comme mort)
+          this.logger.warn(`Erreur lors de la mise à jour du statut de l'animal (code=${createMortaliteDto.animal_code}):`, error);
+        }
+      }
+
+      const result = await client.query(
+        `INSERT INTO mortalites (
+          id, projet_id, nombre_porcs, date, cause, categorie,
+          animal_code, batch_id, poids_kg, notes, date_creation
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING *`,
+        [
+          id,
+          createMortaliteDto.projet_id,
+          createMortaliteDto.nombre_porcs,
+          createMortaliteDto.date,
+          createMortaliteDto.cause || null,
+          createMortaliteDto.categorie,
+          createMortaliteDto.animal_code || null,
+          createMortaliteDto.batch_id || null,
+          createMortaliteDto.poids_kg || null,
+          createMortaliteDto.notes || null,
+          now,
+        ]
+      );
+
+      const mortalite = this.mapRowToMortalite(result.rows[0]);
+      // Invalider le cache des stats de mortalité
+      this.invalidateMortalitesCache(mortalite.projet_id);
+      return mortalite;
+    });
+  }
+
+  /**
+   * Met à jour le statut d'un animal à 'mort' si son code correspond
+   */
+  private async updateAnimalStatus(animalCode: string, projetId: string): Promise<void> {
+    try {
+      await this.databaseService.query(
+        `UPDATE production_animaux 
+         SET statut = 'mort', actif = FALSE, derniere_modification = $1
+         WHERE code = $2 AND projet_id = $3 AND statut != 'mort'`,
+        [new Date().toISOString(), animalCode, projetId]
+      );
+    } catch (error) {
+      // Ne pas faire échouer la création de mortalité si la mise à jour échoue
+      this.logger.warn(`Erreur lors de la mise à jour du statut de l'animal (code=${animalCode}):`, error);
+    }
+  }
+
+  async findAll(projetId: string, userId: string, limit?: number, offset?: number) {
+    await this.checkProjetOwnership(projetId, userId);
+
+    const defaultLimit = 500;
+    const effectiveLimit = limit ? Math.min(limit, 500) : defaultLimit;
+    const effectiveOffset = offset || 0;
+
+      // Colonnes nécessaires pour mapRowToMortalite (optimisation: éviter SELECT *)
+      const mortaliteColumns = `id, projet_id, nombre_porcs, date, cause, categorie, 
+        animal_code, batch_id, poids_kg, notes, date_creation`;
+      
+      const result = await this.databaseService.query(
+        `SELECT ${mortaliteColumns} FROM mortalites WHERE projet_id = $1 ORDER BY date DESC LIMIT $2 OFFSET $3`,
+        [projetId, effectiveLimit, effectiveOffset]
+      );
+    return result.rows.map((row) => this.mapRowToMortalite(row));
+  }
+
+  async findOne(id: string, userId: string) {
+    // Colonnes nécessaires pour mapRowToMortalite (optimisation: éviter SELECT *)
+    const mortaliteColumns = `m.id, m.projet_id, m.nombre_porcs, m.date, m.cause, m.categorie, 
+      m.animal_code, m.batch_id, m.poids_kg, m.notes, m.date_creation`;
+    
+    const result = await this.databaseService.query(
+      `SELECT ${mortaliteColumns} FROM mortalites m
+       JOIN projets p ON m.projet_id = p.id
+       WHERE m.id = $1 AND p.proprietaire_id = $2`,
+      [id, userId]
+    );
+    return result.rows[0] ? this.mapRowToMortalite(result.rows[0]) : null;
+  }
+
+  async update(id: string, updateMortaliteDto: UpdateMortaliteDto, userId: string) {
+    const existing = await this.findOne(id, userId);
+    if (!existing) {
+      throw new NotFoundException('Mortalité introuvable');
+    }
+
+    const fields: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (updateMortaliteDto.nombre_porcs !== undefined) {
+      fields.push(`nombre_porcs = $${paramIndex}`);
+      values.push(updateMortaliteDto.nombre_porcs);
+      paramIndex++;
+    }
+    if (updateMortaliteDto.date !== undefined) {
+      fields.push(`date = $${paramIndex}`);
+      values.push(updateMortaliteDto.date);
+      paramIndex++;
+    }
+    if (updateMortaliteDto.cause !== undefined) {
+      fields.push(`cause = $${paramIndex}`);
+      values.push(updateMortaliteDto.cause || null);
+      paramIndex++;
+    }
+    if (updateMortaliteDto.categorie !== undefined) {
+      fields.push(`categorie = $${paramIndex}`);
+      values.push(updateMortaliteDto.categorie);
+      paramIndex++;
+    }
+    if (updateMortaliteDto.animal_code !== undefined) {
+      fields.push(`animal_code = $${paramIndex}`);
+      values.push(updateMortaliteDto.animal_code || null);
+      paramIndex++;
+    }
+    if (updateMortaliteDto.batch_id !== undefined) {
+      fields.push(`batch_id = $${paramIndex}`);
+      values.push(updateMortaliteDto.batch_id || null);
+      paramIndex++;
+    }
+    if (updateMortaliteDto.poids_kg !== undefined) {
+      fields.push(`poids_kg = $${paramIndex}`);
+      values.push(updateMortaliteDto.poids_kg || null);
+      paramIndex++;
+    }
+    if (updateMortaliteDto.notes !== undefined) {
+      fields.push(`notes = $${paramIndex}`);
+      values.push(updateMortaliteDto.notes || null);
+      paramIndex++;
+    }
+
+    if (fields.length === 0) {
+      return existing;
+    }
+
+    values.push(id);
+    const query = `UPDATE mortalites SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
+    const result = await this.databaseService.query(query, values);
+    const mortalite = this.mapRowToMortalite(result.rows[0]);
+    // Invalider le cache des stats de mortalité
+    this.invalidateMortalitesCache(mortalite.projet_id);
+    return mortalite;
+  }
+
+  async delete(id: string, userId: string) {
+    const existing = await this.findOne(id, userId);
+    if (!existing) {
+      throw new NotFoundException('Mortalité introuvable');
+    }
+
+    const projetId = existing.projet_id;
+    await this.databaseService.query('DELETE FROM mortalites WHERE id = $1', [id]);
+    // Invalider le cache des stats de mortalité
+    this.invalidateMortalitesCache(projetId);
+    return { id };
+  }
+
+  async getStatistiques(projetId: string, userId: string) {
+    await this.checkProjetOwnership(projetId, userId);
+
+    const cacheKey = `mortalites_stats:${projetId}`;
+    
+    // Utiliser le cache avec TTL de 2 minutes (120 secondes)
+    return this.cacheService.getOrSet(
+      cacheKey,
+      async () => {
+        // Récupérer le total des mortalités
+    const totalResult = await this.databaseService.query(
+      `SELECT SUM(nombre_porcs) as total FROM mortalites WHERE projet_id = $1`,
+      [projetId]
+    );
+    const totalMorts = totalResult.rows[0]?.total ? parseInt(totalResult.rows[0].total, 10) : 0;
+
+    // Récupérer le nombre total d'animaux du projet (pour calculer le taux)
+    const animauxResult = await this.databaseService.query(
+      `SELECT COUNT(*) as total FROM production_animaux WHERE projet_id = $1`,
+      [projetId]
+    );
+    const totalAnimaux = animauxResult.rows[0]?.total
+      ? parseInt(animauxResult.rows[0].total, 10)
+      : 0;
+
+    // Calculer le taux de mortalité
+    const tauxMortalite = totalAnimaux > 0 ? (totalMorts / totalAnimaux) * 100 : 0;
+
+    // Récupérer les mortalités par catégorie
+    const categorieResult = await this.databaseService.query(
+      `SELECT categorie, SUM(nombre_porcs) as total 
+       FROM mortalites 
+       WHERE projet_id = $1 
+       GROUP BY categorie`,
+      [projetId]
+    );
+    const mortalitesParCategorie = {
+      porcelet: 0,
+      truie: 0,
+      verrat: 0,
+      autre: 0,
+    };
+    categorieResult.rows.forEach((row) => {
+      mortalitesParCategorie[row.categorie] = parseInt(row.total, 10);
+    });
+
+    // Récupérer les mortalités par mois (12 derniers mois)
+    const moisResult = await this.databaseService.query(
+      `SELECT 
+         TO_CHAR(date, 'YYYY-MM') as mois,
+         SUM(nombre_porcs) as nombre
+       FROM mortalites 
+       WHERE projet_id = $1 
+         AND date >= NOW() - INTERVAL '12 months'
+       GROUP BY TO_CHAR(date, 'YYYY-MM')
+       ORDER BY mois ASC`,
+      [projetId]
+    );
+    const mortalitesParMois = moisResult.rows.map((row) => ({
+      mois: row.mois,
+      nombre: parseInt(row.nombre, 10),
+    }));
+
+        return {
+          total_morts: totalMorts,
+          taux_mortalite: tauxMortalite,
+          mortalites_par_categorie: mortalitesParCategorie,
+          mortalites_par_mois: mortalitesParMois,
+        };
+      },
+      120 // TTL: 2 minutes
+    );
+  }
+
+  /**
+   * Invalide le cache pour les statistiques de mortalité d'un projet
+   */
+  private invalidateMortalitesCache(projetId: string): void {
+    this.cacheService.delete(`mortalites_stats:${projetId}`);
+  }
+}

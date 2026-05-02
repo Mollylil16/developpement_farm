@@ -3,7 +3,8 @@
  * Évite la duplication de code dans les composants
  */
 
-import { ProductionAnimal, ProductionPesee, Mortalite } from '../types';
+import type { ProductionAnimal, ProductionPesee } from '../types/production';
+import type { Mortalite } from '../types/mortalites';
 
 export interface AnimalStats {
   total: number;
@@ -73,10 +74,7 @@ export class StatisticsService {
   /**
    * Calcule les statistiques complètes d'animaux
    */
-  static calculateAnimalStats(
-    animaux: ProductionAnimal[],
-    pesees: ProductionPesee[]
-  ): AnimalStats {
+  static calculateAnimalStats(animaux: ProductionAnimal[], pesees: ProductionPesee[]): AnimalStats {
     const actifs = animaux.filter((a) => a.statut?.toLowerCase() === 'actif');
     const morts = animaux.filter((a) => a.statut?.toLowerCase() === 'mort');
     const vendus = animaux.filter((a) => a.statut?.toLowerCase() === 'vendu');
@@ -122,10 +120,7 @@ export class StatisticsService {
   /**
    * Calcule les statistiques de mortalité
    */
-  static calculateMortalityStats(
-    mortalites: Mortalite[],
-    totalAnimals: number
-  ): MortalityStats {
+  static calculateMortalityStats(mortalites: Mortalite[], totalAnimals: number): MortalityStats {
     const total = mortalites.reduce((sum, m) => sum + (m.nombre_porcs || 0), 0);
     const taux = this.calculateMortalityRate(mortalites, totalAnimals);
 
@@ -154,10 +149,7 @@ export class StatisticsService {
   /**
    * Calcule les statistiques de poids
    */
-  static calculateWeightStats(
-    animaux: ProductionAnimal[],
-    pesees: ProductionPesee[]
-  ): WeightStats {
+  static calculateWeightStats(animaux: ProductionAnimal[], pesees: ProductionPesee[]): WeightStats {
     const poidsParAnimal: Record<string, number> = {};
     const poidsList: number[] = [];
 
@@ -214,4 +206,3 @@ export class StatisticsService {
     return { truies, verrats, porcelets };
   }
 }
-

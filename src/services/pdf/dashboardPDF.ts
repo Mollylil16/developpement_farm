@@ -11,7 +11,8 @@ import {
   formatDate,
   generateAndSharePDF,
 } from '../pdfService';
-import { Projet, ProductionAnimal } from '../../types';
+import type { Projet } from '../../types/projet';
+import type { ProductionAnimal } from '../../types/production';
 
 interface DashboardData {
   projet: Projet;

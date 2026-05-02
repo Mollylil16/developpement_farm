@@ -3,7 +3,6 @@
  * Utilise des coordonnées réelles d'Abidjan, Côte d'Ivoire
  */
 
-import { getDatabase } from '../../services/database';
 import { VeterinarianRepository } from '../repositories';
 import { CreateVeterinarianInput } from '../../types/veterinarian';
 
@@ -23,8 +22,7 @@ const ABIDJAN_LOCATIONS = {
  */
 export async function seedVeterinarians(): Promise<void> {
   try {
-    const db = await getDatabase();
-    const vetRepo = new VeterinarianRepository(db);
+    const vetRepo = new VeterinarianRepository();
 
     const vets: CreateVeterinarianInput[] = [
       {
@@ -113,4 +111,3 @@ export async function seedVeterinarians(): Promise<void> {
     console.error('❌ Erreur lors du seed des vétérinaires:', error);
   }
 }
-

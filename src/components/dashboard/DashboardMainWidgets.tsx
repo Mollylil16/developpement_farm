@@ -139,12 +139,11 @@ const DashboardMainWidgets = memo(function DashboardMainWidgets({
 
 const styles = StyleSheet.create({
   container: {
-    gap: SPACING.md,
+    // gap: SPACING.md, // Non supporté dans toutes les versions de React Native - remplacé par marginBottom dans widgetWrapper
   },
   widgetWrapper: {
-    marginBottom: SPACING.xs,
+    marginBottom: SPACING.md, // Utilisé pour remplacer gap du container
   },
 });
 
 export default DashboardMainWidgets;
-

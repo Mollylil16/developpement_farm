@@ -59,10 +59,7 @@ export class MigrationService {
   /**
    * Vérifie si une migration spécifique a été appliquée
    */
-  static async isMigrationApplied(
-    db: SQLiteDatabase,
-    version: number
-  ): Promise<boolean> {
+  static async isMigrationApplied(db: SQLiteDatabase, version: number): Promise<boolean> {
     const result = await db.getFirstAsync<{ count: number }>(
       'SELECT COUNT(*) as count FROM schema_migrations WHERE version = ?',
       [version]
@@ -80,9 +77,7 @@ export class MigrationService {
       version: number;
       name: string;
       applied_at: string;
-    }>(
-      'SELECT version, name, applied_at FROM schema_migrations ORDER BY version DESC LIMIT 1'
-    );
+    }>('SELECT version, name, applied_at FROM schema_migrations ORDER BY version DESC LIMIT 1');
 
     if (!result) {
       return null;
@@ -103,4 +98,3 @@ export class MigrationService {
     return status.filter((m) => !m.applied).length;
   }
 }
-

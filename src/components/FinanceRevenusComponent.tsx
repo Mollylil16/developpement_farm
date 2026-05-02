@@ -19,7 +19,7 @@ import { Image } from 'expo-image';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { loadRevenus, deleteRevenu } from '../store/slices/financeSlice';
 import { selectAllRevenus } from '../store/selectors/financeSelectors';
-import { Revenu } from '../types';
+import type { Revenu } from '../types/finance';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
@@ -27,13 +27,15 @@ import LoadingSpinner from './LoadingSpinner';
 import RevenuFormModal from './RevenuFormModal';
 import VenteDetailModal from './VenteDetailModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { logger } from '../utils/logger';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
-export default function FinanceRevenusComponent() {
+function FinanceRevenusComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   const revenus = useAppSelector(selectAllRevenus);
-  const loading = useAppSelector((state) => state.finance.loading);
+  const loading = useAppSelector((state) => state.finance?.loading ?? false);
   const [selectedRevenu, setSelectedRevenu] = useState<Revenu | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -46,7 +48,8 @@ export default function FinanceRevenusComponent() {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedVenteDetail, setSelectedVenteDetail] = useState<Revenu | null>(null);
 
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   // Charger les données à chaque fois que l'écran est focus
   useFocusEffect(
@@ -138,12 +141,12 @@ export default function FinanceRevenusComponent() {
 
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;
-    
+
     setRefreshing(true);
     try {
       await dispatch(loadRevenus(projetActif.id)).unwrap();
     } catch (error) {
-      console.error('Erreur lors du rafraîchissement:', error);
+      logger.error('Erreur lors du rafraîchissement:', error);
     } finally {
       setRefreshing(false);
     }
@@ -302,7 +305,7 @@ export default function FinanceRevenusComponent() {
                 <View style={styles.cardActions}>
                   {(() => {
                     // Filtrer les photos valides
-                    const photosValides = revenu.photos?.filter(p => p && p.trim() !== '') || [];
+                    const photosValides = revenu.photos?.filter((p) => p && p.trim() !== '') || [];
                     return photosValides.length > 0 ? (
                       <TouchableOpacity
                         accessible={true}
@@ -381,7 +384,7 @@ export default function FinanceRevenusComponent() {
                 )}
                 {(() => {
                   // Filtrer les photos valides (non vides, non nulles)
-                  const photosValides = revenu.photos?.filter(p => p && p.trim() !== '') || [];
+                  const photosValides = revenu.photos?.filter((p) => p && p.trim() !== '') || [];
                   return photosValides.length > 0 ? (
                     <View style={styles.photosContainer}>
                       <Text style={[styles.photosLabel, { color: colors.textSecondary }]}>
@@ -391,7 +394,43 @@ export default function FinanceRevenusComponent() {
                   ) : null;
                 })()}
 
-                {revenu.categorie === 'vente_porc' && revenu.poids_kg && revenu.poids_kg > 0 && (
+                {/* Informations de vente marketplace */}
+                {revenu.categorie === 'vente_porc' && (
+                  <View style={[styles.venteInfoContainer, { borderTopColor: colors.border }]}>
+                    {(revenu.poids_total || revenu.poids_kg) && (
+                      <View style={styles.venteInfoRow}>
+                        <Text style={[styles.venteInfoLabel, { color: colors.textSecondary }]}>
+                          Poids total:
+                        </Text>
+                        <Text style={[styles.venteInfoValue, { color: colors.text }]}>
+                          {((revenu.poids_total || revenu.poids_kg) || 0).toLocaleString()} kg
+                        </Text>
+                      </View>
+                    )}
+                    {revenu.nombre_animaux && (
+                      <View style={styles.venteInfoRow}>
+                        <Text style={[styles.venteInfoLabel, { color: colors.textSecondary }]}>
+                          Nombre d'animaux:
+                        </Text>
+                        <Text style={[styles.venteInfoValue, { color: colors.text }]}>
+                          {revenu.nombre_animaux}
+                        </Text>
+                      </View>
+                    )}
+                    {revenu.acheteur && (
+                      <View style={styles.venteInfoRow}>
+                        <Text style={[styles.venteInfoLabel, { color: colors.textSecondary }]}>
+                          Acheteur:
+                        </Text>
+                        <Text style={[styles.venteInfoValue, { color: colors.text }]}>
+                          {revenu.acheteur}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {revenu.categorie === 'vente_porc' && (revenu.poids_total || revenu.poids_kg) && (revenu.poids_total || revenu.poids_kg) > 0 && (
                   <TouchableOpacity
                     style={[styles.detailButton, { backgroundColor: colors.primary }]}
                     onPress={() => {
@@ -448,16 +487,18 @@ export default function FinanceRevenusComponent() {
               </TouchableOpacity>
             </View>
             <ScrollView horizontal pagingEnabled>
-              {viewingPhotos.filter(p => p && p.trim() !== '').map((photo, index) => (
-                <Image
-                  key={index}
-                  source={{ uri: photo }}
-                  style={styles.photoImage}
-                  contentFit="contain"
-                  transition={200}
-                  cachePolicy="memory-disk"
-                />
-              ))}
+              {viewingPhotos
+                .filter((p) => p && p.trim() !== '')
+                .map((photo, index) => (
+                  <Image
+                    key={index}
+                    source={{ uri: photo }}
+                    style={styles.photoImage}
+                    contentFit="contain"
+                    transition={200}
+                    cachePolicy="memory-disk"
+                  />
+                ))}
             </ScrollView>
           </View>
         </View>
@@ -683,4 +724,25 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
   },
+  venteInfoContainer: {
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+  },
+  venteInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+  },
+  venteInfoLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  venteInfoValue: {
+    fontSize: FONT_SIZES.sm,
+  },
 });
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(FinanceRevenusComponent);

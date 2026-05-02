@@ -11,10 +11,12 @@ import {
   loadInvitationsEnAttente,
 } from '../store/slices/collaborationSlice';
 import { loadProjets, loadProjetActif } from '../store/slices/projetSlice';
-import { Collaborateur, ROLE_LABELS } from '../types';
+import type { Collaborateur } from '../types/collaboration';
+import { ROLE_LABELS } from '../types/collaboration';
 import CustomModal from './CustomModal';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
+import apiClient from '../services/api/apiClient';
 
 interface InvitationsModalProps {
   visible: boolean;
@@ -24,8 +26,8 @@ interface InvitationsModalProps {
 export default function InvitationsModal({ visible, onClose }: InvitationsModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { invitationsEnAttente, loading } = useAppSelector((state) => state.collaboration);
-  const { user } = useAppSelector((state) => state.auth);
+  const { invitationsEnAttente = [], loading = false } = useAppSelector((state) => state.collaboration ?? { invitationsEnAttente: [], loading: false });
+  const { user } = useAppSelector((state) => state.auth ?? { user: null });
   const [projetNoms, setProjetNoms] = React.useState<Record<string, string>>({});
   const [loadingProjets, setLoadingProjets] = React.useState(false);
 
@@ -37,11 +39,8 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
         const noms: Record<string, string> = {};
         for (const invitation of invitationsEnAttente) {
           try {
-            const { getDatabase } = await import('../services/database');
-            const { ProjetRepository } = await import('../database/repositories');
-            const db = await getDatabase();
-            const projetRepo = new ProjetRepository(db);
-            const projet = await projetRepo.getById(invitation.projet_id);
+            // Charger le projet depuis l'API backend
+            const projet = await apiClient.get<any>(`/projets/${invitation.projet_id}`);
             if (projet) {
               noms[invitation.projet_id] = projet.nom;
             }
@@ -58,8 +57,48 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
   }, [invitationsEnAttente]);
 
   const handleAccepter = async (invitation: Collaborateur) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InvitationsModal.tsx:59',message:'Début acceptation invitation',data:{invitationId:invitation.id,projetId:invitation.projet_id,role:invitation.role,statut:invitation.statut},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     try {
+      if (!invitation.id) {
+        throw new Error("L'ID de l'invitation est manquant");
+      }
+
+      // Vérifier que l'invitation est toujours en attente
+      if (invitation.statut !== 'en_attente') {
+        Alert.alert(
+          'Invitation déjà traitée',
+          "Cette invitation a déjà été acceptée ou rejetée. Rechargement des invitations...",
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                if (user) {
+                  dispatch(
+                    loadInvitationsEnAttente({
+                      userId: user.id,
+                      email: user.email || undefined,
+                      telephone: user.telephone || undefined,
+                    })
+                  );
+                }
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InvitationsModal.tsx:65',message:'Appel API accepterInvitation',data:{invitationId:invitation.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+
       await dispatch(accepterInvitation(invitation.id)).unwrap();
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InvitationsModal.tsx:69',message:'Invitation acceptée avec succès, rechargement projets',data:{invitationId:invitation.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
 
       // Recharger les projets pour inclure le nouveau projet
       await dispatch(loadProjets());
@@ -84,14 +123,65 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
 
       // Recharger les invitations en attente
       if (user) {
-        dispatch(loadInvitationsEnAttente({ userId: user.id, email: user.email || undefined }));
+        dispatch(
+          loadInvitationsEnAttente({
+            userId: user.id,
+            email: user.email || undefined,
+            telephone: user.telephone || undefined,
+          })
+        );
       }
-    } catch (error: any) {
-      Alert.alert('Erreur', error || "Erreur lors de l'acceptation de l'invitation");
+    } catch (error: unknown) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InvitationsModal.tsx:103',message:'Erreur acceptation invitation',data:{invitationId:invitation.id,errorType:error?.constructor?.name,errorMessage:error instanceof Error ? error.message : String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      
+      console.error('Erreur lors de l\'acceptation de l\'invitation:', error);
+      
+      let errorMessage = "Erreur lors de l'acceptation de l'invitation";
+      if (error instanceof Error) {
+        errorMessage = error.message || errorMessage;
+        // Si l'invitation est introuvable (404), recharger les invitations
+        if (error.message.includes('introuvable') || error.message.includes('404')) {
+          errorMessage = "Cette invitation n'existe plus ou a déjà été traitée. Rechargement des invitations...";
+          if (user) {
+            dispatch(loadInvitationsEnAttente({ userId: user.id, email: user.email || undefined }));
+          }
+        }
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = String(error.message);
+      }
+      
+      Alert.alert('Erreur', errorMessage);
     }
   };
 
   const handleRejeter = async (invitation: Collaborateur) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InvitationsModal.tsx:100',message:'Début rejet invitation',data:{invitationId:invitation.id,projetId:invitation.projet_id,statut:invitation.statut},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
+
+    // Vérifier que l'invitation est toujours en attente
+    if (invitation.statut !== 'en_attente') {
+      Alert.alert(
+        'Invitation déjà traitée',
+        "Cette invitation a déjà été acceptée ou rejetée. Rechargement des invitations...",
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              if (user) {
+                dispatch(loadInvitationsEnAttente({ userId: user.id, email: user.email || undefined }));
+              }
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     Alert.alert(
       "Rejeter l'invitation",
       `Êtes-vous sûr de vouloir rejeter l'invitation pour le projet "${projetNoms[invitation.projet_id] || 'Projet'}" ?`,
@@ -102,7 +192,20 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
           style: 'destructive',
           onPress: async () => {
             try {
+              if (!invitation.id) {
+                throw new Error("L'ID de l'invitation est manquant");
+              }
+
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InvitationsModal.tsx:109',message:'Appel API rejeterInvitation',data:{invitationId:invitation.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+              // #endregion
+
               await dispatch(rejeterInvitation(invitation.id)).unwrap();
+
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InvitationsModal.tsx:115',message:'Invitation rejetée avec succès',data:{invitationId:invitation.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
+              // #endregion
+
               Alert.alert('Invitation rejetée', "L'invitation a été rejetée.");
 
               // Recharger les invitations en attente
@@ -111,8 +214,36 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
                   loadInvitationsEnAttente({ userId: user.id, email: user.email || undefined })
                 );
               }
-            } catch (error: any) {
-              Alert.alert('Erreur', error || "Erreur lors du rejet de l'invitation");
+            } catch (error: unknown) {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InvitationsModal.tsx:136',message:'Erreur rejet invitation',data:{invitationId:invitation.id,errorType:error?.constructor?.name,errorMessage:error instanceof Error ? error.message : String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
+              // #endregion
+              
+              console.error('Erreur lors du rejet de l\'invitation:', error);
+              
+              let errorMessage = "Erreur lors du rejet de l'invitation";
+              if (error instanceof Error) {
+                errorMessage = error.message || errorMessage;
+                // Si l'invitation est introuvable (404), recharger les invitations
+                if (error.message.includes('introuvable') || error.message.includes('404')) {
+                  errorMessage = "Cette invitation n'existe plus ou a déjà été traitée. Rechargement des invitations...";
+                  if (user) {
+                    dispatch(
+                    loadInvitationsEnAttente({
+                      userId: user.id,
+                      email: user.email || undefined,
+                      telephone: user.telephone || undefined,
+                    })
+                  );
+                  }
+                }
+              } else if (typeof error === 'string') {
+                errorMessage = error;
+              } else if (error && typeof error === 'object' && 'message' in error) {
+                errorMessage = String(error.message);
+              }
+              
+              Alert.alert('Erreur', errorMessage);
             }
           },
         },
@@ -136,10 +267,7 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
       title={`Invitations en attente (${invitationsEnAttente.length})`}
       showButtons={false}
     >
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: SPACING.md }}
-      >
+      <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: SPACING.md }}>
         {invitationsEnAttente.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>

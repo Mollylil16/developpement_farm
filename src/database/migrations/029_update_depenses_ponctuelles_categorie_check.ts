@@ -1,11 +1,11 @@
 /**
  * Migration 029: Mise à jour de la contrainte CHECK pour la catégorie dans depenses_ponctuelles
- * 
+ *
  * Problème: La contrainte CHECK existante autorise des valeurs obsolètes:
  *   - 'aliment', 'medicament', 'equipement', 'maintenance', 'transport', 'autre'
- * 
+ *
  * Solution: Recréer la table avec la nouvelle contrainte qui autorise:
- *   - 'vaccins', 'medicaments', 'alimentation', 'veterinaire', 'entretien', 
+ *   - 'vaccins', 'medicaments', 'alimentation', 'veterinaire', 'entretien',
  *     'equipements', 'amenagement_batiment', 'equipement_lourd', 'achat_sujet', 'autre'
  */
 
@@ -15,7 +15,9 @@ import { migrationLogger } from '../../utils/logger';
 export async function updateDepensesPonctuellesCategorieCheck(
   db: SQLite.SQLiteDatabase
 ): Promise<void> {
-  migrationLogger.step('Migration 029: Mise à jour de la contrainte CHECK pour depenses_ponctuelles.categorie');
+  migrationLogger.step(
+    'Migration 029: Mise à jour de la contrainte CHECK pour depenses_ponctuelles.categorie'
+  );
 
   try {
     // Vérifier si la table existe
@@ -24,14 +26,14 @@ export async function updateDepensesPonctuellesCategorieCheck(
     );
 
     if (tableInfo.length === 0) {
-      migrationLogger.info('Table depenses_ponctuelles n\'existe pas, la migration sera appliquée lors de la création du schéma.');
+      migrationLogger.info(
+        "Table depenses_ponctuelles n'existe pas, la migration sera appliquée lors de la création du schéma."
+      );
       return;
     }
 
     // Sauvegarder les données existantes
-    const existingData = await db.getAllAsync<any>(
-      'SELECT * FROM depenses_ponctuelles'
-    );
+    const existingData = await db.getAllAsync<unknown>('SELECT * FROM depenses_ponctuelles');
 
     migrationLogger.log(`Sauvegarde de ${existingData.length} dépenses ponctuelles existantes`);
 
@@ -56,11 +58,11 @@ export async function updateDepensesPonctuellesCategorieCheck(
 
     // Migrer les données en mappant les anciennes catégories vers les nouvelles
     const categorieMapping: Record<string, string> = {
-      'aliment': 'alimentation',
-      'medicament': 'medicaments',
-      'equipement': 'equipements',
-      'maintenance': 'entretien',
-      'transport': 'autre', // Pas de catégorie équivalente, utiliser 'autre'
+      aliment: 'alimentation',
+      medicament: 'medicaments',
+      equipement: 'equipements',
+      maintenance: 'entretien',
+      transport: 'autre', // Pas de catégorie équivalente, utiliser 'autre'
     };
 
     let migratedCount = 0;
@@ -77,12 +79,22 @@ export async function updateDepensesPonctuellesCategorieCheck(
 
       // Vérifier que la nouvelle catégorie est valide
       const validCategories = [
-        'vaccins', 'medicaments', 'alimentation', 'veterinaire', 'entretien',
-        'equipements', 'amenagement_batiment', 'equipement_lourd', 'achat_sujet', 'autre'
+        'vaccins',
+        'medicaments',
+        'alimentation',
+        'veterinaire',
+        'entretien',
+        'equipements',
+        'amenagement_batiment',
+        'equipement_lourd',
+        'achat_sujet',
+        'autre',
       ];
 
       if (!validCategories.includes(newCategorie)) {
-        migrationLogger.warn(`Catégorie invalide "${row.categorie}" pour l'enregistrement ${row.id}, utilisation de "autre"`);
+        migrationLogger.warn(
+          `Catégorie invalide "${row.categorie}" pour l'enregistrement ${row.id}, utilisation de "autre"`
+        );
         newCategorie = 'autre';
         skippedCount++;
       }
@@ -109,8 +121,11 @@ export async function updateDepensesPonctuellesCategorieCheck(
           ]
         );
         migratedCount++;
-      } catch (error: any) {
-        migrationLogger.error(`Erreur lors de la migration de l'enregistrement ${row.id}:`, error.message);
+      } catch (error: unknown) {
+        migrationLogger.error(
+          `Erreur lors de la migration de l'enregistrement ${row.id}:`,
+          error.message
+        );
         skippedCount++;
       }
     }
@@ -124,9 +139,8 @@ export async function updateDepensesPonctuellesCategorieCheck(
     migrationLogger.success(
       `✅ Migration 029 terminée: ${migratedCount} enregistrements migrés, ${skippedCount} ignorés`
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     migrationLogger.error('❌ Erreur lors de la migration 029:', error.message);
     throw error;
   }
 }
-

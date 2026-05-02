@@ -1,6 +1,6 @@
 /**
  * Configuration pour les tests E2E
- * 
+ *
  * Ce fichier configure l'environnement de test E2E
  */
 
@@ -22,13 +22,13 @@ afterAll(async () => {
 export const E2E_CONFIG = {
   // Timeout pour les opérations E2E (plus long que les tests unitaires)
   timeout: 30000,
-  
+
   // Configuration de la base de données de test
   testDatabase: {
     name: 'fermier_pro_test.db',
     resetBeforeEach: true,
   },
-  
+
   // Configuration des mocks
   mocks: {
     // Désactiver les appels réseau réels
@@ -37,4 +37,3 @@ export const E2E_CONFIG = {
     useTestData: true,
   },
 };
-

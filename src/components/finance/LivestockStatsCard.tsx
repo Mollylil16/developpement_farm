@@ -2,42 +2,82 @@
  * Composant pour afficher les statistiques du cheptel actif
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { memo, useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { selectPeseesParAnimal, selectAllAnimaux } from '../../store/selectors/productionSelectors';
-import { loadProductionAnimaux } from '../../store/slices/productionSlice';
+import { useFocusEffect } from '@react-navigation/native';
+import { useAppSelector } from '../../store/hooks';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
+import { 
+  selectPeseesParAnimal, 
+  selectProductionUpdateCounter 
+} from '../../store/selectors/productionSelectors';
 import { SPACING, FONT_SIZES } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { calculatePoidsTotalAnimauxActifs } from '../../utils/animalUtils';
 import { useAnimauxActifs } from '../../hooks/useAnimauxActifs';
+import { useLoadAnimauxOnMount } from '../../hooks/useLoadAnimauxOnMount';
+import apiClient from '../../services/api/apiClient';
+import type { Batch } from '../../types/batch';
+import { logger } from '../../utils/logger';
+import { TAUX_CARCASSE } from '../../config/finance.config';
 
-const TAUX_CARCASSE = 0.75; // 75% du poids vif
+const MIN_RELOAD_INTERVAL = 60000; // 1 minute minimum entre rechargements
 
-export default function LivestockStatsCard() {
+function LivestockStatsCard() {
   const { colors } = useTheme();
-  const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
-  const animaux = useAppSelector(selectAllAnimaux);
+  const updateCounter = useAppSelector(selectProductionUpdateCounter);
   const { animauxActifs } = useAnimauxActifs({ projetId: projetActif?.id });
+  
+  // État pour les batches (mode batch)
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [loadingBatches, setLoadingBatches] = useState(false);
+  
+  // Référence pour le dernier chargement (éviter les appels excessifs)
+  const lastLoadRef = useRef<number>(0);
 
-  // Charger les animaux uniquement si nécessaire (une seule fois par projet)
-  const animauxChargesRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!projetActif?.id) {
-      animauxChargesRef.current = null;
-      return;
-    }
+  // Détecter le mode batch
+  const isModeBatch = projetActif?.management_method === 'batch';
 
-    // Vérifier si les animaux du projet sont déjà chargés
-    const animauxDuProjet = animaux.filter((a) => a.projet_id === projetActif.id);
-    if (animauxDuProjet.length === 0 && animauxChargesRef.current !== projetActif.id) {
-      animauxChargesRef.current = projetActif.id;
-      dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
+  // Charger les batches en mode batch
+  const loadBatches = useCallback(async () => {
+    if (!projetActif?.id || !isModeBatch) return;
+
+    setLoadingBatches(true);
+    try {
+      const batchesData = await apiClient.get<Batch[]>(
+        `/batch-pigs/projet/${projetActif.id}`
+      );
+      setBatches(batchesData);
+    } catch (error: any) {
+      logger.error('[LivestockStatsCard] Erreur lors du chargement des batches:', error);
+      setBatches([]);
+    } finally {
+      setLoadingBatches(false);
     }
-  }, [dispatch, projetActif?.id, animaux]);
+  }, [projetActif?.id, isModeBatch]);
+
+  // Charger les batches quand l'écran est visible (mode batch uniquement)
+  // AVEC condition de temps pour éviter les appels excessifs
+  useFocusEffect(
+    useCallback(() => {
+      if (!isModeBatch) return;
+      
+      const now = Date.now();
+      if (now - lastLoadRef.current < MIN_RELOAD_INTERVAL) {
+        return; // Données récentes, ne pas recharger
+      }
+      
+      lastLoadRef.current = now;
+      loadBatches();
+    }, [isModeBatch, loadBatches])
+  );
+
+  // Charger les animaux au montage (hook doit toujours être appelé, même si on ne l'utilise pas en mode batch)
+  useLoadAnimauxOnMount();
 
   const statsCheptel = React.useMemo(() => {
     if (!projetActif) {
@@ -49,6 +89,29 @@ export default function LivestockStatsCard() {
       };
     }
 
+    // Mode batch : calculer à partir des batches
+    if (isModeBatch) {
+      const nombreAnimaux = batches.reduce((sum, batch) => sum + (batch.total_count || 0), 0);
+      
+      // Calculer le poids total : somme de (average_weight_kg * total_count) pour chaque batch
+      const poidsTotal = batches.reduce((sum, batch) => {
+        const poidsMoyenBatch = batch.average_weight_kg || 0;
+        const nombreBatch = batch.total_count || 0;
+        return sum + (poidsMoyenBatch * nombreBatch);
+      }, 0);
+
+      const poidsCarcasse = poidsTotal * TAUX_CARCASSE;
+      const poidsMoyen = nombreAnimaux > 0 ? poidsTotal / nombreAnimaux : 0;
+
+      return {
+        nombreAnimaux,
+        poidsTotal,
+        poidsCarcasse,
+        poidsMoyen,
+      };
+    }
+
+    // Mode individuel : calculer à partir des animaux
     const poidsTotal = calculatePoidsTotalAnimauxActifs(
       animauxActifs,
       peseesParAnimal,
@@ -65,7 +128,7 @@ export default function LivestockStatsCard() {
       poidsCarcasse,
       poidsMoyen,
     };
-  }, [animauxActifs, peseesParAnimal, projetActif]);
+  }, [animauxActifs, peseesParAnimal, projetActif, updateCounter, isModeBatch, batches]); // Ajouter batches et isModeBatch aux dépendances
 
   if (!projetActif) return null;
 
@@ -141,3 +204,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+// Mémoriser le composant pour éviter les re-renders inutiles
+const LivestockStatsCardMemoized = memo(LivestockStatsCard);
+export default LivestockStatsCardMemoized;

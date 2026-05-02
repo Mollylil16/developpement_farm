@@ -17,12 +17,12 @@ export type CategorieDepense =
   | 'alimentation'
   | 'veterinaire'
   | 'entretien'
-  | 'equipements'        // Petits équipements courants
+  | 'equipements' // Petits équipements courants
   | 'autre'
   // CAPEX - Investissements (amortis sur plusieurs années) - Limité à 3 catégories
-  | 'amenagement_batiment'     // Construction, rénovation
-  | 'equipement_lourd'         // Matériel agricole, machines
-  | 'achat_sujet';             // Achat de sujets (truies, verrats)
+  | 'amenagement_batiment' // Construction, rénovation
+  | 'equipement_lourd' // Matériel agricole, machines
+  | 'achat_sujet'; // Achat de sujets (truies, verrats)
 
 export type FrequenceCharge = 'mensuel' | 'trimestriel' | 'annuel';
 
@@ -98,18 +98,23 @@ export interface Revenu {
   commentaire?: string;
   photos?: string[]; // URLs des photos de factures/reçus
   date_creation: string;
+  // Champs pour ventes marketplace et ventes de porcs
+  poids_kg?: number; // Poids du porc vendu (unifié - utilisé pour marketplace et OPEX/CAPEX)
+  poids_total?: number; // Poids total en kg pour ventes multiples (marketplace uniquement)
+  nombre_animaux?: number; // Nombre d'animaux vendus (marketplace uniquement)
+  acheteur?: string; // Nom complet de l'acheteur (marketplace uniquement)
+  vente_id?: string; // ID de la vente liée (marketplace uniquement)
   animal_id?: string; // ID de l'animal vendu (si applicable)
-  
-  // ✨ Nouveaux champs pour ventes de porcs (OPEX/CAPEX)
-  poids_kg?: number;                    // Poids du porc vendu
-  cout_kg_opex?: number;                // Coût OPEX par kg au moment de la vente
-  cout_kg_complet?: number;             // Coût complet par kg au moment de la vente
-  cout_reel_opex?: number;              // Coût réel OPEX du porc
-  cout_reel_complet?: number;           // Coût réel complet du porc
-  marge_opex?: number;                  // Marge OPEX en valeur
-  marge_complete?: number;              // Marge complète en valeur
-  marge_opex_pourcent?: number;         // Marge OPEX en %
-  marge_complete_pourcent?: number;     // Marge complète en %
+
+  // ✨ Champs pour calcul des marges (OPEX/CAPEX)
+  cout_kg_opex?: number; // Coût OPEX par kg au moment de la vente
+  cout_kg_complet?: number; // Coût complet par kg au moment de la vente
+  cout_reel_opex?: number; // Coût réel OPEX du porc
+  cout_reel_complet?: number; // Coût réel complet du porc
+  marge_opex?: number; // Marge OPEX en valeur
+  marge_complete?: number; // Marge complète en valeur
+  marge_opex_pourcent?: number; // Marge OPEX en %
+  marge_complete_pourcent?: number; // Marge complète en %
 }
 
 export interface CreateRevenuInput {
@@ -121,7 +126,7 @@ export interface CreateRevenuInput {
   description?: string;
   commentaire?: string;
   photos?: string[];
-  poids_kg?: number;  // Pour ventes de porcs
+  poids_kg?: number; // Pour ventes de porcs
   animal_id?: string; // ID de l'animal vendu (si applicable)
 }
 
@@ -133,7 +138,7 @@ export interface UpdateRevenuInput {
   description?: string;
   commentaire?: string;
   photos?: string[];
-  poids_kg?: number;  // Pour ventes de porcs
+  poids_kg?: number; // Pour ventes de porcs
   animal_id?: string; // ID de l'animal vendu (si applicable)
 }
 
@@ -182,4 +187,83 @@ export const CATEGORIE_DEPENSE_LABELS: Record<CategorieDepense, string> = {
   amenagement_batiment: '🏗️ Aménagement bâtiment',
   equipement_lourd: '🚜 Équipement lourd',
   achat_sujet: '🐷 Achat sujet',
+};
+
+// ==================== DETTES ====================
+
+export type TypeDette = 'pret_bancaire' | 'pret_personnel' | 'fournisseur' | 'autre';
+
+export type StatutDette = 'en_cours' | 'rembourse' | 'en_defaut' | 'annule';
+
+export type FrequenceRemboursement = 'mensuel' | 'trimestriel' | 'annuel' | 'ponctuel';
+
+export interface Dette {
+  id: string;
+  projet_id: string;
+  libelle: string;
+  type_dette: TypeDette;
+  montant_initial: number;
+  montant_restant: number;
+  taux_interet: number;
+  date_debut: string;
+  date_echeance?: string;
+  frequence_remboursement: FrequenceRemboursement;
+  montant_remboursement?: number;
+  statut: StatutDette;
+  preteur?: string;
+  notes?: string;
+  date_creation: string;
+  derniere_modification: string;
+}
+
+export interface CreateDetteInput {
+  projet_id: string;
+  libelle: string;
+  type_dette: TypeDette;
+  montant_initial: number;
+  montant_restant: number;
+  taux_interet?: number;
+  date_debut: string;
+  date_echeance?: string;
+  frequence_remboursement?: FrequenceRemboursement;
+  montant_remboursement?: number;
+  statut?: StatutDette;
+  preteur?: string;
+  notes?: string;
+}
+
+export interface UpdateDetteInput {
+  libelle?: string;
+  type_dette?: TypeDette;
+  montant_initial?: number;
+  montant_restant?: number;
+  taux_interet?: number;
+  date_debut?: string;
+  date_echeance?: string;
+  frequence_remboursement?: FrequenceRemboursement;
+  montant_remboursement?: number;
+  statut?: StatutDette;
+  preteur?: string;
+  notes?: string;
+}
+
+export const TYPE_DETTE_LABELS: Record<TypeDette, string> = {
+  pret_bancaire: 'Prêt bancaire',
+  pret_personnel: 'Prêt personnel',
+  fournisseur: 'Crédit fournisseur',
+  autre: 'Autre',
+};
+
+export const STATUT_DETTE_LABELS: Record<StatutDette, string> = {
+  en_cours: 'En cours',
+  rembourse: 'Remboursé',
+  en_defaut: 'En défaut',
+  annule: 'Annulé',
+};
+
+export const FREQUENCE_REMBOURSEMENT_LABELS: Record<FrequenceRemboursement, string> = {
+  mensuel: 'Mensuel',
+  trimestriel: 'Trimestriel',
+  annuel: 'Annuel',
+  ponctuel: 'Ponctuel',
 };

@@ -1,174 +1,129 @@
-# 🏗️ Documentation Architecture - Fermier Pro
+# 📚 Documentation Architecture - Kouakou
 
-**Date:** 21 Novembre 2025  
-**Version:** 1.0
+## 📖 Documents Disponibles
+
+### 1. [Architecture Complète](./kouakou-architecture-complete.md)
+**Document principal** - Vue d'ensemble complète de l'architecture de Kouakou.
+
+**Contenu:**
+- Vue d'ensemble et stack technologique
+- Architecture en couches (7 couches)
+- Flux de données détaillés
+- Composants principaux (ChatAgentService, FastPathDetector, IntentRAG, etc.)
+- Structure complète des fichiers
+- Détection d'intention (5 étapes)
+- Exécution d'actions
+- Base de connaissances
+- API Backend
+- Exemples de code
+- Métriques de performance
+- Évolutions futures
+
+**Pour qui:** Développeurs, architectes, nouveaux contributeurs
 
 ---
 
-## 📋 Table des matières
+### 2. [Diagrammes de Séquence](./kouakou-sequence-diagram.md)
+**Diagrammes UML** - Flux d'exécution détaillés pour différents scénarios.
 
-1. [Vue d'ensemble](#vue-densemble)
-2. [Architecture globale](#architecture-globale)
-3. [Décisions architecturales (ADRs)](#décisions-architecturales-adrs)
-4. [Patterns et conventions](#patterns-et-conventions)
-5. [Références](#références)
+**Scénarios couverts:**
+- "Quel est le prix du marché ?" (consultation)
+- "J'ai dépensé 50000 FCFA" (création avec paramètres)
+- Clarification nécessaire (multi-tours)
+
+**Pour qui:** Développeurs qui veulent comprendre le flux exact
 
 ---
 
-## Vue d'ensemble
+## 🚀 Démarrage Rapide
 
-Cette section centralise toute la documentation architecturale du projet Fermier Pro. Elle remplace la documentation dispersée dans `docs/archive/` et fournit une vue structurée et à jour de l'architecture.
+### Pour comprendre l'architecture rapidement:
 
-### Structure
+1. **Lire:** [Architecture Complète - Vue d'ensemble](./kouakou-architecture-complete.md#vue-densemble)
+2. **Comprendre:** [Flux de Données](./kouakou-architecture-complete.md#flux-de-données)
+3. **Explorer:** [Composants Principaux](./kouakou-architecture-complete.md#composants-principaux)
+
+### Pour ajouter une nouvelle fonctionnalité:
+
+1. **Lire:** [Exemples de Code - Création d'une Nouvelle Action](./kouakou-architecture-complete.md#2-création-dune-nouvelle-action)
+2. **Comprendre:** [Structure des Fichiers](./kouakou-architecture-complete.md#structure-des-fichiers)
+3. **Suivre:** [Détection d'Intention](./kouakou-architecture-complete.md#détection-dintention)
+
+### Pour déboguer un problème:
+
+1. **Vérifier:** [Flux de Détection d'Intention](./kouakou-architecture-complete.md#pipeline-de-détection-5-étapes)
+2. **Consulter:** [Diagrammes de Séquence](./kouakou-sequence-diagram.md)
+3. **Analyser:** [Métriques de Performance](./kouakou-architecture-complete.md#métriques-de-performance)
+
+---
+
+## 📂 Structure de la Documentation
 
 ```
-docs/architecture/
-├── README.md                    # Ce fichier - Index
-├── overview.md                  # Vue d'ensemble de l'architecture
-├── decisions/                   # Architecture Decision Records (ADRs)
-│   ├── 001-repository-pattern.md
-│   ├── 002-redux-toolkit.md
-│   └── ...
-├── patterns/                    # Patterns utilisés
-│   ├── repository-pattern.md
-│   ├── service-layer.md
-│   └── ...
-└── references/                  # Références vers docs/archive
-    └── index.md
-```
-
----
-
-## Architecture globale
-
-### Documents principaux
-
-1. **[overview.md](overview.md)** - Vue d'ensemble complète
-   - Structure du projet
-   - Flux de données
-   - Technologies utilisées
-
-2. **[CONTEXT.md](../CONTEXT.md)** - Contexte technique
-   - Configuration
-   - Dépendances
-   - Environnement
-
-### Domaines métier
-
-L'application est organisée en domaines :
-
-- **Production** : Gestion des animaux, pesées, reproduction
-- **Finance** : Dépenses, revenus, OPEX/CAPEX
-- **Santé** : Vaccinations, traitements, visites vétérinaires
-- **Marketplace** : Transactions, offres, chat
-
-Voir [domains/README.md](../../src/domains/README.md) pour plus de détails.
-
----
-
-## Décisions architecturales (ADRs)
-
-Les Architecture Decision Records documentent les décisions importantes prises lors du développement.
-
-### ADRs disponibles
-
-- **[001-repository-pattern.md](decisions/001-repository-pattern.md)** - Pourquoi le Repository Pattern
-- **[002-redux-toolkit.md](decisions/002-redux-toolkit.md)** - Choix de Redux Toolkit
-- **[003-lazy-loading.md](decisions/003-lazy-loading.md)** - Implémentation du lazy loading
-- **[004-feature-flags.md](decisions/004-feature-flags.md)** - Système de Feature Flags
-
-### Format ADR
-
-Chaque ADR suit le format standard :
-
-```markdown
-# ADR-XXX: Titre
-
-## Status
-[Proposed | Accepted | Deprecated | Superseded]
-
-## Context
-Pourquoi cette décision est nécessaire
-
-## Decision
-Quelle décision a été prise
-
-## Consequences
-Avantages et inconvénients
+docs/
+├── architecture/
+│   ├── README.md (ce fichier)
+│   ├── kouakou-architecture-complete.md
+│   └── kouakou-sequence-diagram.md
+│
+├── analysis/
+│   ├── marketplace-complete-analysis-v2.md
+│   ├── production-module-analysis.md
+│   └── weighing-health-modules-analysis.md
+│
+└── ...
 ```
 
 ---
 
-## Patterns et conventions
+## 🔍 Points Clés à Retenir
 
-### Patterns utilisés
+### Architecture en 7 Couches
 
-1. **Repository Pattern** - Abstraction de l'accès aux données
-   - Voir [patterns/repository-pattern.md](patterns/repository-pattern.md)
+1. **Présentation** - UI React Native
+2. **Hooks React** - `useChatAgent`
+3. **Service** - `ChatAgentService` (orchestrateur)
+4. **Core** - Composants métier (FastPath, IntentRAG, NLP, etc.)
+5. **Actions** - Exécution métier (Finance, Marketplace, Production, etc.)
+6. **API** - Communication HTTP
+7. **Backend** - NestJS + PostgreSQL
 
-2. **Service Layer** - Logique métier centralisée
-   - Voir [patterns/service-layer.md](patterns/service-layer.md)
+### Détection d'Intention (5 Étapes)
 
-3. **Redux Toolkit** - Gestion d'état
-   - Voir [patterns/redux-patterns.md](patterns/redux-patterns.md)
+1. **FastPathDetector** (priorité absolue, < 20ms)
+2. **NLP Hints** (indices linguistiques)
+3. **LearningService** (apprentissage, seuil ≥ 4.0)
+4. **IntentRAG** (base de connaissances, < 100ms)
+5. **IntentDetector** (fallback final)
 
-### Conventions de code
+### Performance
 
-- **TypeScript strict** : Types stricts activés
-- **ESLint + Prettier** : Formatage automatique
-- **Tests** : Jest + React Testing Library
-- **Structure** : Domain-Driven Design partiel
-
----
-
-## Références
-
-### Documentation historique
-
-La documentation historique reste disponible dans `docs/archive/` pour référence :
-
-- **Phases de développement** : `docs/archive/PHASE*.md`
-- **Refactoring** : `docs/archive/REFACTORING*.md`
-- **Guides techniques** : `docs/archive/GUIDE*.md`
-
-Voir [references/index.md](references/index.md) pour un index complet.
-
-### Guides techniques
-
-Les guides pratiques sont dans `docs/guides/` :
-
-- **Feature Flags** : [guides/FEATURE_FLAGS.md](../guides/FEATURE_FLAGS.md)
-- **Lazy Loading** : [guides/LAZY_LOADING.md](../guides/LAZY_LOADING.md)
-- **Dependency Management** : [guides/DEPENDENCY_MANAGEMENT.md](../guides/DEPENDENCY_MANAGEMENT.md)
+- **FastPath:** 18ms (95% des cas)
+- **IntentRAG:** 57ms (fallback)
+- **Total:** < 500ms (moyenne)
 
 ---
 
-## Navigation rapide
+## 📝 Mise à Jour de la Documentation
 
-### Pour comprendre l'architecture
+Lors de modifications importantes de l'architecture:
 
-1. Commencer par [overview.md](overview.md)
-2. Lire [CONTEXT.md](../CONTEXT.md) pour le contexte technique
-3. Consulter les ADRs dans [decisions/](decisions/)
-
-### Pour contribuer
-
-1. Lire les [patterns](patterns/) pour comprendre les conventions
-2. Consulter les ADRs avant de prendre des décisions
-3. Mettre à jour la documentation si nécessaire
+1. Mettre à jour [Architecture Complète](./kouakou-architecture-complete.md)
+2. Ajouter des diagrammes si nécessaire dans [Diagrammes de Séquence](./kouakou-sequence-diagram.md)
+3. Mettre à jour ce README si la structure change
 
 ---
 
-## Maintenance
+## 🤝 Contribution
 
-Cette documentation doit être maintenue à jour :
+Pour améliorer cette documentation:
 
-- ✅ Mettre à jour lors de changements architecturaux majeurs
-- ✅ Créer un ADR pour chaque décision importante
-- ✅ Documenter les nouveaux patterns utilisés
-- ✅ Référencer la documentation historique dans `docs/archive/`
+1. Identifier les sections manquantes ou confuses
+2. Ajouter des exemples de code si nécessaire
+3. Créer des diagrammes pour clarifier les concepts complexes
+4. Mettre à jour les métriques de performance
 
 ---
 
-**Dernière mise à jour:** 21 Novembre 2025
-
+**Dernière mise à jour:** 2026-01-17  
+**Version Kouakou:** 5.0

@@ -1,6 +1,6 @@
 /**
  * SanteContent - Contenu de l'écran Santé selon l'onglet actif
- * 
+ *
  * Affiche le composant approprié en fonction de l'onglet sélectionné
  */
 
@@ -20,13 +20,9 @@ interface SanteContentProps {
   onRefresh: () => Promise<void>;
 }
 
-export default function SanteContent({
-  ongletActif,
-  refreshing,
-  onRefresh,
-}: SanteContentProps) {
+export default function SanteContent({ ongletActif, refreshing, onRefresh }: SanteContentProps) {
   const { colors } = useTheme();
-  
+
   const refreshControl = (
     <RefreshControl
       refreshing={refreshing}
@@ -35,7 +31,7 @@ export default function SanteContent({
       tintColor={colors.primary}
     />
   );
-  
+
   switch (ongletActif) {
     case 'vaccinations':
       return <VaccinationsComponentAccordion refreshControl={refreshControl} />;
@@ -51,4 +47,3 @@ export default function SanteContent({
       return null;
   }
 }
-

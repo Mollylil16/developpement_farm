@@ -2,37 +2,27 @@
  * Service pour gérer les notifications liées aux propositions de services vétérinaires
  */
 
-import { getDatabase } from './database';
-import { 
+import {
   ServiceProposalNotificationRepository,
-  type ServiceProposalNotification 
+  type ServiceProposalNotification,
 } from '../database/repositories/ServiceProposalNotificationRepository';
-import { UserRepository } from '../database/repositories/UserRepository';
-import { ProjetRepository } from '../database/repositories/ProjetRepository';
+import apiClient from './api/apiClient';
 import type { VeterinarianProfile } from '../types/roles';
+import { logger } from '../utils/logger';
 
 // Réexporter le type pour compatibilité
 export type { ServiceProposalNotification };
 
 class ServiceProposalNotificationService {
-  private db: any;
   private notificationRepo: ServiceProposalNotificationRepository | null = null;
 
   constructor() {
-    this.db = null;
-  }
-
-  private async getDb() {
-    if (!this.db) {
-      this.db = await getDatabase();
-    }
-    return this.db;
+    // Plus besoin de db
   }
 
   private async getNotificationRepo(): Promise<ServiceProposalNotificationRepository> {
     if (!this.notificationRepo) {
-      const db = await this.getDb();
-      this.notificationRepo = new ServiceProposalNotificationRepository(db);
+      this.notificationRepo = new ServiceProposalNotificationRepository();
     }
     return this.notificationRepo;
   }
@@ -50,13 +40,23 @@ class ServiceProposalNotificationService {
   ): Promise<ServiceProposalNotification> {
     const repo = await this.getNotificationRepo();
 
+    // Récupérer les informations du vétérinaire depuis l'API backend
+    const vet = await apiClient.get<any>(`/users/${vetId}`);
+    const vetProfile = vet?.roles?.veterinarian;
+    const vetSpecialty = vetProfile?.specialty ? ` (${vetProfile.specialty})` : '';
+    const vetExperience = vetProfile?.yearsOfExperience ? ` avec ${vetProfile.yearsOfExperience} ans d'expérience` : '';
+    
+    // Récupérer les informations de la ferme depuis l'API backend
+    const farm = await apiClient.get<any>(`/projets/${farmId}`);
+    const farmLocation = farm?.localisation ? ` située à ${farm.localisation}` : '';
+
     const notification = await repo.create({
       userId: producerId,
       type: 'service_proposal_received',
       farmId,
       vetId,
       proposalId,
-      message: `${vetName} vous propose ses services pour votre ferme "${farmName}"`,
+      message: `${vetName}${vetSpecialty}${vetExperience} vous propose ses services pour votre ferme "${farmName}"${farmLocation}`,
       read: false,
     });
 
@@ -122,7 +122,7 @@ class ServiceProposalNotificationService {
       const repo = await this.getNotificationRepo();
       return await repo.findUnreadByUserId(userId);
     } catch (error) {
-      console.error('Erreur récupération notifications non lues:', error);
+      logger.error('Erreur récupération notifications non lues:', error);
       return [];
     }
   }
@@ -135,7 +135,7 @@ class ServiceProposalNotificationService {
       const repo = await this.getNotificationRepo();
       return await repo.findByUserId(userId, true);
     } catch (error) {
-      console.error('Erreur récupération notifications:', error);
+      logger.error('Erreur récupération notifications:', error);
       return [];
     }
   }
@@ -148,7 +148,7 @@ class ServiceProposalNotificationService {
       const repo = await this.getNotificationRepo();
       return await repo.countUnreadByUserId(userId);
     } catch (error) {
-      console.error('Erreur comptage notifications:', error);
+      logger.error('Erreur comptage notifications:', error);
       return 0;
     }
   }
@@ -161,7 +161,7 @@ class ServiceProposalNotificationService {
       const repo = await this.getNotificationRepo();
       await repo.markAsRead(notificationId);
     } catch (error) {
-      console.error('Erreur marquage notification:', error);
+      logger.error('Erreur marquage notification:', error);
       throw error;
     }
   }
@@ -174,7 +174,7 @@ class ServiceProposalNotificationService {
       const repo = await this.getNotificationRepo();
       await repo.markAllAsRead(userId);
     } catch (error) {
-      console.error('Erreur marquage notifications:', error);
+      logger.error('Erreur marquage notifications:', error);
       throw error;
     }
   }
@@ -187,7 +187,7 @@ class ServiceProposalNotificationService {
       const repo = await this.getNotificationRepo();
       await repo.delete(notificationId);
     } catch (error) {
-      console.error('Erreur suppression notification:', error);
+      logger.error('Erreur suppression notification:', error);
       throw error;
     }
   }
@@ -205,4 +205,3 @@ export const getServiceProposalNotificationService =
   };
 
 export default ServiceProposalNotificationService;
-

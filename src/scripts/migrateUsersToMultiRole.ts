@@ -1,18 +1,19 @@
 /**
  * Script de migration : Convertir les utilisateurs existants vers le système multi-rôles
- * 
+ *
  * Ce script :
  * 1. Récupère tous les utilisateurs existants
  * 2. Crée un profil Producteur pour chacun avec leurs données existantes
  * 3. Met à jour leur enregistrement avec roles et activeRole
- * 
+ *
  * Usage: Exécuter ce script une seule fois après le déploiement du système multi-rôles
  */
 
-import { getDatabase } from '../services/database';
 import { UserRepository } from '../database/repositories/UserRepository';
 import { ProjetRepository } from '../database/repositories/ProjetRepository';
 import type { ProducerProfile } from '../types/roles';
+import type { User } from '../types/auth';
+import type { Projet } from '../types/projet';
 
 interface MigrationStats {
   totalUsers: number;
@@ -28,7 +29,7 @@ interface MigrationStats {
 async function migrateUserToMultiRole(
   userRepo: UserRepository,
   projetRepo: ProjetRepository,
-  user: any
+  user: User
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Vérifier si l'utilisateur a déjà des rôles (déjà migré)
@@ -38,16 +39,24 @@ async function migrateUserToMultiRole(
         if (parsedRoles && Object.keys(parsedRoles).length > 0) {
           return { success: false, error: 'Déjà migré' };
         }
-      } catch (e) {
-        // Continuer la migration si le parsing échoue
+      } catch (_e) {
+        // Continuer la migration si le parsing échoue (utiliser _e pour indiquer que l'erreur est intentionnellement ignorée)
       }
     }
 
     // Récupérer les projets de l'utilisateur pour extraire les données de la ferme
     const userProjects = await projetRepo.findAll();
-    const userProject = userProjects.find((p: any) => p.user_id === user.id) || userProjects[0];
+    const userProject = userProjects.find((p: Projet) => p.proprietaire_id === user.id) || userProjects[0];
 
     // Créer le profil producteur avec les données existantes
+    // Calculer la capacité totale à partir des nombres d'animaux
+    const totalAnimals =
+      (userProject?.nombre_truies || 0) +
+      (userProject?.nombre_verrats || 0) +
+      (userProject?.nombre_porcelets || 0) +
+      (userProject?.nombre_croissance || 0);
+    const totalCapacity = Math.max(totalAnimals, 100); // Au minimum 100, ou le total calculé
+
     const producerProfile: ProducerProfile = {
       isActive: true,
       activatedAt: user.date_creation || new Date().toISOString(),
@@ -55,11 +64,8 @@ async function migrateUserToMultiRole(
       farmType: 'individual', // Par défaut, peut être ajusté selon les données
       registrationNumber: undefined,
       capacity: {
-        totalCapacity: userProject?.capacite_animaux || 100,
-        currentOccupancy:
-          (userProject?.nombre_truies || 0) +
-          (userProject?.nombre_verrats || 0) +
-          (userProject?.nombre_porcelets || 0),
+        totalCapacity,
+        currentOccupancy: totalAnimals,
       },
       stats: {
         totalSales: 0, // TODO: Calculer depuis les transactions marketplace
@@ -84,8 +90,8 @@ async function migrateUserToMultiRole(
     });
 
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message || 'Erreur inconnue' };
+  } catch (error: unknown) {
+    return { success: false, error: (error instanceof Error ? error.message : String(error)) || 'Erreur inconnue' };
   }
 }
 
@@ -104,9 +110,8 @@ export async function migrateUsersToMultiRole(): Promise<MigrationStats> {
   };
 
   try {
-    const db = await getDatabase();
-    const userRepo = new UserRepository(db);
-    const projetRepo = new ProjetRepository(db);
+    const userRepo = new UserRepository();
+    const projetRepo = new ProjetRepository();
 
     // Récupérer tous les utilisateurs actifs
     const allUsers = await userRepo.findAll();
@@ -152,7 +157,7 @@ export async function migrateUsersToMultiRole(): Promise<MigrationStats> {
     console.log('\n✅ Migration terminée!\n');
 
     return stats;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('\n❌ Erreur fatale lors de la migration:', error);
     throw error;
   }

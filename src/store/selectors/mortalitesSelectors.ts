@@ -7,7 +7,7 @@ import { createSelector } from '@reduxjs/toolkit';
 import { denormalize } from 'normalizr';
 import { RootState } from '../store';
 import { mortalitesSchema } from '../normalization/schemas';
-import { Mortalite } from '../../types';
+import type { Mortalite } from '../../types/mortalites';
 
 // Sélecteur de base pour l'état mortalites
 const selectMortalitesState = (state: RootState) => state.mortalites;
@@ -62,7 +62,7 @@ export const selectNombreTotalMortalites = createSelector(
     console.log('🔍 [selectNombreTotalMortalites] Statistiques:', {
       statistiques,
       total_morts: statistiques?.total_morts,
-      retour: total
+      retour: total,
     });
     return total;
   }

@@ -1,7 +1,7 @@
 /**
  * Migration 1 : Ajouter le champ saved_farms à la table users
  * Permet de sauvegarder les fermes favorites de l'utilisateur
- * 
+ *
  * Version: 1
  * Date: 2024
  */
@@ -12,7 +12,7 @@ import { getErrorMessage } from '../../types/common';
 export async function addSavedFarmsToUsers(db: SQLiteDatabase): Promise<void> {
   try {
     // Vérifier si la colonne existe déjà
-    const tableInfo = await db.getAllAsync<any>("PRAGMA table_info('users')");
+    const tableInfo = await db.getAllAsync<unknown>("PRAGMA table_info('users')");
     const savedFarmsColumn = tableInfo.find((col) => col.name === 'saved_farms');
 
     if (savedFarmsColumn) {
@@ -33,4 +33,3 @@ export async function addSavedFarmsToUsers(db: SQLiteDatabase): Promise<void> {
     // La migration échoue silencieusement pour ne pas bloquer l'app
   }
 }
-

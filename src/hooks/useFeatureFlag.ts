@@ -1,10 +1,10 @@
 /**
  * Hook React pour utiliser les Feature Flags
- * 
+ *
  * @example
  * ```typescript
  * const { isEnabled, isLoading } = useFeatureFlag('new_dashboard', { userId: 'user-123' });
- * 
+ *
  * if (isEnabled) {
  *   return <NewDashboard />;
  * }
@@ -15,17 +15,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getFeatureFlagsService, UserContext } from '../services/FeatureFlagsService';
 import { useAppSelector } from '../store/hooks';
+import { useRole } from '../contexts/RoleContext';
 
 export interface UseFeatureFlagOptions {
   userId?: string | null;
   role?: string;
   email?: string;
-  customAttributes?: Record<string, any>;
+  customAttributes?: Record<string, unknown>;
 }
 
 export interface UseFeatureFlagResult {
   isEnabled: boolean;
-  value: any;
+  value: unknown;
   isLoading: boolean;
   error: Error | null;
   refresh: () => Promise<void>;
@@ -39,13 +40,13 @@ export function useFeatureFlag(
   options?: UseFeatureFlagOptions
 ): UseFeatureFlagResult {
   const [isEnabled, setIsEnabled] = useState<boolean>(false);
-  const [value, setValue] = useState<any>(false);
+  const [value, setValue] = useState<unknown>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
   // Récupérer le contexte utilisateur depuis Redux si disponible
   const currentUser = useAppSelector((state) => state.auth.user);
-  const currentRole = useAppSelector((state) => state.auth.activeRole);
+  const { activeRole } = useRole();
 
   const loadFlag = useCallback(async () => {
     setIsLoading(true);
@@ -53,11 +54,11 @@ export function useFeatureFlag(
 
     try {
       const service = getFeatureFlagsService();
-      
+
       // Construire le contexte utilisateur
       const context: UserContext = {
         userId: options?.userId ?? currentUser?.id ?? null,
-        role: options?.role ?? currentRole ?? undefined,
+        role: options?.role ?? activeRole ?? undefined,
         email: options?.email ?? currentUser?.email ?? undefined,
         customAttributes: options?.customAttributes,
       };
@@ -75,7 +76,16 @@ export function useFeatureFlag(
     } finally {
       setIsLoading(false);
     }
-  }, [flagKey, options?.userId, options?.role, options?.email, options?.customAttributes, currentUser?.id, currentUser?.email, currentRole]);
+  }, [
+    flagKey,
+    options?.userId,
+    options?.role,
+    options?.email,
+    options?.customAttributes,
+    currentUser?.id,
+    currentUser?.email,
+    activeRole,
+  ]);
 
   useEffect(() => {
     loadFlag();
@@ -98,7 +108,7 @@ export function useFeatureFlags(
   options?: UseFeatureFlagOptions
 ): Record<string, UseFeatureFlagResult> {
   const currentUser = useAppSelector((state) => state.auth.user);
-  const currentRole = useAppSelector((state) => state.auth.activeRole);
+  const { activeRole } = useRole();
 
   const results: Record<string, UseFeatureFlagResult> = {};
 
@@ -117,12 +127,12 @@ export function useABTest(
   options?: UseFeatureFlagOptions
 ): {
   variant: string;
-  value: any;
+  value: unknown;
   isLoading: boolean;
   error: Error | null;
 } {
   const { value, isLoading, error } = useFeatureFlag(testKey, options);
-  
+
   // Extraire le nom de la variante depuis la valeur
   const variant = typeof value === 'string' ? value : 'control';
 
@@ -133,4 +143,3 @@ export function useABTest(
     error,
   };
 }
-

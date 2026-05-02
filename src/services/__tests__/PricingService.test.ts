@@ -73,7 +73,7 @@ describe('PricingService', () => {
       expect(result.suggested).toBe(72450);
     });
 
-    it('devrait appliquer le facteur d\'ajustement personnalisé', () => {
+    it("devrait appliquer le facteur d'ajustement personnalisé", () => {
       const result = suggestMarketPrice(2300, 100, 1.1);
       expect(result.pricePerKg).toBe(2530); // 2300 * 1.1
     });
@@ -156,4 +156,3 @@ describe('PricingService', () => {
     });
   });
 });
-

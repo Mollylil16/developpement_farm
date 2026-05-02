@@ -1,0 +1,24 @@
+# Ignorer tout sauf le backend et admin-web pour Railway
+# Railway ne devrait pas scanner la racine, mais au cas où...
+
+# Frontend mobile (déjà sur EAS)
+node_modules/
+src/
+assets/
+coverage/
+*.ts
+*.tsx
+!backend/**/*.ts
+!admin-web/**/*.ts
+
+# AI Service (déployé sur Vast.ai)
+ai-weight-estimation/
+
+# Autres fichiers
+*.md
+!backend/README*.md
+!admin-web/README*.md
+.git/
+.vscode/
+.idea/
+

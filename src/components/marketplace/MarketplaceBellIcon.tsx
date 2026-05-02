@@ -43,9 +43,7 @@ export default function MarketplaceBellIcon({
         {/* Badge */}
         {hasUnread && (
           <View style={[styles.badge, { backgroundColor: colors.error }]}>
-            <Text style={[styles.badgeText, { color: colors.textInverse }]}>
-              {displayCount}
-            </Text>
+            <Text style={[styles.badgeText, { color: colors.textInverse }]}>{displayCount}</Text>
           </View>
         )}
 
@@ -104,4 +102,3 @@ const styles = StyleSheet.create({
     // Animation à implémenter avec Reanimated si nécessaire
   },
 });
-

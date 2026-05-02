@@ -1,6 +1,6 @@
 /**
  * Use Case : Créer une vaccination
- * 
+ *
  * Orchestre la création d'une vaccination avec validation métier
  */
 
@@ -60,7 +60,7 @@ export class CreateVaccinationUseCase {
     // Créer la vaccination
     const now = new Date().toISOString();
     const vaccination: Vaccination = {
-      id: uuid.v4() as string,
+      id: uuid.v4(),
       projetId: input.projetId,
       calendrierId: input.calendrierId,
       animalId: input.animalId,
@@ -88,4 +88,3 @@ export class CreateVaccinationUseCase {
     return await this.santeRepository.createVaccination(vaccination);
   }
 }
-

@@ -11,8 +11,12 @@ jest.mock('../../utils/margeCalculations');
 import { calculateCoutsPeriode } from '../../utils/financeCalculations';
 import { calculateMargeVente } from '../../utils/margeCalculations';
 
-const mockCalculateCoutsPeriode = calculateCoutsPeriode as jest.MockedFunction<typeof calculateCoutsPeriode>;
-const mockCalculateMargeVente = calculateMargeVente as jest.MockedFunction<typeof calculateMargeVente>;
+const mockCalculateCoutsPeriode = calculateCoutsPeriode as jest.MockedFunction<
+  typeof calculateCoutsPeriode
+>;
+const mockCalculateMargeVente = calculateMargeVente as jest.MockedFunction<
+  typeof calculateMargeVente
+>;
 
 describe('CoutProductionService', () => {
   let mockDb: any;
@@ -55,7 +59,14 @@ describe('CoutProductionService', () => {
       ];
 
       const mockVentes: Revenu[] = [
-        { id: 'v1', projet_id: projetId, montant: 50000, poids_kg: 100, categorie: 'vente_porc', date: '2024-01-20' } as Revenu,
+        {
+          id: 'v1',
+          projet_id: projetId,
+          montant: 50000,
+          poids_kg: 100,
+          categorie: 'vente_porc',
+          date: '2024-01-20',
+        } as Revenu,
       ];
 
       const mockCoutsPeriode = {
@@ -66,8 +77,8 @@ describe('CoutProductionService', () => {
       };
 
       mockDb.getAllAsync
-        .mockResolvedValueOnce(mockDepenses.map(d => ({ ...d, photos: JSON.stringify([]) })))
-        .mockResolvedValueOnce(mockVentes.map(v => ({ ...v, photos: JSON.stringify([]) })));
+        .mockResolvedValueOnce(mockDepenses.map((d) => ({ ...d, photos: JSON.stringify([]) })))
+        .mockResolvedValueOnce(mockVentes.map((v) => ({ ...v, photos: JSON.stringify([]) })));
 
       mockCalculateCoutsPeriode.mockReturnValue(mockCoutsPeriode as any);
 
@@ -90,7 +101,7 @@ describe('CoutProductionService', () => {
       expect(result).toEqual(mockCoutsPeriode);
     });
 
-    it('devrait utiliser la durée d\'amortissement par défaut si non définie', async () => {
+    it("devrait utiliser la durée d'amortissement par défaut si non définie", async () => {
       const projetSansDuree: Projet = {
         id: projetId,
         nom: 'Test Projet',
@@ -121,7 +132,7 @@ describe('CoutProductionService', () => {
 
       mockDb.getAllAsync
         .mockResolvedValueOnce([])
-        .mockResolvedValueOnce(mockVentes.map(v => ({ ...v, photos: JSON.stringify([]) })));
+        .mockResolvedValueOnce(mockVentes.map((v) => ({ ...v, photos: JSON.stringify([]) })));
 
       mockCalculateCoutsPeriode.mockReturnValue({} as any);
 
@@ -186,7 +197,7 @@ describe('CoutProductionService', () => {
       marge_complete_pourcent: -60,
     };
 
-    it('devrait mettre à jour les marges d\'une vente', async () => {
+    it("devrait mettre à jour les marges d'une vente", async () => {
       mockCalculateMargeVente.mockReturnValue(mockMarges as any);
       mockDb.runAsync.mockResolvedValue(undefined);
 
@@ -221,9 +232,9 @@ describe('CoutProductionService', () => {
       });
     });
 
-    it('devrait lancer une erreur si la base de données n\'est pas initialisée', async () => {
+    it("devrait lancer une erreur si la base de données n'est pas initialisée", async () => {
       const serviceWithoutDb = new (CoutProductionService.constructor as any)();
-      
+
       await expect(
         serviceWithoutDb.updateMargesVente(mockVente, 100, mockCoutsPeriode as any)
       ).rejects.toThrow('Base de données non initialisée');
@@ -277,14 +288,14 @@ describe('CoutProductionService', () => {
       nom: 'Test Projet',
     } as Projet;
 
-    it('devrait recalculer les marges pour toutes les ventes d\'une période', async () => {
+    it("devrait recalculer les marges pour toutes les ventes d'une période", async () => {
       const mockVentes: Revenu[] = [
         { id: 'v1', poids_kg: 100, categorie: 'vente_porc', date: '2024-01-15' } as Revenu,
         { id: 'v2', poids_kg: 50, categorie: 'vente_porc', date: '2024-01-20' } as Revenu,
         { id: 'v3', poids_kg: null, categorie: 'vente_porc', date: '2024-01-25' } as Revenu, // Ignoré
       ];
 
-      const mockVentesWithPhotos = mockVentes.map(v => ({ ...v, photos: JSON.stringify([]) }));
+      const mockVentesWithPhotos = mockVentes.map((v) => ({ ...v, photos: JSON.stringify([]) }));
       mockDb.getAllAsync
         .mockResolvedValueOnce([]) // loadDepenses dans calculateCoutsPeriode
         .mockResolvedValueOnce(mockVentesWithPhotos) // loadVentesPorc dans calculateCoutsPeriode
@@ -301,7 +312,12 @@ describe('CoutProductionService', () => {
 
       mockDb.runAsync.mockResolvedValue(undefined);
 
-      const result = await service.recalculerMargesPeriode(projetId, dateDebut, dateFin, mockProjet);
+      const result = await service.recalculerMargesPeriode(
+        projetId,
+        dateDebut,
+        dateFin,
+        mockProjet
+      );
 
       expect(result).toBe(2); // 2 ventes avec poids
       expect(mockDb.runAsync).toHaveBeenCalledTimes(2);
@@ -317,10 +333,24 @@ describe('CoutProductionService', () => {
       nom: 'Test Projet',
     } as Projet;
 
-    it('devrait calculer les statistiques financières d\'une période', async () => {
+    it("devrait calculer les statistiques financières d'une période", async () => {
       const mockVentes: Revenu[] = [
-        { id: 'v1', montant: 50000, marge_opex: 10000, marge_opex_pourcent: 20, categorie: 'vente_porc', date: '2024-01-15' } as Revenu,
-        { id: 'v2', montant: 30000, marge_opex: 5000, marge_opex_pourcent: 16.67, categorie: 'vente_porc', date: '2024-01-20' } as Revenu,
+        {
+          id: 'v1',
+          montant: 50000,
+          marge_opex: 10000,
+          marge_opex_pourcent: 20,
+          categorie: 'vente_porc',
+          date: '2024-01-15',
+        } as Revenu,
+        {
+          id: 'v2',
+          montant: 30000,
+          marge_opex: 5000,
+          marge_opex_pourcent: 16.67,
+          categorie: 'vente_porc',
+          date: '2024-01-20',
+        } as Revenu,
       ];
 
       const mockCoutsPeriode = {
@@ -330,8 +360,8 @@ describe('CoutProductionService', () => {
 
       mockDb.getAllAsync
         .mockResolvedValueOnce([]) // loadDepenses (premier appel dans calculateCoutsPeriode)
-        .mockResolvedValueOnce(mockVentes.map(v => ({ ...v, photos: JSON.stringify([]) }))) // loadVentesPorc (premier appel dans calculateCoutsPeriode)
-        .mockResolvedValueOnce(mockVentes.map(v => ({ ...v, photos: JSON.stringify([]) }))); // loadVentesPorc (deuxième appel dans getStatistiquesPeriode)
+        .mockResolvedValueOnce(mockVentes.map((v) => ({ ...v, photos: JSON.stringify([]) }))) // loadVentesPorc (premier appel dans calculateCoutsPeriode)
+        .mockResolvedValueOnce(mockVentes.map((v) => ({ ...v, photos: JSON.stringify([]) }))); // loadVentesPorc (deuxième appel dans getStatistiquesPeriode)
 
       mockCalculateCoutsPeriode.mockReturnValue(mockCoutsPeriode as any);
 
@@ -344,7 +374,7 @@ describe('CoutProductionService', () => {
       expect(result.coutsPeriode).toEqual(mockCoutsPeriode);
     });
 
-    it('devrait gérer le cas où aucune vente n\'a de marge', async () => {
+    it("devrait gérer le cas où aucune vente n'a de marge", async () => {
       const mockVentes: Revenu[] = [
         { id: 'v1', montant: 50000, categorie: 'vente_porc', date: '2024-01-15' } as Revenu,
       ];
@@ -362,4 +392,3 @@ describe('CoutProductionService', () => {
     });
   });
 });
-

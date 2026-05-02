@@ -58,7 +58,7 @@ describe('GetAnimalStatisticsUseCase - Integration', () => {
       expect(mockRepository.findByProjet).toHaveBeenCalledWith(projetId);
     });
 
-    it('devrait rejeter si le projet n\'est pas fourni', async () => {
+    it("devrait rejeter si le projet n'est pas fourni", async () => {
       await expect(useCase.execute('')).rejects.toThrow('Le projet est requis');
     });
   });

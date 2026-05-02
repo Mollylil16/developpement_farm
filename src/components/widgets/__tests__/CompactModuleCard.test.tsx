@@ -112,4 +112,3 @@ describe('CompactModuleCard', () => {
     expect(() => UNSAFE_getByType('TouchableOpacity')).toThrow();
   });
 });
-

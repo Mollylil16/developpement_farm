@@ -18,6 +18,7 @@ import {
   UIManager,
   Dimensions,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { PieChart } from 'react-native-chart-kit';
 import { useTheme } from '../contexts/ThemeContext';
@@ -37,6 +38,11 @@ import { createMaladie, loadMaladies, createVaccination } from '../store/slices/
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { getCurrentLocalDate } from '../utils/dateUtils';
 import { getCategorieAnimal } from '../utils/animalUtils';
+import { useModeElevage } from '../hooks/useModeElevage';
+import BatchSelector from './sante/BatchSelector';
+import { Batch } from '../types/batch';
+import apiClient from '../services/api/apiClient';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -49,8 +55,11 @@ interface Props {
 export default function MaladiesComponentNew({ refreshControl }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
+  const modeElevage = useModeElevage();
+  const isModeBatch = modeElevage === 'bande';
 
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const maladies = useAppSelector((state) => selectAllMaladies(state));
   const animaux = useAppSelector((state) => selectAllAnimaux(state));
 
@@ -63,33 +72,102 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
   const [produitUtilise, setProduitUtilise] = useState('');
   const [dosage, setDosage] = useState('');
   const [rechercheAnimal, setRechercheAnimal] = useState('');
+  // Mode batch : sélection de la bande et nombre d'animaux affectés
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+  const [nombreAnimauxAffectes, setNombreAnimauxAffectes] = useState('');
+  const [batches, setBatches] = useState<Batch[]>([]);
 
-  // Charger les données
-  useEffect(() => {
-    if (projetActif?.id) {
+  // Charger les données uniquement quand l'écran est visible
+  useFocusEffect(
+    useCallback(() => {
+      if (!projetActif?.id) return;
+
+      // Charger les maladies et animaux uniquement quand l'écran est visible
       dispatch(loadMaladies(projetActif.id));
-      dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: false }));
-    }
-  }, [projetActif?.id, dispatch]);
+      // Inclure les inactifs pour avoir tous les animaux (actif et autre statuts)
+      dispatch(loadProductionAnimaux({ projetId: projetActif.id, inclureInactifs: true }));
+    }, [projetActif?.id, dispatch])
+  );
+
+  // Charger les bandes en mode batch uniquement quand l'écran est visible
+  useFocusEffect(
+    useCallback(() => {
+      if (!isModeBatch || !projetActif?.id) {
+        setBatches([]);
+        return;
+      }
+
+      let cancelled = false;
+
+      const loadBatches = async () => {
+        try {
+          const data = await apiClient.get<Batch[]>(`/batch-pigs/projet/${projetActif.id}`);
+          if (!cancelled) {
+            setBatches(data || []);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            console.error('[MaladiesComponentNew] Erreur chargement bandes:', error);
+            setBatches([]);
+          }
+        }
+      };
+
+      loadBatches();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [isModeBatch, projetActif?.id])
+  );
 
   // Calculer les stats
   const stats = useMemo(() => {
-    const animauxActifs = (animaux || []).filter((a) => a.statut === 'actif');
-    const totalActifs = animauxActifs.length;
+    // Calculer le total d'animaux actifs selon le mode
+    let totalActifs = 0;
+    if (isModeBatch) {
+      // Mode bande : somme des total_count de toutes les bandes
+      totalActifs = batches.reduce((sum, batch) => sum + (batch.total_count || 0), 0);
+    } else {
+      // Mode individuel : nombre d'animaux actifs
+      const animauxActifs = (animaux || []).filter((a) => a.statut === 'actif');
+      totalActifs = animauxActifs.length;
+    }
 
     // Maladies en cours (non guéries)
     const maladiesEnCours = (maladies || []).filter((m) => !m.gueri);
 
-    // IDs uniques des animaux malades
-    const animauxMaladesSet = new Set<string>();
-    maladiesEnCours.forEach((m) => {
-      if (m.animal_id) {
-        animauxMaladesSet.add(m.animal_id);
-      }
-    });
+    // Calculer le nombre de porcs malades selon le mode
+    let porcsMalades = 0;
+    if (isModeBatch) {
+      // Mode bande : somme des nombre_animaux_affectes des maladies en cours
+      // Si nombre_animaux_affectes n'est pas défini, compter 1 par maladie
+      porcsMalades = maladiesEnCours.reduce((sum, m) => {
+        return sum + (m.nombre_animaux_affectes || 1);
+      }, 0);
+    } else {
+      // Mode individuel : IDs uniques des animaux malades
+      const animauxMaladesSet = new Set<string>();
+      maladiesEnCours.forEach((m) => {
+        if (m.animal_id) {
+          animauxMaladesSet.add(m.animal_id);
+        }
+      });
+      porcsMalades = animauxMaladesSet.size;
+    }
 
-    const porcsMalades = animauxMaladesSet.size;
     const tauxMaladie = totalActifs > 0 ? (porcsMalades / totalActifs) * 100 : 0;
+    
+    // Debug logs pour vérifier les calculs
+    if (isModeBatch) {
+      console.log('[MaladiesComponentNew] Mode batch - Stats:', {
+        totalActifs,
+        porcsMalades,
+        tauxMaladie,
+        maladiesEnCours: maladiesEnCours.length,
+        batchesCount: batches.length,
+      });
+    }
 
     // Couleur du badge selon sévérité (calculée séparément pour éviter la dépendance colors)
     let badgeSeverity: 'success' | 'warning' | 'error' = 'success';
@@ -102,17 +180,28 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
 
     const maladiesRecentes = (maladies || []).filter((m) => new Date(m.date_debut) >= troismoisAgo);
 
+    // Compter les cas par type (en mode batch, utiliser nombre_animaux_affectes)
     const countByType: Record<string, number> = {};
     maladiesRecentes.forEach((m) => {
-      countByType[m.type] = (countByType[m.type] || 0) + 1;
+      if (isModeBatch) {
+        // Mode bande : compter le nombre d'animaux affectés
+        const nombreAffectes = m.nombre_animaux_affectes || 1;
+        countByType[m.type] = (countByType[m.type] || 0) + nombreAffectes;
+      } else {
+        // Mode individuel : compter 1 par maladie
+        countByType[m.type] = (countByType[m.type] || 0) + 1;
+      }
     });
+
+    // Calculer le total de cas pour le pourcentage
+    const totalCas = Object.values(countByType).reduce((sum, count) => sum + count, 0);
 
     const maladiesRecurrentes = Object.entries(countByType)
       .map(([type, count]) => ({
         type: type as TypeMaladie,
         nom: TYPE_MALADIE_LABELS[type as TypeMaladie],
         count,
-        pourcentage: maladiesRecentes.length > 0 ? (count / maladiesRecentes.length) * 100 : 0,
+        pourcentage: totalCas > 0 ? (count / totalCas) * 100 : 0,
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
@@ -244,7 +333,7 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
       maladiesRecurrentes,
       suggestions,
     };
-  }, [animaux, maladies]);
+  }, [animaux, maladies, isModeBatch, batches]);
 
   // Convertir badgeSeverity en couleur
   const getBadgeColor = (severity: 'success' | 'warning' | 'error') => {
@@ -272,6 +361,8 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
       setProduitUtilise('');
       setDosage('');
       setRechercheAnimal('');
+      setSelectedBatch(null);
+      setNombreAnimauxAffectes('');
     }
   };
 
@@ -290,10 +381,17 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
 
   // Enregistrer le cas de maladie
   const handleEnregistrer = async () => {
-    // Validation
-    if (!animalSelectionne) {
-      Alert.alert('Erreur', 'Veuillez sélectionner un animal');
-      return;
+    // Validation selon le mode
+    if (isModeBatch) {
+      if (!selectedBatch) {
+        Alert.alert('Erreur', 'Veuillez sélectionner une loge');
+        return;
+      }
+    } else {
+      if (!animalSelectionne) {
+        Alert.alert('Erreur', 'Veuillez sélectionner un animal');
+        return;
+      }
     }
     if (!symptomes.trim()) {
       Alert.alert('Erreur', 'Veuillez décrire les symptômes');
@@ -306,13 +404,15 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
       // Créer le cas de maladie
       const inputMaladie: CreateMaladieInput = {
         projet_id: projetActif.id,
-        animal_id: animalSelectionne,
+        animal_id: isModeBatch ? undefined : animalSelectionne,
+        batch_id: isModeBatch && selectedBatch ? selectedBatch.id : undefined,
         type: typeMaladie,
         nom_maladie: TYPE_MALADIE_LABELS[typeMaladie],
         gravite: 'moderee',
         date_debut: getCurrentLocalDate(),
         symptomes: symptomes.trim(),
-        contagieux: false,
+        contagieux: isModeBatch, // En mode batch, considéré comme potentiellement contagieux
+        nombre_animaux_affectes: isModeBatch && nombreAnimauxAffectes ? parseInt(nombreAnimauxAffectes) : undefined,
         gueri: false,
         notes: traitementAdministre.trim() || undefined,
       };
@@ -328,7 +428,8 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
           try {
             const inputVaccination: CreateVaccinationInput = {
               projet_id: projetActif.id,
-              animal_ids: [animalSelectionne],
+              animal_ids: isModeBatch ? [] : [animalSelectionne],
+              batch_id: isModeBatch && selectedBatch ? selectedBatch.id : undefined,
               type_prophylaxie: typeProphylaxie,
               produit_administre: produitUtilise.trim(),
               date_vaccination: getCurrentLocalDate(),
@@ -355,11 +456,12 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
 
       // Fermer le formulaire
       toggleFormulaire();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur enregistrement:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       Alert.alert(
         'Erreur',
-        `Impossible d'enregistrer le cas de maladie:\n${error?.message || error}`
+        `Impossible d'enregistrer le cas de maladie:\n${errorMessage}`
       );
     }
   };
@@ -528,53 +630,83 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
 
         {formulaireOuvert && (
           <View style={styles.formulaireContent}>
-            {/* Sélection du sujet */}
-            <View style={styles.formSection}>
-              <Text style={[styles.formLabel, { color: colors.text }]}>
-                Sujet malade <Text style={{ color: colors.error }}>*</Text>
-              </Text>
-
-              {/* Barre de recherche */}
-              <View
-                style={[
-                  styles.rechercheContainer,
-                  { backgroundColor: colors.background, borderColor: colors.border },
-                ]}
-              >
-                <Ionicons name="search" size={20} color={colors.textSecondary} />
-                <TextInput
-                  style={[styles.rechercheInput, { color: colors.text }]}
-                  placeholder="Rechercher un animal..."
-                  placeholderTextColor={colors.textSecondary}
-                  value={rechercheAnimal}
-                  onChangeText={setRechercheAnimal}
+            {/* Sélection : Bande (mode batch) ou Animal (mode individuel) */}
+            {isModeBatch ? (
+              /* Mode Batch : Sélection de bande */
+              <View style={styles.formSection}>
+                <BatchSelector
+                  selectedBatchId={selectedBatch?.id || null}
+                  onBatchSelect={(batch) => setSelectedBatch(batch)}
+                  label="Loge concernée *"
                 />
-              </View>
-
-              {/* Liste des animaux */}
-              <ScrollView
-                style={[
-                  styles.listeAnimaux,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-                nestedScrollEnabled
-              >
-                {animauxFiltres.length === 0 ? (
-                  <View style={styles.emptyState}>
-                    <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                      Aucun animal trouvé
+                {selectedBatch && (
+                  <>
+                    {/* Nombre d'animaux affectés */}
+                    <Text style={[styles.formLabel, { color: colors.text, marginTop: SPACING.sm }]}>
+                      Nombre d'animaux affectés
                     </Text>
-                  </View>
-                ) : (
-                  animauxFiltres.map((animal) => {
-                    const isSelected = animalSelectionne === animal.id;
-                    const nom = animal.nom || animal.code || `Porc #${animal.id.slice(0, 8)}`;
-                    const categorie = getCategorieAnimal(animal);
+                    <TextInput
+                      style={[
+                        styles.formInput,
+                        { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+                      ]}
+                      value={nombreAnimauxAffectes}
+                      onChangeText={setNombreAnimauxAffectes}
+                      placeholder={`Max: ${selectedBatch.total_count} sujet(s)`}
+                      placeholderTextColor={colors.textSecondary}
+                      keyboardType="numeric"
+                    />
+                  </>
+                )}
+              </View>
+            ) : (
+              /* Mode Individuel : Sélection d'un animal */
+              <View style={styles.formSection}>
+                <Text style={[styles.formLabel, { color: colors.text }]}>
+                  Sujet malade <Text style={{ color: colors.error }}>*</Text>
+                </Text>
 
-                    return (
-                      <TouchableOpacity
-                        key={animal.id}
-                        style={[
+                {/* Barre de recherche */}
+                <View
+                  style={[
+                    styles.rechercheContainer,
+                    { backgroundColor: colors.background, borderColor: colors.border },
+                  ]}
+                >
+                  <Ionicons name="search" size={20} color={colors.textSecondary} />
+                  <TextInput
+                    style={[styles.rechercheInput, { color: colors.text }]}
+                    placeholder="Rechercher un animal..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={rechercheAnimal}
+                    onChangeText={setRechercheAnimal}
+                  />
+                </View>
+
+                {/* Liste des animaux */}
+                <ScrollView
+                  style={[
+                    styles.listeAnimaux,
+                    { backgroundColor: colors.surface, borderColor: colors.border },
+                  ]}
+                  nestedScrollEnabled
+                >
+                  {animauxFiltres.length === 0 ? (
+                    <View style={styles.emptyState}>
+                      <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                        Aucun animal trouvé
+                      </Text>
+                    </View>
+                  ) : (
+                    animauxFiltres.map((animal) => {
+                      const isSelected = animalSelectionne === animal.id;
+                      const nom = animal.nom || animal.code || `Porc #${animal.id.slice(0, 8)}`;
+                      const categorie = getCategorieAnimal(animal);
+
+                      return (
+                        <TouchableOpacity
+                          key={animal.id}
+                          style={[
                           styles.animalItem,
                           {
                             backgroundColor: isSelected ? `${colors.primary}15` : 'transparent',
@@ -614,7 +746,8 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
                   })
                 )}
               </ScrollView>
-            </View>
+              </View>
+            )}
 
             {/* Type de maladie */}
             <View style={styles.formSection}>

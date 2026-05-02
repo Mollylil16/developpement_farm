@@ -11,7 +11,7 @@ import {
   depensesPonctuellesSchema,
   revenusSchema,
 } from '../normalization/schemas';
-import { ChargeFixe, DepensePonctuelle, Revenu } from '../../types';
+import type { ChargeFixe, DepensePonctuelle, Revenu } from '../../types/finance';
 
 // Sélecteur de base pour l'état finance
 const selectFinanceState = (state: RootState) => state.finance;

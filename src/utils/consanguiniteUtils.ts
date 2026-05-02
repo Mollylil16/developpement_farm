@@ -15,6 +15,9 @@ export enum RisqueConsanguinite {
   AUCUN = 'AUCUN',
 }
 
+// Export des valeurs pour utilisation dans les tests et autres modules
+export const RISQUE_CONSANGUINITE_VALUES = Object.values(RisqueConsanguinite);
+
 /**
  * Résultat de la détection de consanguinité
  */
@@ -68,8 +71,8 @@ function estParentEnfant(truie: ProductionAnimal, verrat: ProductionAnimal): boo
  */
 function estFrereSoeur(truie: ProductionAnimal, verrat: ProductionAnimal): boolean {
   // Vérifier que les deux parents sont connus et identiques
-  const memePere = truie.pere_id && verrat.pere_id && truie.pere_id === verrat.pere_id;
-  const memeMere = truie.mere_id && verrat.mere_id && truie.mere_id === verrat.mere_id;
+  const memePere = !!(truie.pere_id && verrat.pere_id && truie.pere_id === verrat.pere_id);
+  const memeMere = !!(truie.mere_id && verrat.mere_id && truie.mere_id === verrat.mere_id);
 
   return memePere && memeMere;
 }
@@ -79,8 +82,8 @@ function estFrereSoeur(truie: ProductionAnimal, verrat: ProductionAnimal): boole
  */
 function estDemiFrereSoeur(truie: ProductionAnimal, verrat: ProductionAnimal): boolean {
   // Vérifier qu'ils ont un parent en commun mais pas les deux
-  const memePere = truie.pere_id && verrat.pere_id && truie.pere_id === verrat.pere_id;
-  const memeMere = truie.mere_id && verrat.mere_id && truie.mere_id === verrat.mere_id;
+  const memePere = !!(truie.pere_id && verrat.pere_id && truie.pere_id === verrat.pere_id);
+  const memeMere = !!(truie.mere_id && verrat.mere_id && truie.mere_id === verrat.mere_id);
 
   // Demi-frère/sœur = un seul parent en commun (pas les deux)
   return (memePere || memeMere) && !(memePere && memeMere);

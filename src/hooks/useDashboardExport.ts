@@ -18,15 +18,14 @@ import {
 } from '../store/selectors/financeSelectors';
 import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
 import { exportDashboardPDF } from '../services/pdf/dashboardPDF';
+import { logger } from '../utils/logger';
 
 interface UseDashboardExportReturn {
   exportingPDF: boolean;
   handleExportPDF: () => Promise<void>;
 }
 
-export function useDashboardExport(
-  projetActif: any
-): UseDashboardExportReturn {
+export function useDashboardExport(projetActif: unknown): UseDashboardExportReturn {
   const [exportingPDF, setExportingPDF] = useState(false);
 
   // Récupérer toutes les données depuis le store
@@ -71,14 +70,10 @@ export function useDashboardExport(
       // Calculer le GMQ moyen
       const gmqValues = toutesPesees.filter((p) => p.gmq).map((p) => p.gmq as number);
       const gmqMoyen =
-        gmqValues.length > 0
-          ? gmqValues.reduce((sum, val) => sum + val, 0) / gmqValues.length
-          : 0;
+        gmqValues.length > 0 ? gmqValues.reduce((sum, val) => sum + val, 0) / gmqValues.length : 0;
 
       // Calculer les stats de reproduction
-      const gestationsEnCours = gestations.filter(
-        (g) => !g.date_fin && !g.date_mise_bas_effective
-      );
+      const gestationsEnCours = gestations.filter((g) => !g.date_fin && !g.date_mise_bas_effective);
       const sevragesTotalPorcelets = sevrages.reduce(
         (sum, s) => sum + (s.nombre_porcelets || 0),
         0
@@ -138,7 +133,7 @@ export function useDashboardExport(
         [{ text: 'OK' }]
       );
     } catch (error) {
-      console.error("Erreur lors de l'export PDF:", error);
+      logger.error("Erreur lors de l'export PDF:", error);
       Alert.alert('Erreur', 'Impossible de générer le PDF. Vérifiez vos données et réessayez.', [
         { text: 'OK' },
       ]);
@@ -161,4 +156,3 @@ export function useDashboardExport(
     handleExportPDF,
   };
 }
-

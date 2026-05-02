@@ -59,4 +59,3 @@ export async function createChatAgentTables(db: SQLiteDatabase): Promise<void> {
     throw error;
   }
 }
-

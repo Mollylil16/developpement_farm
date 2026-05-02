@@ -178,4 +178,3 @@ describe('useMarketplace', () => {
     expect(mockSearchListings).toHaveBeenCalledTimes(1);
   });
 });
-

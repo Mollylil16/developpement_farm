@@ -12,7 +12,7 @@ import stocksReducer, {
   loadStockStats,
   loadStocksEnAlerte,
 } from '../stocksSlice';
-import { getDatabase } from '../../../services/database';
+import { getDatabase } from '../../database';
 import { StockRepository } from '../../../database/repositories';
 
 // Mock des modules
@@ -94,7 +94,7 @@ describe('stocksSlice', () => {
   });
 
   describe('Mouvements de Stock', () => {
-    it('devrait créer un mouvement d\'entrée', async () => {
+    it("devrait créer un mouvement d'entrée", async () => {
       const input = {
         stock_id: 'stock-1',
         type: 'entree' as const,
@@ -239,7 +239,7 @@ describe('stocksSlice', () => {
     });
   });
 
-  describe('Gestion d\'erreurs', () => {
+  describe("Gestion d'erreurs", () => {
     it('devrait gérer les erreurs lors du chargement', async () => {
       const mockRepo = {
         findByProjet: jest.fn().mockRejectedValue(new Error('Erreur DB')),
@@ -255,7 +255,7 @@ describe('stocksSlice', () => {
       expect(state.error).toBe('Erreur DB');
     });
 
-    it('devrait gérer l\'erreur de stock insuffisant', async () => {
+    it("devrait gérer l'erreur de stock insuffisant", async () => {
       const mockRepo = {
         retirerStock: jest.fn().mockRejectedValue(new Error('Stock insuffisant')),
       };
@@ -276,4 +276,3 @@ describe('stocksSlice', () => {
     });
   });
 });
-

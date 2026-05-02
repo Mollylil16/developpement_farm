@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextStyle } from 'react-native';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import PriceConfigCard from './PriceConfigCard';
@@ -49,9 +49,7 @@ export default function RevenueProjectionsCard({ onPriceUpdate }: RevenueProject
     <View style={[styles.container, { backgroundColor: colors.surface }]}>
       {/* Header avec titre */}
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>
-          💰 Projections de Revenus
-        </Text>
+        <Text style={[styles.title, { color: colors.text }]}>💰 Projections de Revenus</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           Configuration et prévisions
         </Text>
@@ -114,7 +112,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FONT_SIZES.xl,
-    fontWeight: FONT_WEIGHTS.bold as any,
+    fontWeight: FONT_WEIGHTS.bold as TextStyle['fontWeight'],
     marginBottom: SPACING.xs / 2,
   },
   subtitle: {
@@ -144,4 +142,3 @@ const styles = StyleSheet.create({
     // Le contenu est rendu sans padding car les composants enfants ont déjà leur propre padding
   },
 });
-

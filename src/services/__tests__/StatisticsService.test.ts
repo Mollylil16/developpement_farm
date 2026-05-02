@@ -2,7 +2,12 @@
  * Tests pour StatisticsService
  */
 
-import { StatisticsService, type AnimalStats, type MortalityStats, type WeightStats } from '../StatisticsService';
+import {
+  StatisticsService,
+  type AnimalStats,
+  type MortalityStats,
+  type WeightStats,
+} from '../StatisticsService';
 import type { ProductionAnimal, ProductionPesee, Mortalite } from '../../types';
 
 describe('StatisticsService', () => {
@@ -40,9 +45,7 @@ describe('StatisticsService', () => {
     });
 
     it('devrait utiliser la dernière pesée si plusieurs pesées', () => {
-      const animaux: ProductionAnimal[] = [
-        { id: '1', poids_initial: 10 } as any,
-      ];
+      const animaux: ProductionAnimal[] = [{ id: '1', poids_initial: 10 } as any];
 
       const pesees: ProductionPesee[] = [
         { id: '1', animal_id: '1', poids_kg: 50, date: '2024-01-01' } as any,
@@ -83,9 +86,21 @@ describe('StatisticsService', () => {
     it('devrait calculer les statistiques complètes', () => {
       const animaux: ProductionAnimal[] = [
         { id: '1', statut: 'actif', sexe: 'male', race: 'Large White', poids_initial: 10 } as any,
-        { id: '2', statut: 'actif', sexe: 'femelle', race: 'Large White', poids_initial: 20 } as any,
+        {
+          id: '2',
+          statut: 'actif',
+          sexe: 'femelle',
+          race: 'Large White',
+          poids_initial: 20,
+        } as any,
         { id: '3', statut: 'mort', sexe: 'male', race: 'Landrace', poids_initial: 15 } as any,
-        { id: '4', statut: 'vendu', sexe: 'femelle', race: 'Large White', poids_initial: 25 } as any,
+        {
+          id: '4',
+          statut: 'vendu',
+          sexe: 'femelle',
+          race: 'Large White',
+          poids_initial: 25,
+        } as any,
       ];
 
       const pesees: ProductionPesee[] = [
@@ -110,9 +125,7 @@ describe('StatisticsService', () => {
     });
 
     it('devrait gérer les animaux sans statut', () => {
-      const animaux: ProductionAnimal[] = [
-        { id: '1', poids_initial: 10 } as any,
-      ];
+      const animaux: ProductionAnimal[] = [{ id: '1', poids_initial: 10 } as any];
 
       const result = StatisticsService.calculateAnimalStats(animaux, []);
 
@@ -246,4 +259,3 @@ describe('StatisticsService', () => {
     });
   });
 });
-

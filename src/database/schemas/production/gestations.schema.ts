@@ -38,4 +38,3 @@ export async function createGestationsTable(db: SQLite.SQLiteDatabase): Promise<
     );`
   );
 }
-

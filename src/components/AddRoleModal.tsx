@@ -3,24 +3,20 @@
  * Permet d'activer les profils Acheteur, Vétérinaire ou Technicien
  */
 
-import React from 'react';
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Alert,
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp, ParamListBase } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useRole } from '../contexts/RoleContext';
-import { RoleType } from '../types';
+import type { RoleType } from '../types/roles';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { SCREENS } from '../navigation/types';
 import ModalLayout from './ModalLayout';
+import apiClient from '../services/api/apiClient';
+import { useAppDispatch } from '../store/hooks';
+import { updateUser } from '../store/slices/authSlice';
 
 interface AddRoleModalProps {
   visible: boolean;
@@ -49,8 +45,13 @@ const getRoleFormConfig = (role: RoleType) => {
       description: 'Acheter des porcs sur le marketplace',
       color: '#3B82F6',
       fields: [
-        { key: 'buyerType', label: 'Type d\'acheteur', type: 'select', required: true },
-        { key: 'businessName', label: 'Nom de l\'entreprise (optionnel)', type: 'text', required: false },
+        { key: 'buyerType', label: "Type d'acheteur", type: 'select', required: true },
+        {
+          key: 'businessName',
+          label: "Nom de l'entreprise (optionnel)",
+          type: 'text',
+          required: false,
+        },
       ],
     },
     veterinarian: {
@@ -61,8 +62,18 @@ const getRoleFormConfig = (role: RoleType) => {
       fields: [
         { key: 'degree', label: 'Diplôme', type: 'text', required: true },
         { key: 'licenseNumber', label: 'Numéro de licence', type: 'text', required: true },
-        { key: 'licenseValidUntil', label: 'Licence valide jusqu\'au', type: 'date', required: true },
-        { key: 'specializations', label: 'Spécialisations (séparées par des virgules)', type: 'text', required: false },
+        {
+          key: 'licenseValidUntil',
+          label: "Licence valide jusqu'au",
+          type: 'date',
+          required: true,
+        },
+        {
+          key: 'specializations',
+          label: 'Spécialisations (séparées par des virgules)',
+          type: 'text',
+          required: false,
+        },
       ],
     },
     technician: {
@@ -72,7 +83,12 @@ const getRoleFormConfig = (role: RoleType) => {
       color: '#F59E0B',
       fields: [
         { key: 'level', label: 'Niveau', type: 'select', required: true },
-        { key: 'skills', label: 'Compétences (séparées par des virgules)', type: 'text', required: false },
+        {
+          key: 'skills',
+          label: 'Compétences (séparées par des virgules)',
+          type: 'text',
+          required: false,
+        },
       ],
     },
   };
@@ -82,13 +98,14 @@ const getRoleFormConfig = (role: RoleType) => {
 const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess }) => {
   const { colors, isDark } = useTheme();
   const { currentUser, availableRoles, switchRole } = useRole();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<any>>();
+  const dispatch = useAppDispatch();
+  const [loadingRole, setLoadingRole] = useState<RoleType | null>(null);
 
   // Rôles disponibles à ajouter (exclure ceux déjà activés)
   const rolesToAdd: RoleType[] = ['producer', 'buyer', 'veterinarian', 'technician'].filter(
     (role) => !availableRoles.includes(role as RoleType)
   ) as RoleType[];
-
 
   const handleRoleSelect = async (role: RoleType) => {
     if (!currentUser) {
@@ -98,14 +115,14 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
 
     // Vérifier si le profil existe déjà
     const hasProfile = currentUser.roles?.[role];
-    
+
     if (hasProfile) {
       // Le profil existe déjà, basculer directement
       try {
         await switchRole(role);
         onClose();
         onSuccess?.();
-        
+
         // Naviguer vers le dashboard approprié
         switch (role) {
           case 'producer':
@@ -121,47 +138,79 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
             navigation.navigate('Main', { screen: SCREENS.DASHBOARD_TECH });
             break;
         }
-      } catch (error: any) {
-        Alert.alert('Erreur', error.message || 'Impossible de changer de rôle');
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Impossible de changer de rôle';
+        Alert.alert('Erreur', errorMessage);
       }
       return;
     }
 
-    // Le profil n'existe pas, naviguer vers l'écran de complétion
-    onClose();
+    // Le profil n'existe pas, ajouter le profil AVANT de naviguer
+    setLoadingRole(role);
     
-    switch (role) {
-      case 'producer':
-        // Pour le producteur, naviguer vers l'écran de création de projet
-        navigation.navigate(SCREENS.CREATE_PROJECT as never, {
-          userId: currentUser.id,
-          profileType: 'producer',
-        } as never);
-        break;
-      case 'buyer':
-        navigation.navigate(SCREENS.BUYER_INFO_COMPLETION as never, {
-          userId: currentUser.id,
-          profileType: 'buyer',
-        } as never);
-        break;
-      case 'veterinarian':
-        navigation.navigate(SCREENS.VETERINARIAN_INFO_COMPLETION as never, {
-          userId: currentUser.id,
-          profileType: 'veterinarian',
-        } as never);
-        break;
-      case 'technician':
-        // Pour le technicien, utiliser le même écran que l'acheteur pour l'instant
-        navigation.navigate(SCREENS.BUYER_INFO_COMPLETION as never, {
-          userId: currentUser.id,
-          profileType: 'technician',
-        } as never);
-        break;
-    }
-    
-    onSuccess?.();
-  };
+    try {
+      // Pour le producteur, ajouter le profil minimal d'abord
+      if (role === 'producer') {
+        try {
+          // Appeler l'API pour ajouter le profil producteur
+          const updatedUser = await apiClient.post<any>(`/users/${currentUser.id}/profiles/producer`);
+          
+          // Mettre à jour Redux avec l'utilisateur mis à jour
+          dispatch(updateUser(updatedUser));
+          
+          // Attendre un court délai pour que le context se mette à jour
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          // Maintenant naviguer vers l'écran de création de projet
+          setLoadingRole(null);
+          onClose();
+          (navigation as any).navigate(SCREENS.CREATE_PROJECT, {
+            userId: currentUser.id,
+            profileType: 'producer',
+          });
+          onSuccess?.();
+          return;
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Impossible d\'ajouter le profil producteur';
+          Alert.alert('Erreur', errorMessage);
+          setLoadingRole(null);
+          return;
+        }
+      }
 
+      // Pour les autres profils, naviguer vers l'écran de complétion normalement
+      onClose();
+      setLoadingRole(null);
+
+      switch (role) {
+        case 'buyer':
+          (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
+            userId: currentUser.id,
+            profileType: 'buyer',
+          });
+          break;
+        case 'veterinarian':
+          (navigation as any).navigate(SCREENS.VETERINARIAN_INFO_COMPLETION, {
+            userId: currentUser.id,
+            profileType: 'veterinarian',
+          });
+          break;
+        case 'technician':
+          // Pour le technicien, utiliser le même écran que l'acheteur pour l'instant
+          (navigation as any).navigate(SCREENS.BUYER_INFO_COMPLETION, {
+            userId: currentUser.id,
+            profileType: 'technician',
+          });
+          break;
+      }
+
+      onSuccess?.();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
+      Alert.alert('Erreur', errorMessage);
+      setLoadingRole(null);
+    }
+  };
 
   if (!visible) {
     return null;
@@ -172,7 +221,9 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
           {/* Header */}
-          <View style={[styles.modalHeader, { borderBottomColor: colors.divider || colors.border }]}>
+          <View
+            style={[styles.modalHeader, { borderBottomColor: colors.divider || colors.border }]}
+          >
             <Text style={[styles.modalTitle, { color: colors.text }]}>Ajouter un profil</Text>
             <TouchableOpacity
               onPress={onClose}
@@ -204,7 +255,7 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
                 {rolesToAdd.map((role) => {
                   const config = getRoleFormConfig(role);
                   const hasProfile = currentUser?.roles?.[role];
-                  
+
                   return (
                     <TouchableOpacity
                       key={role}
@@ -214,6 +265,7 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
                       ]}
                       onPress={() => handleRoleSelect(role)}
                       activeOpacity={0.7}
+                      disabled={loadingRole !== null}
                     >
                       <View style={[styles.roleIcon, { backgroundColor: `${config.color}20` }]}>
                         <Ionicons name={config.icon} size={32} color={config.color} />
@@ -222,14 +274,21 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
                         <Text style={[styles.roleLabel, { color: colors.text }]}>
                           {config.label}
                           {hasProfile && (
-                            <Text style={[styles.roleBadge, { color: colors.success }]}> (déjà créé)</Text>
+                            <Text style={[styles.roleBadge, { color: colors.success }]}>
+                              {' '}
+                              (déjà créé)
+                            </Text>
                           )}
                         </Text>
                         <Text style={[styles.roleDescription, { color: colors.textSecondary }]}>
                           {config.description}
                         </Text>
                       </View>
-                      <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                      {loadingRole === role ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : (
+                        <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -333,4 +392,3 @@ const styles = StyleSheet.create({
 });
 
 export default AddRoleModal;
-

@@ -1,6 +1,6 @@
 /**
  * Entité Depense - Domaine Finance
- * 
+ *
  * Représente une dépense ponctuelle dans le domaine métier
  */
 
@@ -44,4 +44,3 @@ export class DepenseEntity {
     return this.depense.montant * (1 + tauxTVA / 100);
   }
 }
-

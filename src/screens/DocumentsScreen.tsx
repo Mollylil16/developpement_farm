@@ -4,15 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  Image,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -62,7 +54,7 @@ export default function DocumentsScreen() {
       ? documents
       : documents.filter((doc) => doc.category === selectedCategory);
 
-  const categories: { key: DocumentCategory | 'all'; label: string; icon: string }[] = [
+  const categories: { key: DocumentCategory | 'all'; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
     { key: 'all', label: 'Tous', icon: 'document-text' },
     { key: 'certificats', label: 'Certificats', icon: 'shield-checkmark' },
     { key: 'factures', icon: 'receipt', label: 'Factures' },
@@ -79,7 +71,10 @@ export default function DocumentsScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Mes documents</Text>
       </View>
@@ -105,7 +100,7 @@ export default function DocumentsScreen() {
             onPress={() => setSelectedCategory(category.key)}
           >
             <Ionicons
-              name={category.icon as any}
+              name={category.icon}
               size={18}
               color={selectedCategory === category.key ? colors.textOnPrimary : colors.text}
             />
@@ -139,10 +134,16 @@ export default function DocumentsScreen() {
             {filteredDocuments.map((doc) => (
               <TouchableOpacity
                 key={doc.id}
-                style={[styles.documentCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={[
+                  styles.documentCard,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
                 onPress={() => {
                   // TODO: Ouvrir le document
-                  Alert.alert('En développement', 'L\'ouverture des documents sera bientôt disponible');
+                  Alert.alert(
+                    'En développement',
+                    "L'ouverture des documents sera bientôt disponible"
+                  );
                 }}
               >
                 <View style={styles.documentIcon}>
@@ -253,4 +254,3 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
   },
 });
-

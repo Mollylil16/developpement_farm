@@ -1,7 +1,7 @@
 /**
  * Migration 15 : Ajouter projet_id à la table depenses_ponctuelles
  * Permet d'associer les dépenses à un projet spécifique
- * 
+ *
  * Version: 15
  */
 
@@ -24,19 +24,17 @@ export async function addProjetIdToDepenses(db: SQLiteDatabase): Promise<void> {
     await db.execAsync(`
       ALTER TABLE depenses_ponctuelles ADD COLUMN projet_id TEXT;
     `);
-    
+
     // Mettre à jour les dépenses existantes avec le premier projet actif (si disponible)
     const premierProjet = await db.getFirstAsync<{ id: string } | null>(
       'SELECT id FROM projets ORDER BY date_creation ASC LIMIT 1'
     );
     if (premierProjet) {
-      await db.runAsync(
-        'UPDATE depenses_ponctuelles SET projet_id = ? WHERE projet_id IS NULL',
-        [premierProjet.id]
-      );
+      await db.runAsync('UPDATE depenses_ponctuelles SET projet_id = ? WHERE projet_id IS NULL', [
+        premierProjet.id,
+      ]);
     }
-    
+
     console.log('✅ Migration: Colonne projet_id ajoutée à depenses_ponctuelles');
   }
 }
-

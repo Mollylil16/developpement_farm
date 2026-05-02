@@ -1,12 +1,12 @@
 import React from 'react';
-import { View, StyleSheet, ViewStyle, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ViewStyle, TouchableOpacity, StyleProp } from 'react-native';
 import { SPACING, TRANSITIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { getNeomorphismRaised, neomorphismToStyle } from '../utils/neomorphism';
 
 interface CardProps {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   onPress?: () => void;
   elevation?: 'small' | 'medium' | 'large';
   padding?: 'none' | 'small' | 'medium' | 'large';
@@ -22,8 +22,8 @@ export default function Card({
   neomorphism = false,
 }: CardProps) {
   const { colors, isDark } = useTheme();
-  
-  const elevationMap: Record<'small' | 'medium' | 'large', any> = {
+
+  const elevationMap: Record<'small' | 'medium' | 'large', ViewStyle> = {
     small: colors.shadow.small,
     medium: colors.shadow.medium,
     large: colors.shadow.large,
@@ -89,4 +89,3 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
   },
 });
-

@@ -140,13 +140,9 @@ describe('SanteCoutsService', () => {
         { id: 'v2', cout: 3000, date_vaccination: '2024-01-20' },
       ];
 
-      const mockTraitements = [
-        { id: 't1', cout: 10000, date_debut: '2024-01-10' },
-      ];
+      const mockTraitements = [{ id: 't1', cout: 10000, date_debut: '2024-01-10' }];
 
-      const mockVisites = [
-        { id: 'vis1', cout: 15000, date_visite: '2024-01-05' },
-      ];
+      const mockVisites = [{ id: 'vis1', cout: 15000, date_visite: '2024-01-05' }];
 
       mockVaccinationRepo.query.mockResolvedValue(mockVaccinations as any);
       mockTraitementRepo.query.mockResolvedValue(mockTraitements as any);
@@ -169,7 +165,9 @@ describe('SanteCoutsService', () => {
         { id: 'v2', cout: null, date_vaccination: '2024-01-20' }, // Ignoré par la requête SQL
       ];
 
-      mockVaccinationRepo.query.mockResolvedValue(mockVaccinations.filter(v => v.cout !== null) as any);
+      mockVaccinationRepo.query.mockResolvedValue(
+        mockVaccinations.filter((v) => v.cout !== null) as any
+      );
       mockTraitementRepo.query.mockResolvedValue([]);
       mockVisiteRepo.query.mockResolvedValue([]);
 
@@ -219,9 +217,7 @@ describe('SanteCoutsService', () => {
     });
 
     it('devrait gérer les coûts à zéro dans les détails', async () => {
-      const mockVaccinations = [
-        { id: 'v1', cout: 0, date_vaccination: '2024-01-15' },
-      ];
+      const mockVaccinations = [{ id: 'v1', cout: 0, date_vaccination: '2024-01-15' }];
 
       mockVaccinationRepo.query.mockResolvedValue(mockVaccinations as any);
       mockTraitementRepo.query.mockResolvedValue([]);
@@ -235,4 +231,3 @@ describe('SanteCoutsService', () => {
     });
   });
 });
-

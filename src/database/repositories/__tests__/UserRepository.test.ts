@@ -1,6 +1,6 @@
 /**
  * Tests pour UserRepository
- * 
+ *
  * Repository critique pour la gestion des utilisateurs
  */
 
@@ -121,7 +121,7 @@ describe('UserRepository', () => {
       );
     });
 
-    it('devrait rejeter si l\'email existe déjà', async () => {
+    it("devrait rejeter si l'email existe déjà", async () => {
       const input = {
         email: 'existing@example.com',
         nom: 'Doe',
@@ -148,7 +148,7 @@ describe('UserRepository', () => {
       expect(result?.email).toBe(email);
     });
 
-    it('devrait retourner null si l\'utilisateur n\'existe pas', async () => {
+    it("devrait retourner null si l'utilisateur n'existe pas", async () => {
       mockDb.getFirstAsync.mockResolvedValueOnce(null);
 
       const result = await repository.findByEmail('nonexistent@example.com');
@@ -214,10 +214,7 @@ describe('UserRepository', () => {
     it('devrait gérer les erreurs lors de la recherche', async () => {
       mockDb.getFirstAsync.mockRejectedValueOnce(new Error('Database error'));
 
-      await expect(repository.findByEmail('test@example.com')).rejects.toThrow(
-        'Database error'
-      );
+      await expect(repository.findByEmail('test@example.com')).rejects.toThrow('Database error');
     });
   });
 });
-

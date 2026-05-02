@@ -3,7 +3,10 @@
  * Vérifie que le filtrage des annonces fonctionne correctement
  */
 
-import { filterListingsForBuyView, canUserViewListingInBuyView } from '../../utils/marketplaceFilters';
+import {
+  filterListingsForBuyView,
+  canUserViewListingInBuyView,
+} from '../../utils/marketplaceFilters';
 import { MarketplaceListing } from '../../types/marketplace';
 
 describe('marketplaceFilters', () => {
@@ -98,7 +101,7 @@ describe('marketplaceFilters', () => {
   ];
 
   describe('filterListingsForBuyView', () => {
-    it('devrait exclure les annonces de l\'utilisateur', () => {
+    it("devrait exclure les annonces de l'utilisateur", () => {
       const userId = 'producer_1';
       const filtered = filterListingsForBuyView(mockListings, userId);
 
@@ -108,14 +111,14 @@ describe('marketplaceFilters', () => {
       expect(filtered[0].producerId).toBe('producer_2');
     });
 
-    it('devrait retourner toutes les annonces si l\'utilisateur n\'est pas producteur', () => {
+    it("devrait retourner toutes les annonces si l'utilisateur n'est pas producteur", () => {
       const userId = 'user_other';
       const filtered = filterListingsForBuyView(mockListings, userId);
 
       expect(filtered).toHaveLength(3);
     });
 
-    it('devrait retourner un tableau vide si toutes les annonces appartiennent à l\'utilisateur', () => {
+    it("devrait retourner un tableau vide si toutes les annonces appartiennent à l'utilisateur", () => {
       const listings: MarketplaceListing[] = [
         { ...mockListings[0], producerId: 'user_1' },
         { ...mockListings[1], producerId: 'user_1' },
@@ -127,14 +130,14 @@ describe('marketplaceFilters', () => {
   });
 
   describe('canUserViewListingInBuyView', () => {
-    it('devrait retourner false si l\'annonce appartient à l\'utilisateur', () => {
+    it("devrait retourner false si l'annonce appartient à l'utilisateur", () => {
       const listing = mockListings[0];
       const userId = 'producer_1';
 
       expect(canUserViewListingInBuyView(listing, userId)).toBe(false);
     });
 
-    it('devrait retourner true si l\'annonce n\'appartient pas à l\'utilisateur', () => {
+    it("devrait retourner true si l'annonce n'appartient pas à l'utilisateur", () => {
       const listing = mockListings[0];
       const userId = 'producer_2';
 
@@ -142,4 +145,3 @@ describe('marketplaceFilters', () => {
     });
   });
 });
-

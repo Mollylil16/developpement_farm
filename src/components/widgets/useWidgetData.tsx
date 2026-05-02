@@ -27,8 +27,18 @@ import {
   usePurchasesWidget,
   useExpensesWidget,
 } from '../../hooks/widgets';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 
-type WidgetType = 'nutrition' | 'planning' | 'collaboration' | 'mortalites' | 'production' | 'sante' | 'marketplace' | 'purchases' | 'expenses';
+type WidgetType =
+  | 'nutrition'
+  | 'planning'
+  | 'collaboration'
+  | 'mortalites'
+  | 'production'
+  | 'sante'
+  | 'marketplace'
+  | 'purchases'
+  | 'expenses';
 
 export type WidgetData =
   | NutritionWidgetData
@@ -42,7 +52,8 @@ export type WidgetData =
   | ExpensesWidgetData;
 
 export function useWidgetData() {
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   // Utiliser les hooks spécialisés pour les widgets producteur
   const nutritionData = useNutritionWidget(projetActif?.id);
@@ -105,4 +116,3 @@ export function useWidgetData() {
 
   return getWidgetData;
 }
-

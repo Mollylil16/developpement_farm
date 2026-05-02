@@ -33,4 +33,3 @@ export async function createUsersTable(db: SQLite.SQLiteDatabase): Promise<void>
     );
   `);
 }
-

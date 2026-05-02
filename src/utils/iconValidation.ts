@@ -16,7 +16,7 @@ export function isValidIconName(name: string): boolean {
   if (INVALID_ICON_NAMES.has(name)) {
     return false;
   }
-  
+
   // Vérifier si l'icône existe dans le glyphMap d'Ionicons
   return name in Ionicons.glyphMap;
 }
@@ -31,11 +31,11 @@ export function getValidIconName(
   if (isValidIconName(iconName)) {
     return iconName as keyof typeof Ionicons.glyphMap;
   }
-  
+
   console.warn(
     `⚠️ [IconValidation] Nom d'icône invalide détecté: "${iconName}". Utilisation du fallback: "${fallback}"`
   );
-  
+
   return fallback;
 }
 
@@ -57,17 +57,16 @@ export function normalizeIconName(
   if (iconName in ICON_NAME_MAP) {
     return ICON_NAME_MAP[iconName];
   }
-  
+
   // Vérifier si l'icône est valide
   if (isValidIconName(iconName)) {
     return iconName as keyof typeof Ionicons.glyphMap;
   }
-  
+
   // Utiliser le fallback
   console.warn(
     `⚠️ [IconValidation] Nom d'icône invalide: "${iconName}". Utilisation du fallback: "${fallback}"`
   );
-  
+
   return fallback;
 }
-

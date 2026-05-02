@@ -19,12 +19,12 @@ jest.mock('../../../services/database');
 jest.mock('../../../database/repositories/AnimalRepository');
 jest.mock('../../../database/repositories/PeseeRepository');
 
-describe('productionSlice - Tests d\'intégration', () => {
+describe("productionSlice - Tests d'intégration", () => {
   let store: ReturnType<typeof configureStore>;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Store frais pour chaque test
     store = configureStore({
       reducer: {
@@ -33,7 +33,7 @@ describe('productionSlice - Tests d\'intégration', () => {
     });
   });
 
-  describe('Cycle de vie complet d\'un animal', () => {
+  describe("Cycle de vie complet d'un animal", () => {
     it('devrait créer, charger, peser, modifier et supprimer un animal', async () => {
       const mockAnimal: ProductionAnimal = {
         id: 'animal-1',
@@ -180,20 +180,16 @@ describe('productionSlice - Tests d\'intégration', () => {
 
     it('devrait gérer les erreurs de chargement', async () => {
       const { AnimalRepository } = require('../../../database/repositories/AnimalRepository');
-      AnimalRepository.prototype.findByProjet = jest
-        .fn()
-        .mockRejectedValue(new Error('DB error'));
+      AnimalRepository.prototype.findByProjet = jest.fn().mockRejectedValue(new Error('DB error'));
 
-      const result = await store.dispatch(
-        loadProductionAnimaux({ projetId: 'test-projet' })
-      );
+      const result = await store.dispatch(loadProductionAnimaux({ projetId: 'test-projet' }));
 
       expect(result.type).toBe('production/loadProductionAnimaux/rejected');
     });
   });
 
   describe('Pesées et calculs GMQ', () => {
-    it('devrait calculer le GMQ correctement lors de l\'ajout de pesées', async () => {
+    it("devrait calculer le GMQ correctement lors de l'ajout de pesées", async () => {
       const mockAnimal: ProductionAnimal = {
         id: 'animal-1',
         projet_id: 'test-projet',
@@ -450,9 +446,7 @@ describe('productionSlice - Tests d\'intégration', () => {
       AnimalRepository.prototype.findByProjet = jest.fn().mockReturnValue(promise);
 
       // Démarrer chargement
-      const loadPromise = store.dispatch(
-        loadProductionAnimaux({ projetId: 'test-projet' })
-      );
+      const loadPromise = store.dispatch(loadProductionAnimaux({ projetId: 'test-projet' }));
 
       // Vérifier loading true
       let state = store.getState().production;
@@ -534,4 +528,3 @@ describe('productionSlice - Tests d\'intégration', () => {
     });
   });
 });
-

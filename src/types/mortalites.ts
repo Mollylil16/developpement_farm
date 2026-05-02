@@ -12,6 +12,7 @@ export interface Mortalite {
   cause?: string; // Cause de la mortalité (maladie, accident, etc.)
   categorie: CategorieMortalite;
   animal_code?: string; // Code du sujet mort (optionnel, pour les animaux enregistrés)
+  batch_id?: string; // ID de la bande (mode batch)
   notes?: string;
   date_creation: string;
 }
@@ -23,6 +24,7 @@ export interface CreateMortaliteInput {
   cause?: string;
   categorie: CategorieMortalite;
   animal_code?: string; // Code du sujet mort (optionnel)
+  batch_id?: string; // ID de la bande (mode batch)
   notes?: string;
 }
 
@@ -32,6 +34,7 @@ export interface UpdateMortaliteInput {
   cause?: string;
   categorie?: CategorieMortalite;
   animal_code?: string;
+  batch_id?: string; // ID de la bande (mode batch)
   notes?: string;
 }
 

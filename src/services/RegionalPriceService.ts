@@ -4,7 +4,7 @@
  */
 
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { getDatabase } from './database';
+import { logger } from '../utils/logger';
 
 /**
  * Prix moyen régional par défaut (FCFA/kg)
@@ -46,7 +46,7 @@ interface RegionalPriceAPIResponse {
   value?: number; // Alternative: valeur
   date?: string; // Date de mise à jour
   currency?: string; // Devise (par défaut: FCFA)
-  [key: string]: any; // Permet d'accepter d'autres champs
+  [key: string]: unknown; // Permet d'accepter d'autres champs
 }
 
 export class RegionalPriceService {
@@ -87,7 +87,10 @@ export class RegionalPriceService {
             return apiPrice;
           }
         } catch (error) {
-          console.warn('⚠️ [RegionalPriceService] Erreur lors de la récupération depuis l\'API:', error);
+          logger.warn(
+            "[RegionalPriceService] Erreur lors de la récupération depuis l'API:",
+            error
+          );
           // Continuer avec le fallback
         }
       }
@@ -100,7 +103,10 @@ export class RegionalPriceService {
       // 4. Fallback vers la constante par défaut
       return DEFAULT_REGIONAL_PRICE;
     } catch (error) {
-      console.error('❌ [RegionalPriceService] Erreur lors de la récupération du prix régional:', error);
+      logger.error(
+        '[RegionalPriceService] Erreur lors de la récupération du prix régional:',
+        error
+      );
       return DEFAULT_REGIONAL_PRICE;
     }
   }
@@ -117,7 +123,7 @@ export class RegionalPriceService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.apiConfig.timeout || 5000);
 
-      const headers: HeadersInit = {
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
 
@@ -152,7 +158,7 @@ export class RegionalPriceService {
       // Cette logique peut être adaptée selon l'API
       if (data.currency && data.currency !== 'FCFA' && data.currency !== 'XOF') {
         // Ici, on pourrait ajouter une conversion de devise si nécessaire
-        console.warn(`⚠️ [RegionalPriceService] Devise non-FCFA détectée: ${data.currency}`);
+        logger.warn(`[RegionalPriceService] Devise non-FCFA détectée: ${data.currency}`);
       }
 
       return Math.round(price);
@@ -176,6 +182,8 @@ export class RegionalPriceService {
       return row?.price || null;
     } catch (error) {
       // La table n'existe peut-être pas encore
+      // Logger l'erreur pour le debugging
+      logger.warn('[RegionalPriceService] Erreur lors de la récupération du prix depuis la DB:', error);
       return null;
     }
   }
@@ -190,6 +198,8 @@ export class RegionalPriceService {
       );
       return row?.updated_at || null;
     } catch (error) {
+      // Logger l'erreur pour le debugging
+      logger.warn('[RegionalPriceService] Erreur lors de la récupération de la date de mise à jour:', error);
       return null;
     }
   }
@@ -211,7 +221,7 @@ export class RegionalPriceService {
       );
     } catch (error) {
       // La table n'existe peut-être pas encore, on ignore l'erreur
-      console.warn('⚠️ [RegionalPriceService] Impossible de sauvegarder le prix:', error);
+      logger.warn('[RegionalPriceService] Impossible de sauvegarder le prix:', error);
     }
   }
 
@@ -234,7 +244,7 @@ export class RegionalPriceService {
           return apiPrice;
         }
       } catch (error) {
-        console.error('❌ [RegionalPriceService] Erreur lors de la mise à jour forcée:', error);
+        logger.error('[RegionalPriceService] Erreur lors de la mise à jour forcée:', error);
       }
     }
     return await this.getCurrentRegionalPrice();
@@ -258,4 +268,3 @@ export function getRegionalPriceService(
   }
   return regionalPriceServiceInstance;
 }
-

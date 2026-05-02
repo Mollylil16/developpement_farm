@@ -60,7 +60,8 @@ export const PRIORITY_COMPONENTS = [
  */
 export function scanFileForTextRenderingIssues(
   fileContent: string,
-  fileName: string
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
+  _fileName: string
 ): Array<{
   line: number;
   pattern: string;
@@ -102,21 +103,19 @@ export function scanFileForTextRenderingIssues(
 /**
  * Fonction pour générer un rapport de scan
  */
-export function generateScanReport(issues: Array<{
-  fileName: string;
+export function generateScanReport(
   issues: Array<{
-    line: number;
-    pattern: string;
-    severity: string;
-    description: string;
-  }>;
-}>): string {
-  const highSeverity = issues.filter((f) =>
-    f.issues.some((i) => i.severity === 'high')
-  );
-  const mediumSeverity = issues.filter((f) =>
-    f.issues.some((i) => i.severity === 'medium')
-  );
+    fileName: string;
+    issues: Array<{
+      line: number;
+      pattern: string;
+      severity: string;
+      description: string;
+    }>;
+  }>
+): string {
+  const highSeverity = issues.filter((f) => f.issues.some((i) => i.severity === 'high'));
+  const mediumSeverity = issues.filter((f) => f.issues.some((i) => i.severity === 'medium'));
 
   let report = '📊 RAPPORT DE SCAN - TEXT RENDERING ISSUES\n\n';
   report += `Total fichiers scannés: ${issues.length}\n`;
@@ -151,4 +150,3 @@ export function generateScanReport(issues: Array<{
 
   return report;
 }
-

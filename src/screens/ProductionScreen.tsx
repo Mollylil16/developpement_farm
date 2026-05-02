@@ -6,15 +6,14 @@ import React from 'react';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CheptelStackNavigator from '../navigation/CheptelStackNavigator';
-import ProductionAnimalsListComponent from '../components/ProductionAnimalsListComponent';
 import ProductionEstimationsComponent from '../components/ProductionEstimationsComponent';
-import ChatAgentFAB from '../components/chatAgent/ChatAgentFAB';
+import WeighingScreen from './WeighingScreen';
 import { FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 
 const Tab = createMaterialTopTabNavigator();
 
-export default function ProductionScreen() {
+function ProductionScreen() {
   const { colors } = useTheme();
 
   return (
@@ -56,7 +55,7 @@ export default function ProductionScreen() {
         />
         <Tab.Screen
           name="Pesées"
-          component={ProductionAnimalsListComponent}
+          component={WeighingScreen}
           options={{
             title: 'Suivi des pesées',
           }}
@@ -72,3 +71,6 @@ export default function ProductionScreen() {
     </SafeAreaView>
   );
 }
+
+// Mémoïser le composant pour éviter les re-renders inutiles
+export default React.memo(ProductionScreen);

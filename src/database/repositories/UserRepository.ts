@@ -1,21 +1,24 @@
 /**
  * UserRepository - Gestion des utilisateurs
- * 
+ *
  * Responsabilités:
  * - CRUD des utilisateurs
  * - Recherche par email, téléphone, identifiant
  * - Gestion de l'authentification
+ * 
+ * Utilise maintenant l'API REST du backend (PostgreSQL)
  */
 
-import * as SQLite from 'expo-sqlite';
 import { BaseRepository } from './BaseRepository';
 import { User, AuthProvider } from '../../types/auth';
 import { UserRoles, RoleType } from '../../types/roles';
-import uuid from 'react-native-uuid';
+import apiClient from '../../services/api/apiClient';
+import * as FileSystem from 'expo-file-system';
+import { API_CONFIG } from '../../config/api.config';
 
 export class UserRepository extends BaseRepository<User> {
-  constructor(db: SQLite.SQLiteDatabase) {
-    super(db, 'users');
+  constructor() {
+    super('users', '/users');
   }
 
   /**
@@ -42,80 +45,58 @@ export class UserRepository extends BaseRepository<User> {
     // Vérifier si l'email existe déjà (si fourni)
     if (input.email) {
       const normalizedEmail = input.email.trim().toLowerCase();
-      const existingEmail = await this.queryOne<{ id: string }>(
-        'SELECT id FROM users WHERE email = ?',
-        [normalizedEmail]
-      );
-
-      if (existingEmail) {
-        throw new Error('Un compte existe déjà avec cet email');
+      try {
+        const existing = await this.findByEmail(normalizedEmail);
+        if (existing) {
+          throw new Error('Un compte existe déjà avec cet email');
+        }
+      } catch (error) {
+        // Si l'erreur est "compte existe déjà", la propager
+        if (error instanceof Error && error.message.includes('existe déjà')) {
+          throw error;
+        }
+        // Sinon, continuer (l'email n'existe pas)
       }
     }
 
     // Vérifier si le téléphone existe déjà (si fourni)
     if (input.telephone) {
       const cleanPhone = input.telephone.trim().replace(/\s+/g, '');
-      const existingPhone = await this.queryOne<{ id: string }>(
-        'SELECT id FROM users WHERE telephone = ?',
-        [cleanPhone]
-      );
-
-      if (existingPhone) {
-        throw new Error('Un compte existe déjà avec ce numéro de téléphone');
+      try {
+        const existing = await this.findByTelephone(cleanPhone);
+        if (existing) {
+          throw new Error('Un compte existe déjà avec ce numéro de téléphone');
+        }
+      } catch (error) {
+        // Si l'erreur est "compte existe déjà", la propager
+        if (error instanceof Error && error.message.includes('existe déjà')) {
+          throw error;
+        }
+        // Sinon, continuer (le téléphone n'existe pas)
       }
     }
 
-    const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const now = new Date().toISOString();
-    const provider = input.provider || (input.telephone ? 'telephone' : 'email');
+    // Créer l'utilisateur via l'API
+    const userData = {
+      email: input.email?.trim().toLowerCase() || null,
+      telephone: input.telephone?.trim().replace(/\s+/g, '') || null,
+      nom: input.nom,
+      prenom: input.prenom,
+      provider: input.provider || (input.telephone ? 'telephone' : 'email'),
+      provider_id: input.provider_id || null,
+      photo: input.photo || null,
+      roles: input.roles || null,
+      active_role: input.activeRole || null,
+      is_onboarded: input.isOnboarded || false,
+      onboarding_completed_at: input.onboardingCompletedAt || null,
+    };
 
-    // Normaliser l'email (trim + lowercase) si fourni
-    const normalizedEmail = input.email ? input.email.trim().toLowerCase() : null;
-    const normalizedTelephone = input.telephone ? input.telephone.trim().replace(/\s+/g, '') : null;
-
-    await this.execute(
-      `INSERT INTO users (
-        id, email, telephone, nom, prenom, password_hash, provider, provider_id, photo,
-        date_creation, derniere_connexion, is_active,
-        roles, active_role, is_onboarded, onboarding_completed_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        normalizedEmail,
-        normalizedTelephone,
-        input.nom,
-        input.prenom,
-        null, // Pas de mot de passe
-        provider,
-        input.provider_id || null,
-        input.photo || null,
-        now,
-        now,
-        1,
-        input.roles ? JSON.stringify(input.roles) : null,
-        input.activeRole || null,
-        input.isOnboarded ? 1 : 0,
-        input.onboardingCompletedAt || null,
-      ]
-    );
-
-    const created = await this.findById(id);
-    if (!created) {
-      throw new Error('Impossible de créer l\'utilisateur');
-    }
+    const created = await this.executePost<User>('/users', userData);
     return created;
   }
 
   /**
    * Mettre à jour un utilisateur
-   * 
-   * IMPORTANT: Les informations de base (nom, prénom, email, téléphone, photo) sont stockées
-   * au niveau User, donc elles sont automatiquement synchronisées entre tous les profils.
-   * Lorsqu'un utilisateur modifie ces informations depuis n'importe quel profil, les modifications
-   * sont visibles dans tous les profils car elles sont partagées au niveau User.
-   * 
-   * Seules les informations complémentaires spécifiques à chaque profil (comme farmName pour
-   * le producteur, companyName pour l'acheteur, etc.) sont stockées dans roles.{profileType}.
    */
   async update(
     id: string,
@@ -125,7 +106,7 @@ export class UserRepository extends BaseRepository<User> {
       email?: string;
       telephone?: string;
       photo?: string;
-      roles?: any; // UserRoles
+      roles?: unknown; // UserRoles
       activeRole?: string; // RoleType
       isOnboarded?: boolean;
       onboardingCompletedAt?: string;
@@ -136,66 +117,46 @@ export class UserRepository extends BaseRepository<User> {
     if (!existingUser) {
       throw new Error(
         'Profil introuvable dans la base de données. ' +
-        'Veuillez vous déconnecter et vous reconnecter.'
+          'Veuillez vous déconnecter et vous reconnecter.'
       );
     }
 
-    const fields: string[] = [];
-    const values: any[] = [];
+    // Préparer les données de mise à jour
+    const updateData: Record<string, unknown> = {};
 
     if (updates.nom !== undefined) {
-      fields.push('nom = ?');
-      values.push(updates.nom);
+      updateData.nom = updates.nom;
     }
     if (updates.prenom !== undefined) {
-      fields.push('prenom = ?');
-      values.push(updates.prenom);
+      updateData.prenom = updates.prenom;
     }
     if (updates.email !== undefined) {
-      fields.push('email = ?');
-      values.push(updates.email.trim().toLowerCase());
+      updateData.email = updates.email.trim().toLowerCase();
     }
     if (updates.telephone !== undefined) {
-      fields.push('telephone = ?');
-      values.push(updates.telephone.trim().replace(/\s+/g, ''));
+      updateData.telephone = updates.telephone.trim().replace(/\s+/g, '');
     }
     if (updates.photo !== undefined) {
-      fields.push('photo = ?');
-      values.push(updates.photo);
+      updateData.photo = updates.photo;
     }
     if (updates.roles !== undefined) {
-      fields.push('roles = ?');
-      values.push(JSON.stringify(updates.roles));
+      updateData.roles = updates.roles;
     }
     if (updates.activeRole !== undefined) {
-      fields.push('active_role = ?');
-      values.push(updates.activeRole);
+      updateData.active_role = updates.activeRole;
     }
     if (updates.isOnboarded !== undefined) {
-      fields.push('is_onboarded = ?');
-      values.push(updates.isOnboarded ? 1 : 0);
+      updateData.is_onboarded = updates.isOnboarded;
     }
     if (updates.onboardingCompletedAt !== undefined) {
-      fields.push('onboarding_completed_at = ?');
-      values.push(updates.onboardingCompletedAt);
+      updateData.onboarding_completed_at = updates.onboardingCompletedAt;
     }
 
-    if (fields.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       return existingUser;
     }
 
-    values.push(id);
-
-    await this.execute(
-      `UPDATE users SET ${fields.join(', ')} WHERE id = ?`,
-      values
-    );
-
-    const updated = await this.findById(id);
-    if (!updated) {
-      throw new Error('Erreur lors de la récupération du profil mis à jour');
-    }
-    
+    const updated = await this.executePatch<User>(`/users/${id}`, updateData);
     return updated;
   }
 
@@ -207,16 +168,13 @@ export class UserRepository extends BaseRepository<User> {
       return null;
     }
 
-    const row = await this.queryOne<any>(
-      'SELECT * FROM users WHERE id = ? AND is_active = 1',
-      [id]
-    );
-
-    if (!row) {
+    try {
+      const user = await this.queryOne<User>(`/users/${id}`);
+      return user || null;
+    } catch (error) {
+      console.error('Error finding user by id:', error);
       return null;
     }
-
-    return this.mapRowToUser(row);
   }
 
   /**
@@ -225,16 +183,23 @@ export class UserRepository extends BaseRepository<User> {
   async findByEmail(email: string): Promise<User | null> {
     const normalizedEmail = email.toLowerCase().trim();
 
-    const row = await this.queryOne<any>(
-      'SELECT * FROM users WHERE email = ? AND is_active = 1',
-      [normalizedEmail]
-    );
-
-    if (!row) {
+    try {
+      const user = await this.queryOne<User>(`/users/email/${encodeURIComponent(normalizedEmail)}`);
+      return user || null;
+    } catch (error: any) {
+      // Si c'est une erreur réseau (status 0), la propager
+      if (error?.status === 0 || error?.message?.includes('Network request failed')) {
+        console.error('Error finding user by email (network error):', error);
+        throw new Error('Impossible de se connecter au serveur. Vérifiez votre connexion Internet.');
+      }
+      // Si c'est une erreur 404, l'utilisateur n'existe pas
+      if (error?.status === 404) {
+        return null;
+      }
+      // Pour les autres erreurs, logger et retourner null
+      console.error('Error finding user by email:', error);
       return null;
     }
-
-    return this.mapRowToUser(row);
   }
 
   /**
@@ -243,16 +208,23 @@ export class UserRepository extends BaseRepository<User> {
   async findByTelephone(telephone: string): Promise<User | null> {
     const cleanPhone = telephone.trim().replace(/\s+/g, '');
 
-    const row = await this.queryOne<any>(
-      'SELECT * FROM users WHERE telephone = ? AND is_active = 1',
-      [cleanPhone]
-    );
-
-    if (!row) {
+    try {
+      const user = await this.queryOne<User>(`/users/telephone/${encodeURIComponent(cleanPhone)}`);
+      return user || null;
+    } catch (error: any) {
+      // Si c'est une erreur réseau (status 0), la propager
+      if (error?.status === 0 || error?.message?.includes('Network request failed')) {
+        console.error('Error finding user by telephone (network error):', error);
+        throw new Error('Impossible de se connecter au serveur. Vérifiez votre connexion Internet.');
+      }
+      // Si c'est une erreur 404, l'utilisateur n'existe pas
+      if (error?.status === 404) {
+        return null;
+      }
+      // Pour les autres erreurs, logger et retourner null
+      console.error('Error finding user by telephone:', error);
       return null;
     }
-
-    return this.mapRowToUser(row);
   }
 
   /**
@@ -274,66 +246,22 @@ export class UserRepository extends BaseRepository<User> {
    * Récupérer tous les utilisateurs
    */
   async findAll(): Promise<User[]> {
-    const rows = await this.query<any>(
-      'SELECT * FROM users WHERE is_active = 1 ORDER BY date_creation DESC'
-    );
-
-    return rows.map(row => this.mapRowToUser(row));
+    try {
+      const users = await this.query<User>('/users');
+      return users || [];
+    } catch (error) {
+      console.error('Error finding all users:', error);
+      return [];
+    }
   }
 
   /**
    * Mettre à jour la dernière connexion
    */
   async updateLastConnection(id: string): Promise<void> {
-    await this.execute(
-      'UPDATE users SET derniere_connexion = ? WHERE id = ?',
-      [new Date().toISOString(), id]
-    );
-  }
-
-  /**
-   * Mapper une ligne de la base de données vers un objet User
-   */
-  private mapRowToUser(row: any): User {
-    // Parser saved_farms depuis JSON
-    let savedFarms: string[] = [];
-    if (row.saved_farms) {
-      try {
-        savedFarms = JSON.parse(row.saved_farms);
-      } catch (e) {
-        console.warn('Erreur parsing saved_farms:', e);
-        savedFarms = [];
-      }
-    }
-
-    // Parser roles depuis JSON
-    let roles: any = undefined;
-    if (row.roles) {
-      try {
-        roles = JSON.parse(row.roles);
-      } catch (e) {
-        console.warn('Erreur parsing roles:', e);
-        roles = undefined;
-      }
-    }
-
-    return {
-      id: row.id,
-      email: row.email || undefined,
-      telephone: row.telephone || undefined,
-      nom: row.nom,
-      prenom: row.prenom,
-      provider: row.provider as AuthProvider,
-      photo: row.photo || undefined,
-      saved_farms: savedFarms.length > 0 ? savedFarms : undefined,
-      date_creation: row.date_creation,
-      derniere_connexion: row.derniere_connexion || row.date_creation,
-      // 🆕 Champs multi-rôles
-      roles: roles,
-      activeRole: row.active_role || undefined,
-      isOnboarded: row.is_onboarded === 1,
-      onboardingCompletedAt: row.onboarding_completed_at || undefined,
-    };
+    await this.executePatch(`/users/${id}`, {
+      derniere_connexion: new Date().toISOString(),
+    });
   }
 
   /**
@@ -351,15 +279,10 @@ export class UserRepository extends BaseRepository<User> {
     }
 
     const updatedFarms = [...currentFarms, farmId];
-    await this.execute(
-      'UPDATE users SET saved_farms = ? WHERE id = ?',
-      [JSON.stringify(updatedFarms), userId]
-    );
+    const updated = await this.executePatch<User>(`/users/${userId}`, {
+      saved_farms: updatedFarms,
+    });
 
-    const updated = await this.findById(userId);
-    if (!updated) {
-      throw new Error('Erreur lors de la mise à jour');
-    }
     return updated;
   }
 
@@ -373,24 +296,22 @@ export class UserRepository extends BaseRepository<User> {
     }
 
     const currentFarms = user.saved_farms || [];
-    const updatedFarms = currentFarms.filter(id => id !== farmId);
+    const updatedFarms = currentFarms.filter((id) => id !== farmId);
 
-    await this.execute(
-      'UPDATE users SET saved_farms = ? WHERE id = ?',
-      [JSON.stringify(updatedFarms), userId]
-    );
+    const updated = await this.executePatch<User>(`/users/${userId}`, {
+      saved_farms: updatedFarms,
+    });
 
-    const updated = await this.findById(userId);
-    if (!updated) {
-      throw new Error('Erreur lors de la mise à jour');
-    }
     return updated;
   }
 
   /**
    * Toggle une ferme dans les favoris
    */
-  async toggleSavedFarm(userId: string, farmId: string): Promise<{ user: User; isFavorite: boolean }> {
+  async toggleSavedFarm(
+    userId: string,
+    farmId: string
+  ): Promise<{ user: User; isFavorite: boolean }> {
     const user = await this.findById(userId);
     if (!user) {
       throw new Error('Utilisateur introuvable');
@@ -407,5 +328,155 @@ export class UserRepository extends BaseRepository<User> {
       return { user: updated, isFavorite: true };
     }
   }
-}
 
+  /**
+   * Upload une photo de profil vers le backend
+   * @param userId ID de l'utilisateur
+   * @param fileUri URI locale du fichier (file://, content://, ph://, etc.)
+   * @returns URL complète de la photo uploadée
+   */
+  async uploadPhoto(userId: string, fileUri: string): Promise<string> {
+    try {
+      // Vérifier que le fichier existe
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      
+      if (!fileInfo.exists) {
+        throw new Error('Le fichier sélectionné n\'existe plus');
+      }
+
+      // Extraire l'extension du fichier pour déterminer le type MIME
+      const uriParts = fileUri.split('/');
+      const fileName = uriParts[uriParts.length - 1];
+      const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'jpg';
+
+      // Déterminer le type MIME
+      let mimeType = 'image/jpeg';
+      if (fileExtension === 'png') {
+        mimeType = 'image/png';
+      } else if (fileExtension === 'webp') {
+        mimeType = 'image/webp';
+      }
+
+      // Récupérer le token d'authentification
+      const token = await apiClient.tokens.getAccess();
+      if (!token) {
+        throw new Error('Vous devez être connecté pour modifier votre photo de profil');
+      }
+
+      // Construire l'URL de l'API
+      const uploadUrl = `${API_CONFIG.baseURL}/users/${userId}/photo`;
+
+      // Utiliser FileSystem.uploadAsync (plus fiable dans Expo Go que fetch+FormData)
+      const uploadResult = await FileSystem.uploadAsync(uploadUrl, fileUri, {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: 'photo',
+        mimeType,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      // Vérifier le statut HTTP
+      if (uploadResult.status !== 200 && uploadResult.status !== 201) {
+        let errorMessage = 'Erreur lors de l\'upload de la photo';
+        try {
+          const errorData = JSON.parse(uploadResult.body);
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          // Si le body n'est pas du JSON, utiliser le message par défaut
+        }
+        
+        if (uploadResult.status === 413) {
+          throw new Error('Le fichier est trop volumineux (maximum 5MB)');
+        }
+        if (uploadResult.status === 400) {
+          throw new Error(errorMessage);
+        }
+        if (uploadResult.status === 401) {
+          throw new Error('Votre session a expiré. Veuillez vous reconnecter.');
+        }
+        if (uploadResult.status === 403) {
+          throw new Error('Vous n\'avez pas la permission de modifier cette photo');
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      // Parser la réponse JSON
+      let response: { photoUrl: string; message: string };
+      try {
+        response = JSON.parse(uploadResult.body);
+      } catch {
+        throw new Error('Réponse du serveur invalide');
+      }
+
+      if (!response || !response.photoUrl) {
+        throw new Error('Le serveur n\'a pas retourné l\'URL de la photo');
+      }
+
+      return response.photoUrl;
+    } catch (error: any) {
+      // Gérer les erreurs spécifiques
+      if (error?.message?.includes('timeout') || error?.message?.includes('aborted')) {
+        throw new Error('Le téléchargement a pris trop de temps. Vérifiez votre connexion et réessayez.');
+      }
+      
+      // Erreur de connexion réseau (FileSystem.uploadAsync)
+      if (error?.code === 'ERR_NETWORK' || error?.message?.includes('Network request failed') || error?.message?.includes('Unable to resolve host')) {
+        throw new Error('Erreur de connexion. Vérifiez votre connexion Internet et que le serveur est accessible.');
+      }
+      
+      if (error?.status === 400) {
+        const errorMessage = error?.data?.message || error?.message || 'Fichier invalide';
+        if (errorMessage.includes('trop volumineux') || errorMessage.includes('too large')) {
+          throw new Error('Le fichier est trop volumineux (maximum 5MB)');
+        }
+        if (errorMessage.includes('format') || errorMessage.includes('Format')) {
+          throw new Error('Format de fichier non supporté. Utilisez JPG, PNG ou WEBP.');
+        }
+        throw new Error(errorMessage);
+      }
+      if (error?.status === 403) {
+        throw new Error('Vous n\'êtes pas autorisé à modifier cette photo');
+      }
+      if (error?.status === 404) {
+        throw new Error('Utilisateur introuvable');
+      }
+      // Gérer les erreurs réseau (status 0, pas de status, ou erreurs réseau)
+      if (!error?.status || error?.status === 0 || 
+          error?.message?.includes('Network request failed') || 
+          error?.message?.includes('Failed to fetch') ||
+          error?.message?.includes('connexion')) {
+        throw new Error('Erreur de connexion. Vérifiez votre connexion Internet.');
+      }
+
+      // Erreur générique
+      const errorMessage = error?.message || 'Erreur lors du téléchargement de la photo';
+      throw new Error(errorMessage);
+    }
+  }
+
+  /**
+   * Supprime la photo de profil
+   * @param userId L'ID de l'utilisateur
+   */
+  async deletePhoto(userId: string): Promise<void> {
+    if (!userId) {
+      throw new Error('User ID est requis pour supprimer une photo.');
+    }
+
+    try {
+      await apiClient.delete(`/users/${userId}/photo`, {
+        timeout: 10000,
+        retry: {
+          attempts: 2,
+          delay: 1000,
+        },
+      });
+    } catch (error) {
+      console.error('Erreur lors de la suppression de la photo de profil:', error);
+      throw new Error(`Échec de la suppression de la photo: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    }
+  }
+}

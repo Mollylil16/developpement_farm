@@ -30,7 +30,7 @@ import {
   deleteMortalite,
 } from '../store/slices/mortalitesSlice';
 import { loadProductionAnimaux, loadPeseesRecents } from '../store/slices/productionSlice';
-import { Mortalite, CategorieMortalite } from '../types';
+import type { Mortalite, CategorieMortalite } from '../types/mortalites';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
@@ -39,6 +39,9 @@ import MortalitesFormModal from './MortalitesFormModal';
 import StatCard from './StatCard';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import Card from './Card';
+import MortaliteDashboard from './mortalites/MortaliteDashboard';
+import { selectAllAnimaux } from '../store/selectors/productionSelectors';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface Props {
   refreshControl?: React.ReactElement<RefreshControlProps>;
@@ -50,10 +53,20 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
   const { colors, isDark } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const mortalites = useAppSelector(selectAllMortalites);
   const statistiques = useAppSelector(selectStatistiquesMortalite);
   const loading = useAppSelector(selectMortalitesLoading);
+  const animaux = useAppSelector(selectAllAnimaux);
+  
+  // Calculer le nombre total d'animaux actifs pour le taux de mortalité
+  const totalAnimauxActifs = useMemo(() => {
+    if (!projetActif?.id || !Array.isArray(animaux)) return 0;
+    return animaux.filter(
+      (a) => a.projet_id === projetActif.id && a.statut?.toLowerCase() === 'actif'
+    ).length;
+  }, [animaux, projetActif?.id]);
   const [selectedMortalite, setSelectedMortalite] = useState<Mortalite | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -273,7 +286,7 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
 
     // Sinon, calculer depuis les mortalites directement
     if (!Array.isArray(mortalites) || mortalites.length === 0) return [];
-    
+
     const parCategorie: Record<CategorieMortalite, number> = {
       porcelet: 0,
       truie: 0,
@@ -306,7 +319,11 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
 
   // Données pour le BarChart mensuel
   const barChartData = useMemo(() => {
-    if (!statistiques || !statistiques.mortalites_par_mois || statistiques.mortalites_par_mois.length === 0) {
+    if (
+      !statistiques ||
+      !statistiques.mortalites_par_mois ||
+      statistiques.mortalites_par_mois.length === 0
+    ) {
       return null;
     }
 
@@ -314,7 +331,20 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
     return {
       labels: last6Months.map((m) => {
         const [year, month] = m.mois.split('-');
-        const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+        const monthNames = [
+          'Jan',
+          'Fév',
+          'Mar',
+          'Avr',
+          'Mai',
+          'Jun',
+          'Jul',
+          'Aoû',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Déc',
+        ];
         return `${monthNames[parseInt(month) - 1]}`;
       }),
       datasets: [
@@ -353,84 +383,23 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
     return <LoadingSpinner message="Chargement des mortalités..." />;
   }
 
-  // Rendre les cartes statistiques
+  // Rendre le dashboard des statistiques (design cohérent avec Production > Suivi pesées)
   const renderStatistiques = () => {
-    if (!statistiques) return null;
-
     return (
-      <View
-        style={[
-          styles.section,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.borderLight,
-          },
-        ]}
-      >
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>📊 Statistiques</Text>
-        </View>
-
-        {/* Cartes statistiques détaillées */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.statsScrollView}
-          contentContainerStyle={styles.statsScrollContent}
-        >
-          <StatCard
-            value={statistiques.total_morts || 0}
-            label="Total morts"
-            icon="💀"
-            valueColor={colors.error}
-          />
-
-          <StatCard
-            value={(statistiques.taux_mortalite ?? 0).toFixed(1)}
-            label="Taux de mortalité"
-            unit="%"
-            icon="📊"
-            valueColor={(statistiques.taux_mortalite ?? 0) > 5 ? colors.error : colors.success}
-          />
-
-          <StatCard
-            value={statistiques.mortalites_par_categorie?.porcelet || 0}
-            label="Porcelets"
-            icon="🐷"
-            valueColor={colors.warning}
-          />
-
-          <StatCard
-            value={statistiques.mortalites_par_categorie?.truie || 0}
-            label="Truies"
-            icon="🐷"
-            valueColor={colors.error}
-          />
-
-          <StatCard
-            value={statistiques.mortalites_par_categorie?.verrat || 0}
-            label="Verrats"
-            icon="🐷"
-            valueColor={colors.error}
-          />
-
-          <StatCard
-            value={Object.keys(mortalitesParCause).length}
-            label="Causes différentes"
-            icon="📋"
-            valueColor={colors.primary}
-          />
-        </ScrollView>
-      </View>
+      <MortaliteDashboard
+        projetId={projetActif?.id}
+        totalAnimaux={totalAnimauxActifs}
+      />
     );
   };
 
   // Rendre les graphiques
   const renderGraphiques = () => {
     const hasData = Array.isArray(mortalites) && mortalites.length > 0;
-    const hasChartData = (pieChartDataCauses && pieChartDataCauses.length > 0) || 
-                         (pieChartDataCategories && pieChartDataCategories.length > 0) || 
-                         barChartData;
+    const hasChartData =
+      (pieChartDataCauses && pieChartDataCauses.length > 0) ||
+      (pieChartDataCategories && pieChartDataCategories.length > 0) ||
+      barChartData;
 
     return (
       <View
@@ -443,7 +412,9 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
         ]}
       >
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>📈 Graphiques et Statistiques</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            📈 Graphiques et Statistiques
+          </Text>
         </View>
 
         {!hasData ? (
@@ -469,7 +440,9 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
             {/* Graphique PieChart - Causes de mortalité */}
             {pieChartDataCauses && pieChartDataCauses.length > 0 ? (
               <Card elevation="medium" padding="large" style={styles.chartCard}>
-                <Text style={[styles.chartTitle, { color: colors.text }]}>📊 Causes de mortalité</Text>
+                <Text style={[styles.chartTitle, { color: colors.text }]}>
+                  📊 Causes de mortalité
+                </Text>
                 <Text style={[styles.chartSubtitle, { color: colors.textSecondary }]}>
                   Top 5 des causes principales
                 </Text>
@@ -500,7 +473,9 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
             {/* Graphique PieChart - Catégories */}
             {pieChartDataCategories && pieChartDataCategories.length > 0 ? (
               <Card elevation="medium" padding="large" style={styles.chartCard}>
-                <Text style={[styles.chartTitle, { color: colors.text }]}>📊 Répartition par catégorie</Text>
+                <Text style={[styles.chartTitle, { color: colors.text }]}>
+                  📊 Répartition par catégorie
+                </Text>
                 <Text style={[styles.chartSubtitle, { color: colors.textSecondary }]}>
                   Porcelets, Truies, Verrats
                 </Text>
@@ -531,7 +506,9 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
             {/* Graphique BarChart - Évolution mensuelle */}
             {barChartData ? (
               <Card elevation="medium" padding="large" style={styles.chartCard}>
-                <Text style={[styles.chartTitle, { color: colors.text }]}>📈 Évolution mensuelle</Text>
+                <Text style={[styles.chartTitle, { color: colors.text }]}>
+                  📈 Évolution mensuelle
+                </Text>
                 <Text style={[styles.chartSubtitle, { color: colors.textSecondary }]}>
                   Derniers 6 mois
                 </Text>
@@ -551,7 +528,9 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
             {/* Graphique BarChart - Causes détaillées */}
             {pieChartDataCauses && pieChartDataCauses.length > 0 ? (
               <Card elevation="medium" padding="large" style={styles.chartCard}>
-                <Text style={[styles.chartTitle, { color: colors.text }]}>📊 Causes détaillées</Text>
+                <Text style={[styles.chartTitle, { color: colors.text }]}>
+                  📊 Causes détaillées
+                </Text>
                 <Text style={[styles.chartSubtitle, { color: colors.textSecondary }]}>
                   Comparaison par cause
                 </Text>
@@ -726,7 +705,11 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
       contentContainerStyle={styles.content}
       refreshControl={
         refreshControl || (
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
         )
       }
       showsVerticalScrollIndicator={false}

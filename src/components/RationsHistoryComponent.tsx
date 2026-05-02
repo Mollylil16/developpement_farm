@@ -5,8 +5,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { loadRations, deleteRation } from '../store/slices/nutritionSlice';
-import { Ration, IngredientRation } from '../types';
+import type { Ration, IngredientRation } from '../types/nutrition';
 import { getTypePorcLabel } from '../types/nutrition';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
@@ -23,7 +24,8 @@ export default function RationsHistoryComponent() {
   const [page, setPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
 
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
 
   useEffect(() => {
     if (projetActif) {
@@ -117,7 +119,7 @@ export default function RationsHistoryComponent() {
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
                   <Text style={[styles.cardTitle, { color: colors.text }]}>
-                    {getTypePorcLabel(ration.type_porc as any)}
+                    {getTypePorcLabel(ration.type_porc)}
                   </Text>
                   <Text style={[styles.cardDate, { color: colors.textSecondary }]}>
                     {formatDate(ration.date_creation)}

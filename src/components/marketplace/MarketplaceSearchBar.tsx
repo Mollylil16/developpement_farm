@@ -41,8 +41,7 @@ export default function MarketplaceSearchBar({
     { value: 'rating', label: 'Mieux notés', icon: 'star' },
   ];
 
-  const currentSortLabel =
-    sortOptions.find((opt) => opt.value === currentSort)?.label || 'Tri';
+  const currentSortLabel = sortOptions.find((opt) => opt.value === currentSort)?.label || 'Tri';
 
   return (
     <View style={styles.container}>
@@ -105,9 +104,7 @@ export default function MarketplaceSearchBar({
           onPress={() => setSortMenuVisible(!sortMenuVisible)}
         >
           <Ionicons name="swap-vertical" size={18} color={colors.textSecondary} />
-          <Text style={[styles.controlButtonText, { color: colors.text }]}>
-            {currentSortLabel}
-          </Text>
+          <Text style={[styles.controlButtonText, { color: colors.text }]}>{currentSortLabel}</Text>
           <Ionicons
             name={sortMenuVisible ? 'chevron-up' : 'chevron-down'}
             size={16}
@@ -132,7 +129,7 @@ export default function MarketplaceSearchBar({
               }}
             >
               <Ionicons
-                name={option.icon as any}
+                name={option.icon as keyof typeof Ionicons.glyphMap}
                 size={18}
                 color={currentSort === option.value ? colors.primary : colors.textSecondary}
               />
@@ -231,4 +228,3 @@ const styles = StyleSheet.create({
     fontSize: MarketplaceTheme.typography.fontSizes.md,
   },
 });
-

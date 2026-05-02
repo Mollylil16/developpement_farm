@@ -1,7 +1,7 @@
 /**
  * Migration 6 : Ajouter statut à la table production_animaux
  * Remplace partiellement la colonne actif avec plus de granularité
- * 
+ *
  * Version: 6
  */
 
@@ -32,4 +32,3 @@ export async function addStatutToProductionAnimaux(db: SQLiteDatabase): Promise<
     console.log('✅ Migration: Colonne statut ajoutée à production_animaux');
   }
 }
-

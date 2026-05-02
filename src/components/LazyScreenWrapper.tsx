@@ -1,6 +1,6 @@
 /**
  * Wrapper pour les écrans lazy-loaded
- * 
+ *
  * Fournit un fallback de chargement pendant le lazy loading
  */
 
@@ -35,4 +35,3 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
 });
-

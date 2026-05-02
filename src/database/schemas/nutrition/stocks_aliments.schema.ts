@@ -28,4 +28,3 @@ export async function createStocksAlimentsTable(db: SQLite.SQLiteDatabase): Prom
     );
   `);
 }
-

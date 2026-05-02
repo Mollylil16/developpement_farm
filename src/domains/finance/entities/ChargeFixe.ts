@@ -1,6 +1,6 @@
 /**
  * Entité ChargeFixe - Domaine Finance
- * 
+ *
  * Représente une charge fixe récurrente
  */
 
@@ -67,4 +67,3 @@ export class ChargeFixeEntity {
     return true;
   }
 }
-

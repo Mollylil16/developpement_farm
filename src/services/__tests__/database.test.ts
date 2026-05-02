@@ -1,6 +1,6 @@
 /**
  * Tests pour DatabaseService
- * 
+ *
  * Service critique qui gère toute la base de données SQLite
  */
 
@@ -25,11 +25,17 @@ jest.mock('../../database/indexes/createCompositeIndexes', () => ({
   createCompositeIndexes: jest.fn(),
 }));
 
-const mockOpenDatabaseAsync = SQLite.openDatabaseAsync as jest.MockedFunction<typeof SQLite.openDatabaseAsync>;
+const mockOpenDatabaseAsync = SQLite.openDatabaseAsync as jest.MockedFunction<
+  typeof SQLite.openDatabaseAsync
+>;
 const mockSchemas = schemas as jest.Mocked<typeof schemas>;
 const mockRunMigrations = runMigrations as jest.MockedFunction<typeof runMigrations>;
-const mockCreateProjetIdIndexes = createProjetIdIndexes as jest.MockedFunction<typeof createProjetIdIndexes>;
-const mockCreateCompositeIndexes = createCompositeIndexes as jest.MockedFunction<typeof createCompositeIndexes>;
+const mockCreateProjetIdIndexes = createProjetIdIndexes as jest.MockedFunction<
+  typeof createProjetIdIndexes
+>;
+const mockCreateCompositeIndexes = createCompositeIndexes as jest.MockedFunction<
+  typeof createCompositeIndexes
+>;
 
 describe('DatabaseService', () => {
   let mockDb: jest.Mocked<SQLite.SQLiteDatabase>;
@@ -46,7 +52,7 @@ describe('DatabaseService', () => {
     jest.spyOn(console, 'log').mockImplementation();
     jest.spyOn(console, 'warn').mockImplementation();
     jest.spyOn(console, 'error').mockImplementation();
-    
+
     // Réinitialiser le service avant chaque test
     resetDatabaseService();
 
@@ -120,7 +126,7 @@ describe('DatabaseService', () => {
 
     it('devrait gérer les erreurs de configuration SQLite', async () => {
       resetDatabaseService();
-      
+
       // Premier appel (busy_timeout) échoue, deuxième (journal_mode) réussit
       mockDb.execAsync
         .mockRejectedValueOnce(new Error('SQLite error'))
@@ -148,7 +154,7 @@ describe('DatabaseService', () => {
 
     it('devrait attendre si une initialisation est déjà en cours', async () => {
       resetDatabaseService();
-      
+
       // Démarrer une première initialisation
       const initPromise1 = databaseService.initialize();
 
@@ -190,7 +196,7 @@ describe('DatabaseService', () => {
 
     it('devrait créer les index composites', async () => {
       resetDatabaseService();
-      
+
       // Mock l'import dynamique
       const mockCreateCompositeIndexesFn = jest.fn().mockResolvedValue(undefined);
       jest.doMock('../../database/indexes/createCompositeIndexes', () => ({
@@ -206,7 +212,7 @@ describe('DatabaseService', () => {
       expect(mockCreateProjetIdIndexes).toHaveBeenCalled();
     });
 
-    it('devrait réinitialiser db à null en cas d\'erreur', async () => {
+    it("devrait réinitialiser db à null en cas d'erreur", async () => {
       resetDatabaseService();
       mockSchemas.createUsersTable.mockRejectedValueOnce(new Error('Error'));
 
@@ -214,7 +220,7 @@ describe('DatabaseService', () => {
 
       // Vérifier que db est null après l'erreur
       expect((databaseService as any).db).toBeNull();
-      
+
       // Vérifier que getDatabase() essaie de réinitialiser (mais échouera si on force l'erreur)
       resetDatabaseService();
       mockSchemas.createUsersTable.mockRejectedValueOnce(new Error('Error'));
@@ -232,18 +238,18 @@ describe('DatabaseService', () => {
       expect(db).toBe(mockDb);
     });
 
-    it('devrait lancer une erreur si la base de données n\'est pas initialisée', async () => {
+    it("devrait lancer une erreur si la base de données n'est pas initialisée", async () => {
       resetDatabaseService();
-      
+
       // getDatabase appelle initialize() qui devrait échouer si la DB n'est pas créée
       mockOpenDatabaseAsync.mockRejectedValueOnce(new Error('Cannot open'));
-      
+
       await expect(getDatabase()).rejects.toThrow('Cannot open');
     });
 
     it('devrait initialiser automatiquement si non initialisé', async () => {
       resetDatabaseService();
-      
+
       const db = await getDatabase();
 
       expect(db).toBe(mockDb);
@@ -254,12 +260,9 @@ describe('DatabaseService', () => {
   describe('cleanupOldTables', () => {
     it('devrait nettoyer les tables _old', async () => {
       resetDatabaseService();
-      
+
       // Simuler des tables _old lors de la vérification dans cleanupFailedMigrations
-      mockDb.getAllAsync.mockResolvedValueOnce([
-        { name: 'users_old' },
-        { name: 'projets_old' },
-      ]);
+      mockDb.getAllAsync.mockResolvedValueOnce([{ name: 'users_old' }, { name: 'projets_old' }]);
 
       await databaseService.initialize();
 
@@ -269,7 +272,7 @@ describe('DatabaseService', () => {
 
     it('devrait gérer les erreurs lors du nettoyage sans bloquer', async () => {
       resetDatabaseService();
-      
+
       // Simuler une erreur lors de la vérification des tables _old
       mockDb.getAllAsync.mockRejectedValueOnce(new Error('Cleanup error'));
 
@@ -279,7 +282,7 @@ describe('DatabaseService', () => {
   });
 
   describe('Gestion des erreurs', () => {
-    it('devrait gérer les erreurs lors de l\'ouverture de la base de données', async () => {
+    it("devrait gérer les erreurs lors de l'ouverture de la base de données", async () => {
       resetDatabaseService();
       mockOpenDatabaseAsync.mockRejectedValueOnce(new Error('Cannot open database'));
 
@@ -320,7 +323,7 @@ describe('DatabaseService', () => {
 
     it('devrait continuer même si la configuration SQLite échoue', async () => {
       resetDatabaseService();
-      
+
       // Premier PRAGMA (busy_timeout) échoue, deuxième (journal_mode) réussit
       mockDb.execAsync
         .mockRejectedValueOnce(new Error('PRAGMA error'))
@@ -340,8 +343,8 @@ describe('DatabaseService', () => {
 
       // Vérifier que createBaseIndexes est appelé (via les appels execAsync)
       // Les index de base sont créés via execAsync avec CREATE INDEX
-      const indexCalls = mockDb.execAsync.mock.calls.filter(call =>
-        typeof call[0] === 'string' && call[0].includes('CREATE INDEX')
+      const indexCalls = mockDb.execAsync.mock.calls.filter(
+        (call) => typeof call[0] === 'string' && call[0].includes('CREATE INDEX')
       );
 
       // Il devrait y avoir plusieurs appels pour créer des index
@@ -354,7 +357,7 @@ describe('DatabaseService', () => {
     it('devrait permettre plusieurs initialisations séquentielles', async () => {
       resetDatabaseService();
       await databaseService.initialize();
-      
+
       // Après la première initialisation, une deuxième ne devrait pas réinitialiser
       jest.clearAllMocks();
       await databaseService.initialize();
@@ -364,4 +367,3 @@ describe('DatabaseService', () => {
     });
   });
 });
-

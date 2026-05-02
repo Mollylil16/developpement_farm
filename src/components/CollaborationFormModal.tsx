@@ -5,16 +5,15 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Switch } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { createCollaborateur, updateCollaborateur } from '../store/slices/collaborationSlice';
-import {
+import type {
   Collaborateur,
   CreateCollaborateurInput,
   RoleCollaborateur,
   StatutCollaborateur,
-  ROLE_LABELS,
-  STATUT_LABELS,
-  DEFAULT_PERMISSIONS,
-} from '../types';
+} from '../types/collaboration';
+import { ROLE_LABELS, STATUT_LABELS, DEFAULT_PERMISSIONS } from '../types/collaboration';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
@@ -39,15 +38,17 @@ export default function CollaborationFormModal({
 }: CollaborationFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { activeRole } = useRole();
-  const currentUser = useAppSelector((state) => state.auth.user);
-  
+  const currentUser = useAppSelector((state) => state.auth?.user);
+
   // Vérifier si l'utilisateur est propriétaire du projet actif
-  const isProprietaire = activeRole === 'producer' && 
-    projetActif && 
-    currentUser && 
-    (projetActif.proprietaire_id === currentUser.id || (projetActif as any).user_id === currentUser.id);
+  const isProprietaire =
+    activeRole === 'producer' &&
+    projetActif &&
+    currentUser &&
+    projetActif.proprietaire_id === currentUser.id;
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateCollaborateurInput>({
     projet_id: projetActif?.id || '',
@@ -128,17 +129,26 @@ export default function CollaborationFormModal({
     const { isValid, errors: validationErrors } = await validateCollaborateur(validationData as any);
     if (!isValid) {
       const firstError = Object.values(validationErrors)[0];
-      Alert.alert('Erreur de validation', firstError || 'Veuillez corriger les erreurs du formulaire');
+      Alert.alert(
+        'Erreur de validation',
+        firstError || 'Veuillez corriger les erreurs du formulaire'
+      );
       return;
     }
 
     setLoading(true);
     try {
       if (isEditing && collaborateur) {
+        // Exclure projet_id des updates car il ne peut pas être modifié
+        const { projet_id, ...updates } = formData;
+        // ✅ Ne pas envoyer l'email s'il est vide ou invalide
+        if (!updates.email || updates.email.trim() === '') {
+          delete updates.email;
+        }
         await dispatch(
           updateCollaborateur({
             id: collaborateur.id,
-            updates: formData,
+            updates,
           })
         ).unwrap();
       } else {
@@ -146,7 +156,8 @@ export default function CollaborationFormModal({
       }
       onSuccess();
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error) || "Erreur lors de l'enregistrement";
+      const errorMessage =
+        error instanceof Error ? error.message : String(error) || "Erreur lors de l'enregistrement";
       Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
@@ -189,22 +200,62 @@ export default function CollaborationFormModal({
           placeholder="Ex: Amadou"
         />
 
+        <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: SPACING.sm }]}>
+          Contact *
+        </Text>
+        <Text style={[styles.hintText, { color: colors.textSecondary, marginBottom: SPACING.md }]}>
+          Remplissez uniquement un des deux champs ci-dessous (email OU téléphone)
+        </Text>
+        
         <FormField
-          label="Email *"
-          value={formData.email}
-          onChangeText={(text) => setFormData({ ...formData, email: text })}
+          label="Email"
+          value={formData.email || ''}
+          onChangeText={(text) => {
+            const trimmedText = text.trim();
+            // Si l'utilisateur entre quelque chose dans le champ email, vider le champ téléphone
+            if (trimmedText) {
+              setFormData({ ...formData, email: text, telephone: '' });
+            } else {
+              setFormData({ ...formData, email: '' });
+            }
+          }}
           placeholder="Ex: amadou@example.com"
           keyboardType="email-address"
           autoCapitalize="none"
+          editable={!formData.telephone || formData.telephone.trim() === ''}
         />
+
+        <View style={styles.separatorContainer}>
+          <View style={[styles.separatorLine, { backgroundColor: colors.border }]} />
+          <Text style={[styles.separatorText, { color: colors.textSecondary }]}>OU</Text>
+          <View style={[styles.separatorLine, { backgroundColor: colors.border }]} />
+        </View>
 
         <FormField
           label="Téléphone"
-          value={formData.telephone}
-          onChangeText={(text) => setFormData({ ...formData, telephone: text })}
-          placeholder="Ex: +221 77 123 45 67"
+          value={formData.telephone || ''}
+          onChangeText={(text) => {
+            const trimmedText = text.trim();
+            // Si l'utilisateur entre quelque chose dans le champ téléphone, vider le champ email
+            if (trimmedText) {
+              setFormData({ ...formData, telephone: text, email: '' });
+            } else {
+              setFormData({ ...formData, telephone: '' });
+            }
+          }}
+          placeholder="Ex: +225 07 12 34 56 78"
           keyboardType="phone-pad"
+          editable={!formData.email || formData.email.trim() === ''}
         />
+
+        {/* Indication visuelle quand un champ est désactivé */}
+        {(formData.email?.trim() || formData.telephone?.trim()) && (
+          <View style={[styles.infoBox, { backgroundColor: colors.surfaceVariant, borderColor: colors.border }]}>
+            <Text style={[styles.infoBoxText, { color: colors.textSecondary }]}>
+              ✓ Un contact est déjà renseigné. Le champ non utilisé est désactivé.
+            </Text>
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Rôle</Text>
@@ -352,5 +403,36 @@ const styles = StyleSheet.create({
   permissionLabel: {
     fontSize: FONT_SIZES.md,
     fontWeight: FONT_WEIGHTS.medium,
+  },
+  hintText: {
+    fontSize: FONT_SIZES.sm,
+    textAlign: 'left',
+    marginBottom: SPACING.sm,
+    lineHeight: 18,
+  },
+  separatorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: SPACING.md,
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+  },
+  separatorText: {
+    paddingHorizontal: SPACING.md,
+    fontSize: FONT_SIZES.sm,
+    fontWeight: FONT_WEIGHTS.medium,
+  },
+  infoBox: {
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  infoBoxText: {
+    fontSize: FONT_SIZES.xs,
+    lineHeight: 16,
   },
 });

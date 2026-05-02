@@ -14,4 +14,3 @@ export * from './repositories/IFinanceRepository';
 export * from './useCases/CalculateFinancialBalance';
 export * from './useCases/CreateDepense';
 export * from './useCases/CreateRevenu';
-

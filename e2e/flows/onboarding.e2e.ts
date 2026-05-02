@@ -1,6 +1,6 @@
 /**
  * Tests E2E pour le flux d'onboarding
- * 
+ *
  * Couvre:
  * - Création de compte utilisateur
  * - Création du premier projet
@@ -44,10 +44,10 @@ jest.mock('../../src/database/repositories/UserRepository', () => {
         return user;
       }),
       findByEmail: jest.fn().mockImplementation(async (email: string) => {
-        return mockUsers.find(u => u.email === email) || null;
+        return mockUsers.find((u) => u.email === email) || null;
       }),
       deleteById: jest.fn().mockImplementation(async (id: string) => {
-        const index = mockUsers.findIndex(u => u.id === id);
+        const index = mockUsers.findIndex((u) => u.id === id);
         if (index >= 0) mockUsers.splice(index, 1);
       }),
     })),
@@ -68,13 +68,13 @@ jest.mock('../../src/database/repositories/ProjetRepository', () => {
         return projet;
       }),
       findById: jest.fn().mockImplementation(async (id: string) => {
-        return mockProjets.find(p => p.id === id) || null;
+        return mockProjets.find((p) => p.id === id) || null;
       }),
       findAllByUserId: jest.fn().mockImplementation(async (userId: string) => {
-        return mockProjets.filter(p => p.userId === userId);
+        return mockProjets.filter((p) => p.proprietaire_id === userId);
       }),
       deleteById: jest.fn().mockImplementation(async (id: string) => {
-        const index = mockProjets.findIndex(p => p.id === id);
+        const index = mockProjets.findIndex((p) => p.id === id);
         if (index >= 0) mockProjets.splice(index, 1);
       }),
     })),
@@ -124,7 +124,7 @@ describe('E2E: Flux Onboarding', () => {
         nom: TEST_USERS.producer.nom,
         prenom: TEST_USERS.producer.prenom,
         provider: TEST_USERS.producer.provider,
-        providerId: `test-${Date.now()}`,
+        provider_id: `test-${Date.now()}`,
       });
 
       createdUserId = user.id;
@@ -141,14 +141,14 @@ describe('E2E: Flux Onboarding', () => {
       expect(foundUser?.id).toBe(user.id);
     });
 
-    it('devrait valider l\'unicité de l\'email', async () => {
+    it("devrait valider l'unicité de l'email", async () => {
       // 1. Créer un premier utilisateur
       const user1 = await userRepository.create({
         email: `unique-${Date.now()}@test.com`,
         nom: 'Test',
         prenom: 'User',
         provider: 'email',
-        providerId: `test-${Date.now()}`,
+        provider_id: `test-${Date.now()}`,
       });
 
       createdUserId = user1.id;
@@ -168,19 +168,23 @@ describe('E2E: Flux Onboarding', () => {
         nom: TEST_USERS.producer.nom,
         prenom: TEST_USERS.producer.prenom,
         provider: TEST_USERS.producer.provider,
-        providerId: `test-${Date.now()}`,
+        provider_id: `test-${Date.now()}`,
       });
 
       createdUserId = user.id;
 
       // 2. Créer un projet pour cet utilisateur
       const projet = await projetRepository.create({
-        userId: user.id,
+        proprietaire_id: user.id,
         nom: TEST_PROJECT.nom,
-        type: TEST_PROJECT.type,
         localisation: TEST_PROJECT.localisation,
-        nombreAnimaux: TEST_PROJECT.nombre_animaux,
-        racePrincipale: TEST_PROJECT.race_principale,
+        nombre_truies: TEST_PROJECT.nombre_truies,
+        nombre_verrats: TEST_PROJECT.nombre_verrats,
+        nombre_porcelets: TEST_PROJECT.nombre_porcelets,
+        nombre_croissance: TEST_PROJECT.nombre_croissance,
+        poids_moyen_actuel: TEST_PROJECT.poids_moyen_actuel,
+        age_moyen_actuel: TEST_PROJECT.age_moyen_actuel,
+        management_method: TEST_PROJECT.management_method,
       });
 
       createdProjetId = projet.id;
@@ -188,8 +192,7 @@ describe('E2E: Flux Onboarding', () => {
       // 3. Vérifier que le projet est créé
       expect(projet).toBeDefined();
       expect(projet.nom).toBe(TEST_PROJECT.nom);
-      expect(projet.type).toBe(TEST_PROJECT.type);
-      expect(projet.userId).toBe(user.id);
+      expect(projet.proprietaire_id).toBe(user.id);
 
       // 4. Vérifier que le projet peut être récupéré
       const foundProjet = await projetRepository.findById(projet.id);
@@ -199,7 +202,7 @@ describe('E2E: Flux Onboarding', () => {
       // 5. Vérifier que le projet apparaît dans la liste des projets de l'utilisateur
       const userProjets = await projetRepository.findAllByUserId(user.id);
       expect(userProjets.length).toBeGreaterThan(0);
-      expect(userProjets.some(p => p.id === projet.id)).toBe(true);
+      expect(userProjets.some((p) => p.id === projet.id)).toBe(true);
     });
 
     it('devrait initialiser les animaux de base lors de la création du projet', async () => {
@@ -209,30 +212,34 @@ describe('E2E: Flux Onboarding', () => {
         nom: 'Test',
         prenom: 'User',
         provider: 'email',
-        providerId: `test-${Date.now()}`,
+        provider_id: `test-${Date.now()}`,
       });
 
       createdUserId = user.id;
 
       // 2. Créer un projet
       const projet = await projetRepository.create({
-        userId: user.id,
+        proprietaire_id: user.id,
         nom: TEST_PROJECT.nom,
-        type: TEST_PROJECT.type,
         localisation: TEST_PROJECT.localisation,
-        nombreAnimaux: TEST_PROJECT.nombre_animaux,
-        racePrincipale: TEST_PROJECT.race_principale,
+        nombre_truies: TEST_PROJECT.nombre_truies,
+        nombre_verrats: TEST_PROJECT.nombre_verrats,
+        nombre_porcelets: TEST_PROJECT.nombre_porcelets,
+        nombre_croissance: TEST_PROJECT.nombre_croissance,
+        poids_moyen_actuel: TEST_PROJECT.poids_moyen_actuel,
+        age_moyen_actuel: TEST_PROJECT.age_moyen_actuel,
+        management_method: TEST_PROJECT.management_method,
       });
 
       createdProjetId = projet.id;
 
       // 3. Vérifier que le projet est créé avec succès
       expect(projet).toBeDefined();
-      expect(projet.nombreAnimaux).toBe(TEST_PROJECT.nombre_animaux);
+      expect(projet.nombre_porcelets).toBe(TEST_PROJECT.nombre_porcelets);
     });
   });
 
-  describe('Flux complet d\'onboarding', () => {
+  describe("Flux complet d'onboarding", () => {
     it('devrait compléter le flux complet: compte -> projet -> dashboard', async () => {
       // 1. Créer un utilisateur
       const user = await userRepository.create({
@@ -240,7 +247,7 @@ describe('E2E: Flux Onboarding', () => {
         nom: TEST_USERS.producer.nom,
         prenom: TEST_USERS.producer.prenom,
         provider: TEST_USERS.producer.provider,
-        providerId: `test-${Date.now()}`,
+        provider_id: `test-${Date.now()}`,
       });
 
       createdUserId = user.id;
@@ -251,19 +258,23 @@ describe('E2E: Flux Onboarding', () => {
 
       // 3. Créer un projet
       const projet = await projetRepository.create({
-        userId: user.id,
+        proprietaire_id: user.id,
         nom: TEST_PROJECT.nom,
-        type: TEST_PROJECT.type,
         localisation: TEST_PROJECT.localisation,
-        nombreAnimaux: TEST_PROJECT.nombre_animaux,
-        racePrincipale: TEST_PROJECT.race_principale,
+        nombre_truies: TEST_PROJECT.nombre_truies,
+        nombre_verrats: TEST_PROJECT.nombre_verrats,
+        nombre_porcelets: TEST_PROJECT.nombre_porcelets,
+        nombre_croissance: TEST_PROJECT.nombre_croissance,
+        poids_moyen_actuel: TEST_PROJECT.poids_moyen_actuel,
+        age_moyen_actuel: TEST_PROJECT.age_moyen_actuel,
+        management_method: TEST_PROJECT.management_method,
       });
 
       createdProjetId = projet.id;
 
       // 4. Vérifier que le projet est créé
       expect(projet).toBeDefined();
-      expect(projet.userId).toBe(user.id);
+      expect(projet.proprietaire_id).toBe(user.id);
 
       // 5. Vérifier que l'utilisateur peut accéder à son projet
       const userProjets = await projetRepository.findAllByUserId(user.id);

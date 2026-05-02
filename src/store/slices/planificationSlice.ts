@@ -1,156 +1,54 @@
-/**
- * Slice Redux pour la gestion des planifications
- */
-
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { Planification, CreatePlanificationInput, UpdatePlanificationInput } from '../../types';
+import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
+import { PlanificationAccouplement, SailliePlanifiee, ObjectifReproduction } from '../../types';
+import { CalculsAgricoles } from '../../utils/calculs';
 
 interface PlanificationState {
-  planifications: Planification[];
-  planificationsAVenir: Planification[];
+  planifications: PlanificationAccouplement[];
+  planificationActive: PlanificationAccouplement | null;
   loading: boolean;
-  error: string | null;
+  error?: string;
 }
 
 const initialState: PlanificationState = {
   planifications: [],
-  planificationsAVenir: [],
+  planificationActive: null,
   loading: false,
-  error: null,
 };
 
-// Thunks pour Planifications
-export const createPlanification = createAsyncThunk(
-  'planification/createPlanification',
-  async (input: CreatePlanificationInput, { rejectWithValue }) => {
-    try {
-      const { getDatabase } = await import('../../services/database');
-      const { PlanificationRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const planificationRepo = new PlanificationRepository(db);
-      const planification = await planificationRepo.create({
-        ...input,
-        statut: 'a_faire',
-      });
-      return planification;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la planification');
-    }
-  }
-);
-
-export const loadPlanifications = createAsyncThunk(
-  'planification/loadPlanifications',
-  async (projetId: string, { rejectWithValue }) => {
-    try {
-      const { getDatabase } = await import('../../services/database');
-      const { PlanificationRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const planificationRepo = new PlanificationRepository(db);
-      const planifications = await planificationRepo.findByProjet(projetId);
-      return planifications;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des planifications');
-    }
-  }
-);
-
-export const loadPlanificationsParProjet = createAsyncThunk(
-  'planification/loadPlanificationsParProjet',
-  async (projetId: string, { rejectWithValue }) => {
-    try {
-      const { getDatabase } = await import('../../services/database');
-      const { PlanificationRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const planificationRepo = new PlanificationRepository(db);
-      const planifications = await planificationRepo.findByProjet(projetId);
-      return planifications;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des planifications');
-    }
-  }
-);
-
-export const loadPlanificationsAVenir = createAsyncThunk(
-  'planification/loadPlanificationsAVenir',
-  async ({ projetId, jours }: { projetId: string; jours?: number }, { rejectWithValue }) => {
-    try {
-      const { getDatabase } = await import('../../services/database');
-      const { PlanificationRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const planificationRepo = new PlanificationRepository(db);
-      const planifications = await planificationRepo.findAVenir(projetId, jours);
-      return planifications;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des planifications');
-    }
-  }
-);
-
-export const updatePlanification = createAsyncThunk(
-  'planification/updatePlanification',
+// Actions asynchrones
+export const creerPlanification = createAsyncThunk(
+  'planification/creerPlanification',
   async (
-    { id, updates }: { id: string; updates: UpdatePlanificationInput },
+    { objectif, truies, verrats }: { 
+      objectif: ObjectifReproduction; 
+      truies: any[]; 
+      verrats: any[] 
+    },
     { rejectWithValue }
   ) => {
     try {
-      const { getDatabase } = await import('../../services/database');
-      const { PlanificationRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const planificationRepo = new PlanificationRepository(db);
-      const planification = await planificationRepo.update(id, updates);
+      const planification = CalculsAgricoles.planifierAccouplements(objectif, truies, verrats);
       return planification;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour de la planification');
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : 'Erreur lors de la création de la planification');
     }
   }
 );
 
-export const deletePlanification = createAsyncThunk(
-  'planification/deletePlanification',
-  async (id: string, { rejectWithValue }) => {
+export const mettreAJourSaillie = createAsyncThunk(
+  'planification/mettreAJourSaillie',
+  async (
+    { planificationId, saillieId, statut }: {
+      planificationId: string;
+      saillieId: string;
+      statut: 'planifie' | 'realise' | 'annule';
+    },
+    { rejectWithValue }
+  ) => {
     try {
-      const { getDatabase } = await import('../../services/database');
-      const { PlanificationRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const planificationRepo = new PlanificationRepository(db);
-      await planificationRepo.deleteById(id);
-      return id;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la planification');
-    }
-  }
-);
-
-/**
- * Créer plusieurs planifications en batch (pour les saillies validées)
- */
-export const createPlanificationsBatch = createAsyncThunk(
-  'planification/createPlanificationsBatch',
-  async (inputs: CreatePlanificationInput[], { rejectWithValue }) => {
-    try {
-      console.log(`📋 [BATCH] Création de ${inputs.length} tâches...`);
-
-      const { getDatabase } = await import('../../services/database');
-      const { PlanificationRepository } = await import('../../database/repositories');
-      const db = await getDatabase();
-      const planificationRepo = new PlanificationRepository(db);
-
-      const planifications: Planification[] = [];
-
-      for (const input of inputs) {
-        const planification = await planificationRepo.create({
-          ...input,
-          statut: 'a_faire',
-        });
-        planifications.push(planification);
-      }
-
-      console.log(`✅ [BATCH] ${planifications.length} tâches créées avec succès`);
-      return planifications;
-    } catch (error: unknown) {
-      console.error('❌ [BATCH] Erreur:', error);
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création des planifications');
+      return { planificationId, saillieId, statut };
+    } catch (error) {
+      return rejectWithValue('Erreur lors de la mise à jour de la saillie');
     }
   }
 );
@@ -159,122 +57,90 @@ const planificationSlice = createSlice({
   name: 'planification',
   initialState,
   reducers: {
+    setPlanificationActive: (state, action: PayloadAction<PlanificationAccouplement | null>) => {
+      state.planificationActive = action.payload;
+    },
+    ajouterPlanification: (state, action: PayloadAction<PlanificationAccouplement>) => {
+      state.planifications.push(action.payload);
+    },
+    mettreAJourPlanification: (state, action: PayloadAction<PlanificationAccouplement>) => {
+      const index = state.planifications.findIndex(p => p.id === action.payload.id);
+      if (index !== -1) {
+        state.planifications[index] = action.payload;
+      }
+    },
+    supprimerPlanification: (state, action: PayloadAction<string>) => {
+      state.planifications = state.planifications.filter(p => p.id !== action.payload);
+      if (state.planificationActive?.id === action.payload) {
+        state.planificationActive = null;
+      }
+    },
+    setLoading: (state, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
+    },
+    setError: (state, action: PayloadAction<string>) => {
+      state.error = action.payload;
+    },
     clearError: (state) => {
-      state.error = null;
+      state.error = undefined;
     },
   },
   extraReducers: (builder) => {
     builder
-      // createPlanification
-      .addCase(createPlanification.pending, (state) => {
+      // Créer Planification
+      .addCase(creerPlanification.pending, (state) => {
         state.loading = true;
-        state.error = null;
+        state.error = undefined;
       })
-      .addCase(createPlanification.fulfilled, (state, action) => {
+      .addCase(creerPlanification.fulfilled, (state, action) => {
         state.loading = false;
-        state.planifications.unshift(action.payload);
+        state.planifications.push(action.payload);
+        state.planificationActive = action.payload;
       })
-      .addCase(createPlanification.rejected, (state, action) => {
+      .addCase(creerPlanification.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
-      // loadPlanifications
-      .addCase(loadPlanifications.pending, (state) => {
+      
+      // Mettre à jour Saillie
+      .addCase(mettreAJourSaillie.pending, (state) => {
         state.loading = true;
-        state.error = null;
+        state.error = undefined;
       })
-      .addCase(loadPlanifications.fulfilled, (state, action) => {
+      .addCase(mettreAJourSaillie.fulfilled, (state, action) => {
         state.loading = false;
-        state.planifications = action.payload;
-      })
-      .addCase(loadPlanifications.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // loadPlanificationsParProjet
-      .addCase(loadPlanificationsParProjet.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(loadPlanificationsParProjet.fulfilled, (state, action) => {
-        state.loading = false;
-        state.planifications = action.payload;
-      })
-      .addCase(loadPlanificationsParProjet.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // loadPlanificationsAVenir
-      .addCase(loadPlanificationsAVenir.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(loadPlanificationsAVenir.fulfilled, (state, action) => {
-        state.loading = false;
-        state.planificationsAVenir = action.payload;
-      })
-      .addCase(loadPlanificationsAVenir.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // updatePlanification
-      .addCase(updatePlanification.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(updatePlanification.fulfilled, (state, action) => {
-        state.loading = false;
-        const index = state.planifications.findIndex(
-          (p: Planification) => p.id === action.payload.id
-        );
-        if (index !== -1) {
-          state.planifications[index] = action.payload;
+        const { planificationId, saillieId, statut } = action.payload;
+        
+        const planification = state.planifications.find(p => p.id === planificationId);
+        if (planification) {
+          const saillie = planification.saillies.find(s => s.id === saillieId);
+          if (saillie) {
+            saillie.statut = statut;
+          }
         }
-        const indexAVenir = state.planificationsAVenir.findIndex(
-          (p: Planification) => p.id === action.payload.id
-        );
-        if (indexAVenir !== -1) {
-          state.planificationsAVenir[indexAVenir] = action.payload;
+        
+        if (state.planificationActive?.id === planificationId) {
+          const saillie = state.planificationActive.saillies.find(s => s.id === saillieId);
+          if (saillie) {
+            saillie.statut = statut;
+          }
         }
       })
-      .addCase(updatePlanification.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // deletePlanification
-      .addCase(deletePlanification.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(deletePlanification.fulfilled, (state, action) => {
-        state.loading = false;
-        state.planifications = state.planifications.filter(
-          (p: Planification) => p.id !== action.payload
-        );
-        state.planificationsAVenir = state.planificationsAVenir.filter(
-          (p: Planification) => p.id !== action.payload
-        );
-      })
-      .addCase(deletePlanification.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // createPlanificationsBatch
-      .addCase(createPlanificationsBatch.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(createPlanificationsBatch.fulfilled, (state, action) => {
-        state.loading = false;
-        // Ajouter toutes les nouvelles planifications au début
-        state.planifications = [...action.payload, ...state.planifications];
-      })
-      .addCase(createPlanificationsBatch.rejected, (state, action) => {
+      .addCase(mettreAJourSaillie.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });
   },
 });
 
-export const { clearError } = planificationSlice.actions;
+export const {
+  setPlanificationActive,
+  ajouterPlanification,
+  mettreAJourPlanification,
+  supprimerPlanification,
+  setLoading,
+  setError,
+  clearError,
+} = planificationSlice.actions;
+
 export default planificationSlice.reducer;

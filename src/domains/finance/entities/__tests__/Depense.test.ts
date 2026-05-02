@@ -1,6 +1,6 @@
 /**
  * Tests pour DepenseEntity
- * 
+ *
  * Tests de la logique métier de l'entité Depense
  */
 
@@ -14,7 +14,7 @@ describe('DepenseEntity', () => {
     categorie: 'aliment',
     libelleCategorie: 'Aliments',
     date: '2024-01-15',
-    commentaire: 'Achat d\'aliments',
+    commentaire: "Achat d'aliments",
     photos: [],
     dateCreation: '2024-01-15T00:00:00Z',
     derniereModification: '2024-01-15T00:00:00Z',
@@ -52,7 +52,7 @@ describe('DepenseEntity', () => {
       expect(entity.isValid()).toBe(false);
     });
 
-    it('devrait retourner false si la date n\'est pas définie', () => {
+    it("devrait retourner false si la date n'est pas définie", () => {
       const depense = createMockDepense({
         montant: 50000,
         date: '',
@@ -131,7 +131,7 @@ describe('DepenseEntity', () => {
       expect(ttc).toBe(100000);
     });
 
-    it('devrait utiliser 0% par défaut si aucun taux n\'est fourni', () => {
+    it("devrait utiliser 0% par défaut si aucun taux n'est fourni", () => {
       const depense = createMockDepense({
         montant: 100000,
       });
@@ -152,4 +152,3 @@ describe('DepenseEntity', () => {
     });
   });
 });
-

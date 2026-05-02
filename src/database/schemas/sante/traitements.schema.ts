@@ -44,4 +44,3 @@ export async function createTraitementsTable(db: SQLite.SQLiteDatabase): Promise
     );`
   );
 }
-

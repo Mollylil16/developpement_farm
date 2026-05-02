@@ -1,7 +1,7 @@
 /**
  * Migration 22 : Mettre à jour la contrainte CHECK de la table ingredients pour supporter 'sac'
  * Permet d'utiliser l'unité "sac" en plus des autres unités
- * 
+ *
  * Version: 22
  */
 
@@ -23,7 +23,9 @@ export async function updateIngredientsUnit(db: SQLiteDatabase): Promise<void> {
 
   if (tableInfo && tableInfo.sql && !tableInfo.sql.includes("'sac'")) {
     // La table existe mais n'a pas le support de 'sac', on doit la recréer
-    console.log('🔄 Migration: Recréation de la table ingredients avec support de l\'unité "sac"...');
+    console.log(
+      '🔄 Migration: Recréation de la table ingredients avec support de l\'unité "sac"...'
+    );
 
     // Renommer l'ancienne table
     await db.execAsync(`ALTER TABLE ingredients RENAME TO ingredients_old;`);
@@ -64,4 +66,3 @@ export async function updateIngredientsUnit(db: SQLiteDatabase): Promise<void> {
     console.log('ℹ️  Table ingredients a déjà le support de l\'unité "sac"');
   }
 }
-

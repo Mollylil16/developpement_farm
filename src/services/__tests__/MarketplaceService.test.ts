@@ -178,7 +178,7 @@ describe('MarketplaceService', () => {
       expect(listingRepo.findById).toHaveBeenCalledWith('listing-1');
     });
 
-    it('devrait lancer une erreur si le listing n\'existe pas', async () => {
+    it("devrait lancer une erreur si le listing n'existe pas", async () => {
       const listingRepo = (MarketplaceListingRepository as jest.Mock).mock.results[0].value;
       listingRepo.findById.mockResolvedValue(null);
 
@@ -200,4 +200,3 @@ describe('MarketplaceService', () => {
     });
   });
 });
-

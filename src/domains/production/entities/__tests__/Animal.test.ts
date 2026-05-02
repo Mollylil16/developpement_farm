@@ -1,6 +1,6 @@
 /**
  * Tests pour AnimalEntity
- * 
+ *
  * Tests de la logique métier de l'entité Animal
  */
 
@@ -30,7 +30,7 @@ describe('AnimalEntity', () => {
   });
 
   describe('isReproducteurActif', () => {
-    it('devrait retourner true si l\'animal est reproducteur, actif et statut actif', () => {
+    it("devrait retourner true si l'animal est reproducteur, actif et statut actif", () => {
       const animal = createMockAnimal({
         reproducteur: true,
         actif: true,
@@ -41,7 +41,7 @@ describe('AnimalEntity', () => {
       expect(entity.isReproducteurActif()).toBe(true);
     });
 
-    it('devrait retourner false si l\'animal n\'est pas reproducteur', () => {
+    it("devrait retourner false si l'animal n'est pas reproducteur", () => {
       const animal = createMockAnimal({
         reproducteur: false,
         actif: true,
@@ -52,7 +52,7 @@ describe('AnimalEntity', () => {
       expect(entity.isReproducteurActif()).toBe(false);
     });
 
-    it('devrait retourner false si l\'animal n\'est pas actif', () => {
+    it("devrait retourner false si l'animal n'est pas actif", () => {
       const animal = createMockAnimal({
         reproducteur: true,
         actif: false,
@@ -63,7 +63,7 @@ describe('AnimalEntity', () => {
       expect(entity.isReproducteurActif()).toBe(false);
     });
 
-    it('devrait retourner false si le statut n\'est pas actif', () => {
+    it("devrait retourner false si le statut n'est pas actif", () => {
       const animal = createMockAnimal({
         reproducteur: true,
         actif: true,
@@ -76,7 +76,7 @@ describe('AnimalEntity', () => {
   });
 
   describe('getAgeEnJours', () => {
-    it('devrait calculer l\'âge en jours correctement', () => {
+    it("devrait calculer l'âge en jours correctement", () => {
       const dateNaissance = new Date();
       dateNaissance.setDate(dateNaissance.getDate() - 100); // 100 jours
 
@@ -90,7 +90,7 @@ describe('AnimalEntity', () => {
       expect(age).toBeLessThanOrEqual(101);
     });
 
-    it('devrait retourner null si dateNaissance n\'est pas définie', () => {
+    it("devrait retourner null si dateNaissance n'est pas définie", () => {
       const animal = createMockAnimal({
         dateNaissance: undefined,
       });
@@ -101,7 +101,7 @@ describe('AnimalEntity', () => {
   });
 
   describe('peutReproduire', () => {
-    it('devrait retourner true si l\'animal peut reproduire (âge >= 8 mois)', () => {
+    it("devrait retourner true si l'animal peut reproduire (âge >= 8 mois)", () => {
       const dateNaissance = new Date();
       dateNaissance.setDate(dateNaissance.getDate() - 250); // Plus de 8 mois
 
@@ -116,7 +116,7 @@ describe('AnimalEntity', () => {
       expect(entity.peutReproduire()).toBe(true);
     });
 
-    it('devrait retourner false si l\'animal est trop jeune (< 8 mois)', () => {
+    it("devrait retourner false si l'animal est trop jeune (< 8 mois)", () => {
       const dateNaissance = new Date();
       dateNaissance.setDate(dateNaissance.getDate() - 200); // Moins de 8 mois
 
@@ -131,7 +131,7 @@ describe('AnimalEntity', () => {
       expect(entity.peutReproduire()).toBe(false);
     });
 
-    it('devrait retourner false si l\'animal n\'est pas reproducteur actif', () => {
+    it("devrait retourner false si l'animal n'est pas reproducteur actif", () => {
       const dateNaissance = new Date();
       dateNaissance.setDate(dateNaissance.getDate() - 250);
 
@@ -146,7 +146,7 @@ describe('AnimalEntity', () => {
       expect(entity.peutReproduire()).toBe(false);
     });
 
-    it('devrait retourner false si dateNaissance n\'est pas définie', () => {
+    it("devrait retourner false si dateNaissance n'est pas définie", () => {
       const animal = createMockAnimal({
         reproducteur: true,
         actif: true,
@@ -160,7 +160,7 @@ describe('AnimalEntity', () => {
   });
 
   describe('estDisponiblePourVente', () => {
-    it('devrait retourner true si l\'animal est disponible pour la vente', () => {
+    it("devrait retourner true si l'animal est disponible pour la vente", () => {
       const animal = createMockAnimal({
         actif: true,
         statut: 'actif',
@@ -171,7 +171,7 @@ describe('AnimalEntity', () => {
       expect(entity.estDisponiblePourVente()).toBe(true);
     });
 
-    it('devrait retourner false si l\'animal est un reproducteur', () => {
+    it("devrait retourner false si l'animal est un reproducteur", () => {
       const animal = createMockAnimal({
         actif: true,
         statut: 'actif',
@@ -182,7 +182,7 @@ describe('AnimalEntity', () => {
       expect(entity.estDisponiblePourVente()).toBe(false);
     });
 
-    it('devrait retourner false si l\'animal n\'est pas actif', () => {
+    it("devrait retourner false si l'animal n'est pas actif", () => {
       const animal = createMockAnimal({
         actif: false,
         statut: 'actif',
@@ -193,7 +193,7 @@ describe('AnimalEntity', () => {
       expect(entity.estDisponiblePourVente()).toBe(false);
     });
 
-    it('devrait retourner false si le statut n\'est pas actif', () => {
+    it("devrait retourner false si le statut n'est pas actif", () => {
       const animal = createMockAnimal({
         actif: true,
         statut: 'vendu',
@@ -205,4 +205,3 @@ describe('AnimalEntity', () => {
     });
   });
 });
-

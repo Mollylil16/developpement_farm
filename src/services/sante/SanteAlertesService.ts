@@ -3,12 +3,11 @@
  * Centralise la logique de détection et génération d'alertes sanitaires
  */
 
-import { getDatabase } from '../database';
 import {
   RappelVaccinationRepository,
+  VaccinationRepository,
   MaladieRepository,
   MortaliteRepository,
-  VisiteVeterinaireRepository,
 } from '../../database/repositories';
 
 export interface AlerteSanitaire {
@@ -16,7 +15,7 @@ export interface AlerteSanitaire {
   gravite: 'critique' | 'elevee' | 'moyenne';
   message: string;
   date: string;
-  data?: any;
+  data?: unknown;
 }
 
 export class SanteAlertesService {
@@ -24,15 +23,17 @@ export class SanteAlertesService {
    * Obtenir les alertes sanitaires urgentes
    */
   static async getAlertesSanitaires(projetId: string): Promise<AlerteSanitaire[]> {
-    const db = await getDatabase();
-    const rappelRepo = new RappelVaccinationRepository(db);
-    const maladieRepo = new MaladieRepository(db);
-    const mortaliteRepo = new MortaliteRepository(db);
+    const rappelRepo = new RappelVaccinationRepository();
+    const vaccinationRepo = new VaccinationRepository();
+    const maladieRepo = new MaladieRepository();
+    const mortaliteRepo = new MortaliteRepository();
 
     const alertes: AlerteSanitaire[] = [];
 
-    // Rappels en retard
-    const rappelsEnRetard = await rappelRepo.findEnRetard(projetId);
+    // Rappels en retard - d'abord récupérer les IDs des vaccinations du projet
+    const vaccinations = await vaccinationRepo.findByProjet(projetId);
+    const vaccinationIds = vaccinations.map(v => v.id);
+    const rappelsEnRetard = await rappelRepo.findEnRetard(vaccinationIds);
     if (rappelsEnRetard.length > 0) {
       alertes.push({
         type: 'rappel_retard',
@@ -90,4 +91,3 @@ export class SanteAlertesService {
     return alertes;
   }
 }
-

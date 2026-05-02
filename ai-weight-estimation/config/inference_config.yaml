@@ -1,0 +1,96 @@
+# Configuration d'inférence
+
+inference:
+  # Pipeline
+  use_segmentation: true
+  use_keypoints: true
+  use_ensemble: true
+  
+  # Détection
+  detection:
+    max_detections: 50
+    nms_threshold: 0.45
+    
+  # Tracking vidéo
+  tracking:
+    algorithm: "deepsort"
+    max_age: 30  # Frames
+    min_hits: 3
+    iou_threshold: 0.3
+    use_reid: true
+    
+  # Estimation poids
+  weight_estimation:
+    methods: ["geometric", "cnn", "transformer"]
+    ensemble_weights:
+      geometric: 0.3
+      cnn: 0.4
+      transformer: 0.3
+    min_confidence: 0.7
+    
+  # Calibration
+  calibration:
+    use_aruco: true
+    aruco_size_m: 0.2  # 20cm x 20cm
+    fallback_to_estimation: true
+    
+  # Performance
+  performance:
+    use_gpu: true
+    batch_size: 1
+    num_workers: 4
+    pin_memory: true
+
+# Conditions de capture
+capture_conditions:
+  optimal:
+    distance_min_m: 2.0
+    distance_max_m: 4.0
+    angle_min_deg: 30
+    angle_max_deg: 60
+    lighting_min_lux: 300
+    occlusion_max_percent: 20
+    resolution_min: [1920, 1080]
+    
+  standard:
+    distance_min_m: 1.5
+    distance_max_m: 5.0
+    angle_min_deg: 20
+    angle_max_deg: 70
+    lighting_min_lux: 150
+    occlusion_max_percent: 40
+    
+  degraded:
+    distance_min_m: 1.0
+    distance_max_m: 6.0
+    angle_min_deg: 10
+    angle_max_deg: 80
+    lighting_min_lux: 100
+    occlusion_max_percent: 60
+
+# Garanties de précision par classe de poids
+weight_accuracy_guarantees:
+  porcelets:  # 10-30 kg
+    mae_optimal: 0.8
+    mape_optimal: 3.5
+    mae_standard: 1.5
+    mape_standard: 5.0
+    
+  croissance:  # 30-80 kg
+    mae_optimal: 1.2
+    mape_optimal: 2.0
+    mae_standard: 2.0
+    mape_standard: 3.5
+    
+  finition:  # 80-120 kg
+    mae_optimal: 1.5
+    mape_optimal: 1.5
+    mae_standard: 2.5
+    mape_standard: 2.5
+    
+  adultes:  # 120-200 kg
+    mae_optimal: 2.0
+    mape_optimal: 1.2
+    mae_standard: 3.0
+    mape_standard: 2.0
+

@@ -25,4 +25,3 @@ export async function createMortalitesTable(db: SQLite.SQLiteDatabase): Promise<
     );
   `);
 }
-

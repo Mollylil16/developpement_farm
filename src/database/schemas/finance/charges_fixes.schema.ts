@@ -32,4 +32,3 @@ export async function createChargesFixesTable(db: SQLite.SQLiteDatabase): Promis
     );`
   );
 }
-

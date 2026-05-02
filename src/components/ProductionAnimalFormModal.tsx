@@ -11,18 +11,19 @@ import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { createProductionAnimal, updateProductionAnimal } from '../store/slices/productionSlice';
 import { savePhotoToAppStorage } from '../utils/photoUtils';
-import {
+import type {
   ProductionAnimal,
   CreateProductionAnimalInput,
   SexeAnimal,
   StatutAnimal,
-  STATUT_ANIMAL_LABELS,
-} from '../types';
+} from '../types/production';
+import { STATUT_ANIMAL_LABELS } from '../types/production';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { logger } from '../utils/logger';
 
 // Fonction helper pour convertir une date en format local YYYY-MM-DD
 const formatDateToLocal = (date: Date): string => {
@@ -166,13 +167,13 @@ export default function ProductionAnimalFormModal({
 
     if (!result.canceled && result.assets[0]) {
       try {
-        console.log('📸 URI temporaire reçue:', result.assets[0].uri);
+        logger.debug('URI temporaire reçue:', result.assets[0].uri);
         // Copier vers le stockage permanent
         const permanentUri = await savePhotoToAppStorage(result.assets[0].uri);
-        console.log('✅ URI permanente créée:', permanentUri);
+        logger.debug('URI permanente créée:', permanentUri);
         setPhotoUri(permanentUri);
       } catch (error) {
-        console.error('❌ Erreur sauvegarde photo:', error);
+        logger.error('Erreur sauvegarde photo:', error);
         Alert.alert('Erreur', 'Impossible de sauvegarder la photo: ' + error);
         // En cas d'erreur, utiliser quand même l'URI temporaire
         setPhotoUri(result.assets[0].uri);
@@ -200,13 +201,13 @@ export default function ProductionAnimalFormModal({
 
     if (!result.canceled && result.assets[0]) {
       try {
-        console.log('📸 URI temporaire reçue:', result.assets[0].uri);
+        logger.debug('URI temporaire reçue:', result.assets[0].uri);
         // Copier vers le stockage permanent
         const permanentUri = await savePhotoToAppStorage(result.assets[0].uri);
-        console.log('✅ URI permanente créée:', permanentUri);
+        logger.debug('URI permanente créée:', permanentUri);
         setPhotoUri(permanentUri);
       } catch (error) {
-        console.error('❌ Erreur sauvegarde photo:', error);
+        logger.error('Erreur sauvegarde photo:', error);
         Alert.alert('Erreur', 'Impossible de sauvegarder la photo: ' + error);
         // En cas d'erreur, utiliser quand même l'URI temporaire
         setPhotoUri(result.assets[0].uri);
@@ -233,8 +234,8 @@ export default function ProductionAnimalFormModal({
 
   useEffect(() => {
     if (animal && isEditing) {
-      console.log('📋 Chargement animal dans modal:', animal.id);
-      console.log('📸 Photo URI de l\'animal:', animal.photo_uri);
+      logger.debug('Chargement animal dans modal:', animal.id);
+      logger.debug("Photo URI de l'animal:", animal.photo_uri);
       setFormData({
         projet_id: animal.projet_id,
         code: animal.code,
@@ -252,7 +253,7 @@ export default function ProductionAnimalFormModal({
         notes: animal.notes || '',
       });
       setPhotoUri(animal.photo_uri || null);
-      console.log('✅ Photo URI définie dans le state:', animal.photo_uri || 'null');
+      logger.debug('Photo URI définie dans le state:', animal.photo_uri || 'null');
     } else {
       setFormData({
         projet_id: projetId,
@@ -301,13 +302,13 @@ export default function ProductionAnimalFormModal({
         photo_uri: photoUri || undefined, // Photo déjà permanente
       };
 
-      console.log('=== SAUVEGARDE ANIMAL ===');
-      console.log('📸 Photo URI à sauvegarder:', photoUri);
-      console.log('🔍 Type de photo URI:', typeof photoUri);
-      console.log('🔍 photoUri === null?', photoUri === null);
-      console.log('🔍 photoUri === undefined?', photoUri === undefined);
-      console.log('📦 normalizedData.photo_uri:', normalizedData.photo_uri);
-      console.log('📦 Données complètes:', JSON.stringify(normalizedData, null, 2));
+      logger.debug('=== SAUVEGARDE ANIMAL ===');
+      logger.debug('Photo URI à sauvegarder:', photoUri);
+      logger.debug('Type de photo URI:', typeof photoUri);
+      logger.debug('photoUri === null?', photoUri === null);
+      logger.debug('photoUri === undefined?', photoUri === undefined);
+      logger.debug('normalizedData.photo_uri:', normalizedData.photo_uri);
+      logger.debug('Données complètes:', JSON.stringify(normalizedData, null, 2));
 
       if (isEditing && animal) {
         const { projet_id: _omitProjet, ...updates } = normalizedData;
@@ -320,15 +321,15 @@ export default function ProductionAnimalFormModal({
       } else {
         await dispatch(createProductionAnimal(normalizedData)).unwrap();
       }
-      
+
       // Fermer le modal immédiatement
       onClose();
-      
+
       // Puis recharger les données en arrière-plan
       setTimeout(() => {
         onSuccess();
       }, 100);
-    } catch (error: any) {
+    } catch (error: unknown) {
       Alert.alert('Erreur', error?.message || error || "Erreur lors de l'enregistrement.");
     } finally {
       setLoading(false);
@@ -434,7 +435,8 @@ export default function ProductionAnimalFormModal({
                   ]}
                   onPress={() => {
                     // Si le sexe est "femelle" ou "male", définir automatiquement reproducteur à true
-                    const nouveauReproducteur = sexe === 'femelle' || sexe === 'male' ? true : formData.reproducteur;
+                    const nouveauReproducteur =
+                      sexe === 'femelle' || sexe === 'male' ? true : formData.reproducteur;
                     setFormData({ ...formData, sexe, reproducteur: nouveauReproducteur });
                   }}
                 >
@@ -465,7 +467,8 @@ export default function ProductionAnimalFormModal({
                     style={[
                       styles.option,
                       {
-                        borderColor: formData.reproducteur === value ? colors.primary : colors.border,
+                        borderColor:
+                          formData.reproducteur === value ? colors.primary : colors.border,
                         backgroundColor:
                           formData.reproducteur === value ? colors.primary : colors.background,
                       },
@@ -476,7 +479,8 @@ export default function ProductionAnimalFormModal({
                       style={[
                         styles.optionText,
                         {
-                          color: formData.reproducteur === value ? colors.textOnPrimary : colors.text,
+                          color:
+                            formData.reproducteur === value ? colors.textOnPrimary : colors.text,
                           fontWeight: formData.reproducteur === value ? '600' : 'normal',
                         },
                       ]}
@@ -667,10 +671,12 @@ export default function ProductionAnimalFormModal({
             style={[
               styles.modalOption,
               { borderColor: colors.border, backgroundColor: colors.surface },
-              formData.pere_id === null ? {
-                borderColor: colors.primary,
-                backgroundColor: colors.primary + '12',
-              } : null,
+              formData.pere_id === null
+                ? {
+                    borderColor: colors.primary,
+                    backgroundColor: colors.primary + '12',
+                  }
+                : null,
             ]}
             onPress={() => handleSelectPere(null)}
           >
@@ -728,10 +734,12 @@ export default function ProductionAnimalFormModal({
             style={[
               styles.modalOption,
               { borderColor: colors.border, backgroundColor: colors.surface },
-              formData.mere_id === null ? {
-                borderColor: colors.primary,
-                backgroundColor: colors.primary + '12',
-              } : null,
+              formData.mere_id === null
+                ? {
+                    borderColor: colors.primary,
+                    backgroundColor: colors.primary + '12',
+                  }
+                : null,
             ]}
             onPress={() => handleSelectMere(null)}
           >

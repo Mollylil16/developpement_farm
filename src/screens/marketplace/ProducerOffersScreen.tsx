@@ -23,9 +23,10 @@ import { SPACING } from '../../constants/theme';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import EmptyState from '../../components/EmptyState';
 import { OfferResponseModal } from '../../components/marketplace';
-import { getDatabase } from '../../services/database';
-import { getMarketplaceService } from '../../services/MarketplaceService';
-import type { Offer } from '../../types/marketplace';
+import apiClient from '../../services/api/apiClient';
+import marketplaceService from '../../services/MarketplaceService';
+import type { Offer, MarketplaceListing } from '../../types/marketplace';
+import type { ProductionAnimal } from '../../types/production';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -36,10 +37,15 @@ export default function ProducerOffersScreen() {
   const { user } = useAppSelector((state) => state.auth);
   const { projetActif } = useAppSelector((state) => state.projet);
 
-  const [offers, setOffers] = useState<Offer[]>([]);
+  type EnrichedOffer = Offer & {
+    listing?: MarketplaceListing;
+    subject?: ProductionAnimal;
+  };
+
+  const [offers, setOffers] = useState<EnrichedOffer[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
+  const [selectedOffer, setSelectedOffer] = useState<EnrichedOffer | null>(null);
   const [responseModalVisible, setResponseModalVisible] = useState(false);
 
   const loadOffers = useCallback(async () => {
@@ -49,28 +55,33 @@ export default function ProducerOffersScreen() {
     }
 
     try {
-      const db = await getDatabase();
-      const service = getMarketplaceService(db);
-      
-      // Récupérer les offres pour ce producteur
-      const { MarketplaceOfferRepository } = await import('../../database/repositories');
-      const offerRepo = new MarketplaceOfferRepository(db);
-      const producerOffers = await offerRepo.findByProducerId(user.id);
-      
+      // Récupérer les offres pour ce producteur depuis l'API backend
+      const producerOffers = await apiClient.get<any[]>('/marketplace/offers', {
+        params: { producer_id: user.id },
+      });
+
       // Enrichir avec les informations des listings et des sujets
       const enrichedOffers = await Promise.all(
         producerOffers.map(async (offer) => {
           try {
-            const listing = await service.getListingById(offer.listingId);
-            const { AnimalRepository } = await import('../../database/repositories');
-            const animalRepo = new AnimalRepository(db);
-            const subject = await animalRepo.findById(listing.subjectId);
+            // Récupérer le listing depuis l'API backend
+            const listing = await apiClient.get<MarketplaceListing>(`/marketplace/listings/${offer.listingId}`);
             
+            // Récupérer le premier animal depuis l'API backend (offer.subjectIds est un tableau)
+            const firstSubjectId = offer.subjectIds?.[0];
+            let subject: ProductionAnimal | undefined;
+            if (firstSubjectId) {
+              // ✅ Utiliser la route marketplace dédiée qui ne vérifie pas l'appartenance
+              const { AnimalRepository } = await import('../../../database/repositories');
+              const animalRepo = new AnimalRepository();
+              subject = await animalRepo.findMarketplaceAnimal(firstSubjectId) as any || undefined;
+            }
+
             return {
               ...offer,
               listing,
               subject,
-            };
+            } as EnrichedOffer;
           } catch (error) {
             console.error('Erreur enrichissement offre:', error);
             return offer;
@@ -79,12 +90,12 @@ export default function ProducerOffersScreen() {
       );
 
       // Trier par date (plus récentes en premier)
-      enrichedOffers.sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      enrichedOffers.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
 
       setOffers(enrichedOffers);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erreur chargement offres:', error);
       Alert.alert('Erreur', 'Impossible de charger les offres');
     } finally {
@@ -102,7 +113,7 @@ export default function ProducerOffersScreen() {
     loadOffers();
   }, [loadOffers]);
 
-  const handleOfferPress = (offer: Offer) => {
+  const handleOfferPress = (offer: EnrichedOffer) => {
     setSelectedOffer(offer);
     setResponseModalVisible(true);
   };
@@ -110,32 +121,33 @@ export default function ProducerOffersScreen() {
   const handleOfferResponse = async (
     offerId: string,
     action: 'accept' | 'reject' | 'counter',
-    counterPrice?: number
+    counterPrice?: number,
+    counterMessage?: string
   ) => {
     try {
-      const db = await getDatabase();
-      const service = getMarketplaceService(db);
-      
+      const service = marketplaceService;
+
       if (!user?.id) {
         throw new Error('Utilisateur non connecté');
       }
 
       if (action === 'accept') {
-        await service.acceptOffer(offerId, user.id);
+        await service.acceptOffer(offerId, user.id, 'producer');
         Alert.alert('Succès', 'Offre acceptée. La transaction a été créée.');
       } else if (action === 'reject') {
         await service.rejectOffer(offerId, user.id);
         Alert.alert('Succès', 'Offre refusée.');
       } else if (action === 'counter' && counterPrice) {
-        await service.counterOffer(offerId, user.id, counterPrice);
+        await service.counterOffer(offerId, user.id, counterPrice, counterMessage);
         Alert.alert('Succès', 'Contre-offre envoyée.');
       }
 
       setResponseModalVisible(false);
       setSelectedOffer(null);
       loadOffers();
-    } catch (error: any) {
-      Alert.alert('Erreur', error.message || 'Impossible de traiter l\'offre');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Impossible de traiter l'offre";
+      Alert.alert('Erreur', errorMessage);
     }
   };
 
@@ -169,7 +181,7 @@ export default function ProducerOffersScreen() {
     }
   };
 
-  const renderOffer = ({ item }: { item: Offer & { listing?: any; subject?: any } }) => {
+  const renderOffer = ({ item }: { item: Offer & { listing?: unknown; subject?: unknown } }) => {
     const isPending = item.status === 'pending';
     const statusColor = getStatusColor(item.status);
     const statusLabel = getStatusLabel(item.status);
@@ -190,7 +202,7 @@ export default function ProducerOffersScreen() {
         <View style={styles.offerHeader}>
           <View style={styles.offerInfo}>
             <Text style={[styles.offerSubject, { color: colors.text }]}>
-              {item.subject?.code || item.subjectId}
+              {item.subject?.code || item.subjectIds?.[0] || 'N/A'}
               {item.subject?.nom && ` - ${item.subject.nom}`}
             </Text>
             <Text style={[styles.offerDate, { color: colors.textSecondary }]}>
@@ -209,9 +221,7 @@ export default function ProducerOffersScreen() {
 
         <View style={styles.offerDetails}>
           <View style={styles.priceRow}>
-            <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>
-              Prix proposé:
-            </Text>
+            <Text style={[styles.priceLabel, { color: colors.textSecondary }]}>Prix proposé:</Text>
             <Text style={[styles.priceValue, { color: marketplaceColors.primary }]}>
               {item.proposedPrice.toLocaleString('fr-FR')} FCFA
             </Text>
@@ -222,15 +232,13 @@ export default function ProducerOffersScreen() {
                 Prix initial:
               </Text>
               <Text style={[styles.originalPrice, { color: colors.textSecondary }]}>
-                {item.listing.calculatedPrice.toLocaleString('fr-FR')} FCFA
+                {item.listing.calculatedPrice?.toLocaleString('fr-FR') || item.originalPrice.toLocaleString('fr-FR')} FCFA
               </Text>
             </View>
           )}
           {item.message && (
             <View style={styles.messageContainer}>
-              <Text style={[styles.messageLabel, { color: colors.textSecondary }]}>
-                Message:
-              </Text>
+              <Text style={[styles.messageLabel, { color: colors.textSecondary }]}>Message:</Text>
               <Text style={[styles.messageText, { color: colors.text }]}>{item.message}</Text>
             </View>
           )}
@@ -259,10 +267,7 @@ export default function ProducerOffersScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Mes offres</Text>
@@ -281,9 +286,7 @@ export default function ProducerOffersScreen() {
           renderItem={renderOffer}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           showsVerticalScrollIndicator={false}
         />
       )}
@@ -292,15 +295,26 @@ export default function ProducerOffersScreen() {
         <OfferResponseModal
           visible={responseModalVisible}
           offer={selectedOffer}
+          userRole="producer"
           onClose={() => {
             setResponseModalVisible(false);
             setSelectedOffer(null);
           }}
-          onAccept={(offerId) => handleOfferResponse(offerId, 'accept')}
-          onReject={(offerId) => handleOfferResponse(offerId, 'reject')}
-          onCounter={(offerId, counterPrice) =>
-            handleOfferResponse(offerId, 'counter', counterPrice)
-          }
+          onAccept={async (role: 'producer' | 'buyer') => {
+            if (selectedOffer?.id) {
+              await handleOfferResponse(selectedOffer.id, 'accept');
+            }
+          }}
+          onReject={async () => {
+            if (selectedOffer?.id) {
+              await handleOfferResponse(selectedOffer.id, 'reject');
+            }
+          }}
+          onCounter={async (newPrice: number, message?: string) => {
+            if (selectedOffer?.id) {
+              await handleOfferResponse(selectedOffer.id, 'counter', newPrice, message);
+            }
+          }}
         />
       )}
     </SafeAreaView>
@@ -418,4 +432,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

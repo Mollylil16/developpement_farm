@@ -7,7 +7,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector } from '../store/hooks';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { ChargeFixe, DepensePonctuelle } from '../types';
+import type { ChargeFixe, DepensePonctuelle } from '../types/finance';
 import {
   selectAllChargesFixes,
   selectAllDepensesPonctuelles,

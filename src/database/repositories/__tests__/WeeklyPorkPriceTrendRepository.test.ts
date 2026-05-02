@@ -2,7 +2,11 @@
  * Tests pour WeeklyPorkPriceTrendRepository
  */
 
-import { WeeklyPorkPriceTrendRepository, type WeeklyPorkPriceTrend, type CreateWeeklyPorkPriceTrendInput } from '../WeeklyPorkPriceTrendRepository';
+import {
+  WeeklyPorkPriceTrendRepository,
+  type WeeklyPorkPriceTrend,
+  type CreateWeeklyPorkPriceTrendInput,
+} from '../WeeklyPorkPriceTrendRepository';
 import { BaseRepository } from '../BaseRepository';
 
 // Mock dependencies
@@ -140,7 +144,9 @@ describe('WeeklyPorkPriceTrendRepository', () => {
       mockDb.runAsync.mockResolvedValue(undefined);
       mockDb.getFirstAsync.mockResolvedValue(null);
 
-      await expect(repository.create(input)).rejects.toThrow('Failed to create weekly pork price trend');
+      await expect(repository.create(input)).rejects.toThrow(
+        'Failed to create weekly pork price trend'
+      );
     });
   });
 
@@ -376,7 +382,14 @@ describe('WeeklyPorkPriceTrendRepository', () => {
 
       expect(mockDb.getAllAsync).toHaveBeenCalledWith(
         expect.any(String),
-        expect.arrayContaining([expect.any(Number), expect.any(Number), expect.any(Number), expect.any(Number), expect.any(Number), 26])
+        expect.arrayContaining([
+          expect.any(Number),
+          expect.any(Number),
+          expect.any(Number),
+          expect.any(Number),
+          expect.any(Number),
+          26,
+        ])
       );
     });
   });
@@ -430,7 +443,7 @@ describe('WeeklyPorkPriceTrendRepository', () => {
       mockDb.getFirstAsync.mockResolvedValue(row);
 
       const result = await repository.findByYearAndWeek(2024, 1);
-      
+
       expect(result).toBeDefined();
       if (result) {
         expect(result.id).toBe('test-id');
@@ -460,7 +473,7 @@ describe('WeeklyPorkPriceTrendRepository', () => {
       mockDb.getFirstAsync.mockResolvedValue(row);
 
       const result = await repository.findByYearAndWeek(2024, 1);
-      
+
       expect(result).toBeDefined();
       if (result) {
         expect(result.avgPricePlatform).toBeUndefined();
@@ -470,4 +483,3 @@ describe('WeeklyPorkPriceTrendRepository', () => {
     });
   });
 });
-

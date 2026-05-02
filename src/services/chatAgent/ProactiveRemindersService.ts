@@ -4,15 +4,16 @@
  */
 
 import { Reminder, AgentContext } from '../../types/chatAgent';
-import { getDatabase } from '../database';
 import {
   VaccinationRepository,
   TraitementRepository,
   GestationRepository,
   AnimalRepository,
 } from '../../database/repositories';
-import { differenceInDays, addDays, format } from 'date-fns';
+import { differenceInDays, addDays } from 'date-fns';
 import { scheduleNotification } from '../notificationsService';
+import apiClient from '../api/apiClient';
+import { logger } from '../../utils/logger';
 
 export class ProactiveRemindersService {
   private context: AgentContext | null = null;
@@ -61,9 +62,10 @@ export class ProactiveRemindersService {
       return [];
     }
 
-    const db = await getDatabase();
-    const repo = new VaccinationRepository(db);
-    const vaccinations = await repo.findByProjet(this.context.projetId);
+    // Récupérer les vaccinations depuis l'API backend
+    const vaccinations = await apiClient.get<any[]>(`/sante/vaccinations`, {
+      params: { projet_id: this.context.projetId },
+    });
 
     const reminders: Reminder[] = [];
     const now = new Date();
@@ -102,9 +104,10 @@ export class ProactiveRemindersService {
       return [];
     }
 
-    const db = await getDatabase();
-    const repo = new TraitementRepository(db);
-    const traitements = await repo.findByProjet(this.context.projetId);
+    // Récupérer les traitements depuis l'API backend
+    const traitements = await apiClient.get<any[]>(`/sante/traitements`, {
+      params: { projet_id: this.context.projetId },
+    });
 
     const reminders: Reminder[] = [];
     const now = new Date();
@@ -120,7 +123,7 @@ export class ProactiveRemindersService {
             id: `trait_${traitement.id}`,
             type: 'traitement',
             title: `Fin de traitement : ${traitement.nom_medicament}`,
-            description: `Le traitement ${traitement.nom_medicament} se termine ${joursRestants === 0 ? 'aujourd\'hui' : 'demain'}.`,
+            description: `Le traitement ${traitement.nom_medicament} se termine ${joursRestants === 0 ? "aujourd'hui" : 'demain'}.`,
             dueDate: traitement.date_fin,
             animalId: traitement.animal_id || undefined,
             lotId: traitement.lot_id || undefined,
@@ -143,9 +146,10 @@ export class ProactiveRemindersService {
       return [];
     }
 
-    const db = await getDatabase();
-    const animalRepo = new AnimalRepository(db);
-    const animaux = await animalRepo.findByProjet(this.context.projetId);
+    // Récupérer les animaux depuis l'API backend
+    const animaux = await apiClient.get<any[]>(`/production/animaux`, {
+      params: { projet_id: this.context.projetId },
+    });
 
     const reminders: Reminder[] = [];
     const now = new Date();
@@ -184,10 +188,11 @@ export class ProactiveRemindersService {
       return [];
     }
 
-    const db = await getDatabase();
-    const repo = new GestationRepository(db);
-    // Récupérer toutes les gestations en cours du projet
-    const gestations = await repo.findEnCoursByProjet(this.context.projetId);
+    // Récupérer toutes les gestations en cours du projet depuis l'API backend
+    const allGestations = await apiClient.get<any[]>(`/reproduction/gestations`, {
+      params: { projet_id: this.context.projetId },
+    });
+    const gestations = allGestations.filter((g: any) => g.statut === 'en_cours');
 
     const reminders: Reminder[] = [];
     const now = new Date();
@@ -235,7 +240,7 @@ export class ProactiveRemindersService {
           priority: 'default',
         });
       } catch (error) {
-        console.error(`Erreur lors de la programmation du rappel ${reminder.id}:`, error);
+        logger.error(`Erreur lors de la programmation du rappel ${reminder.id}:`, error);
       }
     }
   }
@@ -260,4 +265,3 @@ export class ProactiveRemindersService {
     return `Bonjour ! J'ai ${reminders.length} rappel(s) à venir. Veux-tu que je te les montre ?`;
   }
 }
-

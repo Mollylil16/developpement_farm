@@ -11,25 +11,39 @@ import { loadCollaborateursParProjet } from '../../store/slices/collaborationSli
 import { loadMortalitesParProjet } from '../../store/slices/mortalitesSlice';
 import { loadProductionAnimaux, loadPeseesRecents } from '../../store/slices/productionSlice';
 import { loadVaccinations, loadMaladies } from '../../store/slices/santeSlice';
-import { selectAllAnimaux, selectPeseesRecents, selectAnimauxActifs } from '../../store/selectors/productionSelectors';
+import {
+  selectAllAnimaux,
+  selectPeseesRecents,
+  selectAnimauxActifs,
+} from '../../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
 import { selectAllVaccinations, selectAllMaladies } from '../../store/selectors/santeSelectors';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';
 import { startOfMonth, parseISO, isAfter } from 'date-fns';
-import { Mortalite } from '../../types';
+import type { Mortalite } from '../../types/mortalites';
 import { SafeTextWrapper } from '../../utils/textRenderingGuard';
+import { logger } from '../../utils/logger';
+import { useProjetEffectif } from '../../hooks/useProjetEffectif';
 
 interface SecondaryWidgetProps {
-  type: 'nutrition' | 'planning' | 'collaboration' | 'mortalites' | 'production' | 'sante' | 'marketplace';
+  type:
+    | 'nutrition'
+    | 'planning'
+    | 'collaboration'
+    | 'mortalites'
+    | 'production'
+    | 'sante'
+    | 'marketplace';
   onPress?: () => void;
 }
 
 function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const [marketplaceStats, setMarketplaceStats] = useState({ myListings: 0, available: 0 });
   const { rations, rationsBudget } = useAppSelector((state) => state.nutrition);
   const { planifications } = useAppSelector((state) => state.planification);
@@ -78,32 +92,42 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
         dispatch(loadPeseesRecents({ projetId: projetActif.id, limit: 20 }));
         break;
       case 'marketplace':
-        // Charger les stats du marketplace
+        // Charger les stats du marketplace depuis l'API backend
         (async () => {
           try {
-            const { getDatabase } = await import('../../services/database');
-            const db = await getDatabase();
-            const { MarketplaceListingRepository } = await import('../../database/repositories');
-            const listingRepo = new MarketplaceListingRepository(db);
-            
-            // Compter mes annonces actives
-            const myListings = await listingRepo.findByFarmId(projetActif.id);
-            const myActiveListings = myListings.filter(
-              l => l.status === 'available' || l.status === 'reserved'
-            ).length;
-            
-            // Compter les annonces disponibles (toutes sauf celles de l'utilisateur)
-            const allListings = await listingRepo.findAll();
-            const availableListings = allListings.filter(
-              l => (l.status === 'available' || l.status === 'reserved') && l.farmId !== projetActif.id
-            ).length;
-            
+            const apiClient = (await import('../../services/api/apiClient')).default;
+
+            // Optimisation : utiliser limit=1 pour récupérer uniquement le compteur total
+            // Le backend retourne {listings, total} - on n'a besoin que du total
+            const [myListingsResponse, allListingsResponse] = await Promise.all([
+              // Mes annonces actives
+              apiClient.get<{
+                listings: any[];
+                total: number;
+              }>('/marketplace/listings', {
+                params: { 
+                  projet_id: projetActif.id,
+                  limit: 1, // On ne veut que le compteur total
+                },
+              }),
+              // Annonces disponibles (excluant les miennes)
+              apiClient.get<{
+                listings: any[];
+                total: number;
+              }>('/marketplace/listings', {
+                params: {
+                  exclude_own_listings: 'true',
+                  limit: 1, // On ne veut que le compteur total
+                },
+              }),
+            ]);
+
             setMarketplaceStats({
-              myListings: myActiveListings,
-              available: availableListings,
+              myListings: myListingsResponse.total || 0,
+              available: allListingsResponse.total || 0,
             });
           } catch (error) {
-            console.error('Erreur chargement stats marketplace:', error);
+            logger.error('Erreur chargement stats marketplace:', error);
           }
         })();
         break;
@@ -116,17 +140,18 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
   const rationsLength = rations.length;
   const rationsBudgetLength = rationsBudget.length;
   const planificationsLength = planifications.length;
-  const collaborateursLength = collaborateurs.length;
+  const collaborateursArray = Array.isArray(collaborateurs) ? collaborateurs : [];
+  const collaborateursLength = collaborateursArray.length;
   const mortalitesLength = mortalites.length;
   const animauxLength = animaux.length;
-  const peseesRecentsLength = (peseesRecents as any[]).length;
+  const peseesRecentsLength = (peseesRecents as unknown[]).length;
 
   const widgetData = useMemo(() => {
     if (!projetActif) return null;
 
     switch (type) {
       case 'sante':
-        const maladiesEnCours = maladies.filter((m: any) => !m.date_fin || m.date_fin === '');
+        const maladiesEnCours = maladies.filter((m) => !m.date_fin || m.date_fin === '');
         return {
           emoji: '🏥',
           title: 'Santé',
@@ -165,7 +190,7 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
         };
 
       case 'collaboration':
-        const collaborateursActifs = collaborateurs.filter((c) => c.statut === 'actif');
+        const collaborateursActifs = collaborateursArray.filter((c) => c.statut === 'actif');
         return {
           emoji: '👥',
           title: 'Collaboration',
@@ -194,10 +219,14 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
         };
 
       case 'production':
+        // Filtrer les animaux actifs par projet actif
+        const animauxActifsProjet = animauxActifs.filter(
+          (animal) => animal.projet_id === projetActif.id
+        );
         return {
           emoji: '🐷',
           title: 'Production',
-          primary: animauxActifs.length,
+          primary: animauxActifsProjet.length,
           secondary: peseesRecentsLength,
           labelPrimary: 'Animaux',
           labelSecondary: 'Pesées',
@@ -236,6 +265,7 @@ function SecondaryWidget({ type, onPress }: SecondaryWidgetProps) {
     collaborateurs,
     mortalites,
     animaux,
+    animauxActifs,
     peseesRecents,
     marketplaceStats,
   ]);

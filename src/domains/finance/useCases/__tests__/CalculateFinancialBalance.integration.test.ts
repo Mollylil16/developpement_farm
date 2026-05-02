@@ -2,7 +2,10 @@
  * Tests d'intégration pour CalculateFinancialBalanceUseCase
  */
 
-import { CalculateFinancialBalanceUseCase, type CalculateFinancialBalanceInput } from '../CalculateFinancialBalance';
+import {
+  CalculateFinancialBalanceUseCase,
+  type CalculateFinancialBalanceInput,
+} from '../CalculateFinancialBalance';
 import type { IFinanceRepository } from '../repositories/IFinanceRepository';
 import type { Revenu } from '../entities/Revenu';
 import type { Depense } from '../entities/Depense';
@@ -33,17 +36,60 @@ describe('CalculateFinancialBalanceUseCase - Integration', () => {
       };
 
       const revenus: Revenu[] = [
-        { id: 'rev-1', projetId: 'projet-1', montant: 200000, categorie: 'vente_porc', date: '2024-01-15', dateCreation: '2024-01-15T00:00:00Z', derniereModification: '2024-01-15T00:00:00Z' },
-        { id: 'rev-2', projetId: 'projet-1', montant: 150000, categorie: 'vente_porc', date: '2024-01-20', dateCreation: '2024-01-20T00:00:00Z', derniereModification: '2024-01-20T00:00:00Z' },
+        {
+          id: 'rev-1',
+          projetId: 'projet-1',
+          montant: 200000,
+          categorie: 'vente_porc',
+          date: '2024-01-15',
+          dateCreation: '2024-01-15T00:00:00Z',
+          derniereModification: '2024-01-15T00:00:00Z',
+        },
+        {
+          id: 'rev-2',
+          projetId: 'projet-1',
+          montant: 150000,
+          categorie: 'vente_porc',
+          date: '2024-01-20',
+          dateCreation: '2024-01-20T00:00:00Z',
+          derniereModification: '2024-01-20T00:00:00Z',
+        },
       ];
 
       const depenses: Depense[] = [
-        { id: 'dep-1', projetId: 'projet-1', montant: 50000, categorie: 'aliment', date: '2024-01-10', dateCreation: '2024-01-10T00:00:00Z', derniereModification: '2024-01-10T00:00:00Z' },
-        { id: 'dep-2', projetId: 'projet-1', montant: 30000, categorie: 'autre', date: '2024-01-15', dateCreation: '2024-01-15T00:00:00Z', derniereModification: '2024-01-15T00:00:00Z' },
+        {
+          id: 'dep-1',
+          projetId: 'projet-1',
+          montant: 50000,
+          categorie: 'aliment',
+          date: '2024-01-10',
+          dateCreation: '2024-01-10T00:00:00Z',
+          derniereModification: '2024-01-10T00:00:00Z',
+        },
+        {
+          id: 'dep-2',
+          projetId: 'projet-1',
+          montant: 30000,
+          categorie: 'autre',
+          date: '2024-01-15',
+          dateCreation: '2024-01-15T00:00:00Z',
+          derniereModification: '2024-01-15T00:00:00Z',
+        },
       ];
 
       const chargesFixes: ChargeFixe[] = [
-        { id: 'charge-1', projetId: 'projet-1', categorie: 'loyer', libelle: 'Loyer', montant: 50000, dateDebut: '2024-01-01', frequence: 'mensuel', statut: 'actif', dateCreation: '2024-01-01T00:00:00Z', derniereModification: '2024-01-01T00:00:00Z' },
+        {
+          id: 'charge-1',
+          projetId: 'projet-1',
+          categorie: 'loyer',
+          libelle: 'Loyer',
+          montant: 50000,
+          dateDebut: '2024-01-01',
+          frequence: 'mensuel',
+          statut: 'actif',
+          dateCreation: '2024-01-01T00:00:00Z',
+          derniereModification: '2024-01-01T00:00:00Z',
+        },
       ];
 
       mockRepository.findRevenusByPeriod.mockResolvedValueOnce(revenus);
@@ -67,7 +113,18 @@ describe('CalculateFinancialBalanceUseCase - Integration', () => {
       };
 
       const chargesFixes: ChargeFixe[] = [
-        { id: 'charge-1', projetId: 'projet-1', categorie: 'autre', libelle: 'Charge trimestrielle', montant: 150000, dateDebut: '2024-01-01', frequence: 'trimestriel', statut: 'actif', dateCreation: '2024-01-01T00:00:00Z', derniereModification: '2024-01-01T00:00:00Z' },
+        {
+          id: 'charge-1',
+          projetId: 'projet-1',
+          categorie: 'autre',
+          libelle: 'Charge trimestrielle',
+          montant: 150000,
+          dateDebut: '2024-01-01',
+          frequence: 'trimestriel',
+          statut: 'actif',
+          dateCreation: '2024-01-01T00:00:00Z',
+          derniereModification: '2024-01-01T00:00:00Z',
+        },
       ];
 
       mockRepository.findRevenusByPeriod.mockResolvedValueOnce([]);
@@ -81,4 +138,3 @@ describe('CalculateFinancialBalanceUseCase - Integration', () => {
     });
   });
 });
-

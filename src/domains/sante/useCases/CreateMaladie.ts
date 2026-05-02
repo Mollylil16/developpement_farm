@@ -1,6 +1,6 @@
 /**
  * Use Case : Créer une maladie
- * 
+ *
  * Orchestre la création d'une maladie avec validation métier
  */
 
@@ -13,7 +13,17 @@ export interface CreateMaladieInput {
   projetId: string;
   animalId?: string;
   lotId?: string;
-  type: 'diarrhee' | 'respiratoire' | 'gale_parasites' | 'fievre' | 'boiterie' | 'digestive' | 'cutanee' | 'reproduction' | 'neurologique' | 'autre';
+  type:
+    | 'diarrhee'
+    | 'respiratoire'
+    | 'gale_parasites'
+    | 'fievre'
+    | 'boiterie'
+    | 'digestive'
+    | 'cutanee'
+    | 'reproduction'
+    | 'neurologique'
+    | 'autre';
   nomMaladie: string;
   gravite: 'faible' | 'moderee' | 'grave' | 'critique';
   dateDebut: string;
@@ -61,13 +71,13 @@ export class CreateMaladieUseCase {
 
     // Si c'est critique, exiger un vétérinaire
     if (input.gravite === 'critique' && !input.veterinaire) {
-      throw new Error('Une maladie critique nécessite l\'intervention d\'un vétérinaire');
+      throw new Error("Une maladie critique nécessite l'intervention d'un vétérinaire");
     }
 
     // Créer la maladie
     const now = new Date().toISOString();
     const maladie: Maladie = {
-      id: uuid.v4() as string,
+      id: uuid.v4(),
       projetId: input.projetId,
       animalId: input.animalId,
       lotId: input.lotId,
@@ -90,7 +100,7 @@ export class CreateMaladieUseCase {
 
     // Validation avec l'entité
     const maladieEntity = new MaladieEntity(maladie);
-    
+
     // Si c'est critique, créer une alerte
     if (maladieEntity.isCritique()) {
       console.warn('⚠️ ALERTE: Maladie critique détectée:', maladie.nomMaladie);
@@ -100,4 +110,3 @@ export class CreateMaladieUseCase {
     return await this.santeRepository.createMaladie(maladie);
   }
 }
-

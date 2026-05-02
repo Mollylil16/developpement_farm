@@ -21,27 +21,26 @@ import {
   deletePlanification,
   updatePlanification,
 } from '../store/slices/planificationSlice';
-import {
+import type {
   Planification,
   TypeTache,
   StatutTache,
-  TYPE_TACHE_LABELS,
-  STATUT_TACHE_LABELS,
-  getTachesAVenir,
-  getTachesEnRetard,
-} from '../types';
+} from '../types/planification';
+import { TYPE_TACHE_LABELS, STATUT_TACHE_LABELS, getTachesAVenir, getTachesEnRetard } from '../types/planification';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import EmptyState from './EmptyState';
 import LoadingSpinner from './LoadingSpinner';
 import PlanificationFormModal from './PlanificationFormModal';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 export default function PlanificationListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { planifications, planificationsAVenir, loading } = useAppSelector(
     (state) => state.planification
   );
@@ -59,7 +58,7 @@ export default function PlanificationListComponent() {
   // Fonction pour charger les planifications
   const loadPlanifications = useCallback(async () => {
     if (!projetActif?.id) return;
-    
+
     try {
       await Promise.all([
         dispatch(loadPlanificationsParProjet(projetActif.id)).unwrap(),
@@ -80,10 +79,7 @@ export default function PlanificationListComponent() {
   // Synchronisation automatique toutes les 30 secondes quand l'app est active
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (
-        appStateRef.current.match(/inactive|background/) &&
-        nextAppState === 'active'
-      ) {
+      if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
         // L'app revient au premier plan, recharger immédiatement
         if (projetActif?.id) {
           loadPlanifications();
@@ -112,7 +108,7 @@ export default function PlanificationListComponent() {
   // Fonction de refresh manuel
   const onRefresh = useCallback(async () => {
     if (!projetActif?.id) return;
-    
+
     setRefreshing(true);
     try {
       await loadPlanifications();
@@ -440,7 +436,7 @@ export default function PlanificationListComponent() {
                     ]}
                   >
                     <Text style={[styles.typeBadgeText, { color: colors.textOnPrimary }]}>
-                      {TYPE_TACHE_LABELS[planification.type as TypeTache]}
+                      {TYPE_TACHE_LABELS[planification.type]}
                     </Text>
                   </View>
                   <View
@@ -450,7 +446,7 @@ export default function PlanificationListComponent() {
                     ]}
                   >
                     <Text style={[styles.statutBadgeText, { color: colors.textOnPrimary }]}>
-                      {STATUT_TACHE_LABELS[planification.statut as StatutTache]}
+                      {STATUT_TACHE_LABELS[planification.statut]}
                     </Text>
                   </View>
                 </View>

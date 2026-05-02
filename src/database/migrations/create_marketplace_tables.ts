@@ -10,7 +10,6 @@ export async function createMarketplaceTables(db: SQLiteDatabase): Promise<void>
 
   // Note: Les transactions sont gérées par MigrationRunner, ne pas démarrer de transaction ici
   try {
-
     // ========================================
     // 1. TABLE: marketplace_listings
     // Annonces de sujets en vente
@@ -408,4 +407,3 @@ export async function dropMarketplaceTables(db: SQLiteDatabase): Promise<void> {
 
   console.log('✅ [Migration] Tables Marketplace supprimées');
 }
-

@@ -202,7 +202,11 @@ export default function PriceScannerModal({ visible, onClose, onImport }: PriceS
   /**
    * Modifier un prix extrait
    */
-  const handleEditPrice = (index: number, field: 'ingredient' | 'prix' | 'unite', value: any) => {
+  const handleEditPrice = (
+    index: number,
+    field: 'ingredient' | 'prix' | 'unite',
+    value: unknown
+  ) => {
     const updated = [...extractedPrices];
     updated[index] = { ...updated[index], [field]: value };
     setExtractedPrices(updated);

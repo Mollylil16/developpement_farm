@@ -1,7 +1,7 @@
 /**
  * Script pour remplacer automatiquement catch (error: any) par catch (error: unknown)
  * et utiliser getErrorMessage() pour extraire les messages
- * 
+ *
  * Usage: node scripts/replace-catch-any.js [--dry-run]
  */
 
@@ -30,12 +30,16 @@ function findFiles(dir, extensions = ['.ts', '.tsx']) {
 
   for (const item of items) {
     const fullPath = path.join(dir, item.name);
-    
+
     if (item.isDirectory()) {
-      if (!['node_modules', '.git', 'dist', 'build', '__tests__', '__mocks__', 'coverage'].includes(item.name)) {
+      if (
+        !['node_modules', '.git', 'dist', 'build', '__tests__', '__mocks__', 'coverage'].includes(
+          item.name
+        )
+      ) {
         files.push(...findFiles(fullPath, extensions));
       }
-    } else if (extensions.some(ext => item.name.endsWith(ext))) {
+    } else if (extensions.some((ext) => item.name.endsWith(ext))) {
       files.push(fullPath);
     }
   }
@@ -67,7 +71,7 @@ function replaceCatchAny(content, filePath) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    
+
     // Détecter le début d'un catch block
     const catchMatch = line.match(/catch\s*\(([^:)]+):\s*unknown\)/);
     if (catchMatch) {
@@ -78,7 +82,12 @@ function replaceCatchAny(content, filePath) {
     }
 
     // Détecter la fin du catch block (ligne suivante qui n'est pas dans le bloc)
-    if (inCatchBlock && (line.trim().startsWith('}') || line.trim().startsWith('} catch') || line.trim().startsWith('} finally'))) {
+    if (
+      inCatchBlock &&
+      (line.trim().startsWith('}') ||
+        line.trim().startsWith('} catch') ||
+        line.trim().startsWith('} finally'))
+    ) {
       inCatchBlock = false;
       newLines.push(line);
       continue;
@@ -119,15 +128,26 @@ function replaceCatchAny(content, filePath) {
   modified = newLines.join('\n');
 
   // Ajouter l'import si nécessaire
-  if (needsImport && !modified.includes("from '../types/common'") && !modified.includes("from './types/common'") && !modified.includes("from '../../types/common'")) {
+  if (
+    needsImport &&
+    !modified.includes("from '../types/common'") &&
+    !modified.includes("from './types/common'") &&
+    !modified.includes("from '../../types/common'")
+  ) {
     // Trouver le dernier import
     const importMatch = modified.match(/(import\s+.*?from\s+['"].*?['"];?\s*\n)/g);
     if (importMatch) {
       const lastImport = importMatch[importMatch.length - 1];
       const lastImportIndex = modified.lastIndexOf(lastImport);
-      const relativePath = calculateRelativePath(filePath, path.join(process.cwd(), 'src', 'types', 'common.ts'));
+      const relativePath = calculateRelativePath(
+        filePath,
+        path.join(process.cwd(), 'src', 'types', 'common.ts')
+      );
       const importStatement = `import { getErrorMessage } from '${relativePath}';\n`;
-      modified = modified.slice(0, lastImportIndex + lastImport.length) + importStatement + modified.slice(lastImportIndex + lastImport.length);
+      modified =
+        modified.slice(0, lastImportIndex + lastImport.length) +
+        importStatement +
+        modified.slice(lastImportIndex + lastImport.length);
       changes++;
       changesList.push('Added import for getErrorMessage');
     }
@@ -157,14 +177,17 @@ function processFile(filePath) {
 }
 
 function main() {
-  log('🔄 Remplacement des catch (error: any) par catch (error: unknown)', colors.bright + colors.blue);
+  log(
+    '🔄 Remplacement des catch (error: any) par catch (error: unknown)',
+    colors.bright + colors.blue
+  );
   if (DRY_RUN) {
     log('🔍 Mode dry-run activé (aucun fichier ne sera modifié)', colors.yellow);
   }
 
   const srcDir = path.join(process.cwd(), 'src');
   if (!fs.existsSync(srcDir)) {
-    log('❌ Le dossier src/ n\'existe pas', colors.red);
+    log("❌ Le dossier src/ n'existe pas", colors.red);
     process.exit(1);
   }
 
@@ -189,19 +212,18 @@ function main() {
 
   if (DRY_RUN) {
     log('\n🔍 Changements qui seraient effectués:', colors.yellow);
-    results.forEach(result => {
+    results.forEach((result) => {
       log(`\n${result.file}:`, colors.cyan);
-      result.changesList.forEach(change => {
+      result.changesList.forEach((change) => {
         log(`  - ${change}`, colors.reset);
       });
     });
   } else {
     log('\n✅ Fichiers modifiés:', colors.green);
-    results.forEach(result => {
+    results.forEach((result) => {
       log(`  - ${result.file} (${result.changes} changements)`, colors.reset);
     });
   }
 }
 
 main();
-

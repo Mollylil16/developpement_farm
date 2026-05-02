@@ -24,4 +24,3 @@ export async function createRegionalPorkPriceTable(db: SQLite.SQLiteDatabase): P
     ON regional_pork_price(updated_at DESC);
   `);
 }
-

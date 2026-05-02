@@ -73,7 +73,7 @@ describe('MarketplaceListingRepository', () => {
       expect(result).toBeDefined();
     });
 
-    it('devrait utiliser updated_at si derniere_modification n\'existe pas', async () => {
+    it("devrait utiliser updated_at si derniere_modification n'existe pas", async () => {
       // Simuler que la colonne n'existe pas
       mockDb.getAllAsync.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
@@ -179,7 +179,7 @@ describe('MarketplaceListingRepository', () => {
   });
 
   describe('updateStatus', () => {
-    it('devrait mettre à jour le statut d\'un listing', async () => {
+    it("devrait mettre à jour le statut d'un listing", async () => {
       mockDb.getAllAsync.mockResolvedValue([]); // PRAGMA table_info
       mockDb.runAsync.mockResolvedValue(undefined);
 
@@ -200,7 +200,7 @@ describe('MarketplaceListingRepository', () => {
   });
 
   describe('findByFarmId', () => {
-    it('devrait trouver les listings d\'une ferme', async () => {
+    it("devrait trouver les listings d'une ferme", async () => {
       const mockRows = [
         {
           id: '1',
@@ -225,7 +225,7 @@ describe('MarketplaceListingRepository', () => {
   });
 
   describe('findByProducerId', () => {
-    it('devrait trouver les listings d\'un producteur', async () => {
+    it("devrait trouver les listings d'un producteur", async () => {
       const mockRows = [
         {
           id: '1',
@@ -291,15 +291,14 @@ describe('MarketplaceListingRepository', () => {
 
       await repository.incrementViews('test-id');
 
-      expect(mockDb.runAsync).toHaveBeenCalledWith(
-        expect.stringContaining('views = views + 1'),
-        ['test-id']
-      );
+      expect(mockDb.runAsync).toHaveBeenCalledWith(expect.stringContaining('views = views + 1'), [
+        'test-id',
+      ]);
     });
   });
 
   describe('incrementInquiries', () => {
-    it('devrait incrémenter le compteur d\'enquêtes', async () => {
+    it("devrait incrémenter le compteur d'enquêtes", async () => {
       mockDb.runAsync.mockResolvedValue(undefined);
 
       await repository.incrementInquiries('test-id');
@@ -328,11 +327,9 @@ describe('MarketplaceListingRepository', () => {
 
       await repository.delete('test-id');
 
-      expect(mockDb.runAsync).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE FROM'),
-        ['test-id']
-      );
+      expect(mockDb.runAsync).toHaveBeenCalledWith(expect.stringContaining('DELETE FROM'), [
+        'test-id',
+      ]);
     });
   });
 });
-

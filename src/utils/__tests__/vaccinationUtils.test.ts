@@ -16,7 +16,7 @@ describe('vaccinationUtils', () => {
       expect(result).toEqual([]);
     });
 
-    it('devrait retourner le tableau tel quel si c\'est déjà un tableau', () => {
+    it("devrait retourner le tableau tel quel si c'est déjà un tableau", () => {
       const animalIds = ['animal-1', 'animal-2', 'animal-3'];
       const result = parseAnimalIds(animalIds);
       expect(result).toEqual(animalIds);
@@ -28,7 +28,7 @@ describe('vaccinationUtils', () => {
       expect(result).toEqual(['animal-1', 'animal-2', 'animal-3']);
     });
 
-    it('devrait retourner un tableau vide si la string JSON n\'est pas un tableau', () => {
+    it("devrait retourner un tableau vide si la string JSON n'est pas un tableau", () => {
       const animalIdsJson = '{"animal": "animal-1"}';
       const result = parseAnimalIds(animalIdsJson);
       expect(result).toEqual([]);
@@ -50,25 +50,25 @@ describe('vaccinationUtils', () => {
   });
 
   describe('animalIncludedInVaccination', () => {
-    it('devrait retourner true si l\'animal est dans la liste (tableau)', () => {
+    it("devrait retourner true si l'animal est dans la liste (tableau)", () => {
       const animalIds = ['animal-1', 'animal-2', 'animal-3'];
       const result = animalIncludedInVaccination(animalIds, 'animal-2');
       expect(result).toBe(true);
     });
 
-    it('devrait retourner false si l\'animal n\'est pas dans la liste (tableau)', () => {
+    it("devrait retourner false si l'animal n'est pas dans la liste (tableau)", () => {
       const animalIds = ['animal-1', 'animal-2', 'animal-3'];
       const result = animalIncludedInVaccination(animalIds, 'animal-4');
       expect(result).toBe(false);
     });
 
-    it('devrait retourner true si l\'animal est dans la liste (JSON string)', () => {
+    it("devrait retourner true si l'animal est dans la liste (JSON string)", () => {
       const animalIdsJson = '["animal-1", "animal-2", "animal-3"]';
       const result = animalIncludedInVaccination(animalIdsJson, 'animal-2');
       expect(result).toBe(true);
     });
 
-    it('devrait retourner false si l\'animal n\'est pas dans la liste (JSON string)', () => {
+    it("devrait retourner false si l'animal n'est pas dans la liste (JSON string)", () => {
       const animalIdsJson = '["animal-1", "animal-2", "animal-3"]';
       const result = animalIncludedInVaccination(animalIdsJson, 'animal-4');
       expect(result).toBe(false);
@@ -92,4 +92,3 @@ describe('vaccinationUtils', () => {
     });
   });
 });
-

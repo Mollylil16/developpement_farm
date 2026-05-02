@@ -15,29 +15,30 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, NavigationProp } from '@react-navigation/native';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createProjet } from '../store/slices/projetSlice';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ANIMATIONS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useRole } from '../contexts/RoleContext';
-import { CreateProjetInput } from '../types';
+import type { CreateProjetInput } from '../types/projet';
 import Button from '../components/Button';
 import FormField from '../components/FormField';
 import Card from '../components/Card';
+import ManagementMethodSelector from '../components/ManagementMethodSelector';
 import { signOut, updateUser } from '../store/slices/authSlice';
 import { SCREENS } from '../navigation/types';
 import InvitationsModal from '../components/InvitationsModal';
 import { loadInvitationsEnAttente } from '../store/slices/collaborationSlice';
 import { loadProjets } from '../store/slices/projetSlice';
 import { getOnboardingService } from '../services/OnboardingService';
-import { getDatabase } from '../services/database';
-import { UserRepository } from '../database/repositories';
+import apiClient from '../services/api/apiClient';
+import { getErrorMessage } from '../types/common';
 
 export default function CreateProjectScreen() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<any>>();
   const route = useRoute();
   const { user } = useAppSelector((state) => state.auth);
   const { projetActif } = useAppSelector((state) => state.projet);
@@ -46,7 +47,8 @@ export default function CreateProjectScreen() {
   const [loading, setLoading] = useState(false);
   const [invitationsModalVisible, setInvitationsModalVisible] = useState(false);
   const hasShownInvitationsRef = useRef(false);
-  const { identifier, isEmail } = (route.params as { identifier?: string; isEmail?: boolean }) || {};
+  const { identifier, isEmail } =
+    (route.params as { identifier?: string; isEmail?: boolean }) || {};
   const [formData, setFormData] = useState<CreateProjetInput>({
     nom: '',
     localisation: '',
@@ -57,6 +59,7 @@ export default function CreateProjectScreen() {
     poids_moyen_actuel: 0,
     age_moyen_actuel: 0,
     notes: '',
+    management_method: 'individual', // Défaut : suivi individuel
   });
 
   // Animations
@@ -124,93 +127,147 @@ export default function CreateProjectScreen() {
     try {
       let finalUserId = user?.id;
 
-      // Si pas d'utilisateur mais qu'on a identifier, créer le compte d'abord
-      if (!finalUserId && identifier) {
-        const onboardingService = await getOnboardingService();
-        const newUser = await onboardingService.createUser({
-          email: isEmail ? identifier : undefined,
-          phone: !isEmail ? identifier : undefined,
-          firstName: '', // Sera complété plus tard
-          lastName: '', // Sera complété plus tard
-          password: '', // Pas de mot de passe pour l'instant
-          profileType: 'producer',
-        });
-        finalUserId = newUser.id;
-        // Mettre à jour l'utilisateur dans le store Redux
-        dispatch(updateUser(newUser));
+      // Si pas d'utilisateur mais qu'on a identifier, récupérer ou créer le compte
+      // ⚠️ ATTENTION : Ne créer un compte que si on est dans le flux d'onboarding initial
+      // Si l'utilisateur est déjà connecté et veut juste ajouter un profil producteur,
+      // ne pas créer un nouveau compte
+      if (!finalUserId && identifier && !user) {
+        try {
+          const onboardingService = await getOnboardingService();
+          // createUser vérifie d'abord si l'utilisateur existe déjà
+          const newUser = await onboardingService.createUser({
+            email: isEmail ? identifier : undefined,
+            phone: !isEmail ? identifier : undefined,
+            firstName: '', // Sera complété plus tard
+            lastName: '', // Sera complété plus tard
+            password: '', // Pas de mot de passe pour l'instant
+            profileType: 'producer',
+          });
+          finalUserId = newUser.id;
+          // Mettre à jour l'utilisateur dans le store Redux
+          dispatch(updateUser(newUser));
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Impossible de créer ou récupérer le compte';
+          Alert.alert('Erreur', errorMessage);
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Si l'utilisateur est connecté mais n'a pas de profil producteur, utiliser son ID actuel
+      if (!finalUserId && user?.id) {
+        finalUserId = user.id;
       }
 
       if (!finalUserId) {
         Alert.alert('Erreur', 'Vous devez être connecté pour créer un projet');
+        setLoading(false);
         return;
       }
 
       const totalAnimaux =
-        formData.nombre_truies + formData.nombre_verrats + formData.nombre_porcelets;
+        formData.nombre_truies +
+        formData.nombre_verrats +
+        formData.nombre_porcelets +
+        (formData.nombre_croissance || 0);
 
-      await dispatch(
+      const nouveauProjet = await dispatch(
         createProjet({
           ...formData,
-          proprietaire_id: finalUserId, // Récupéré depuis l'authentification ou créé
+          // proprietaire_id est récupéré automatiquement par le backend depuis le JWT
         })
       ).unwrap();
 
+      // 🔧 Robustesse: s'assurer que les animaux individuels initiaux sont bien créés côté backend
+      // (idempotent: le backend ignore si des animaux existent déjà)
+      if (nouveauProjet?.management_method === 'individual' && totalAnimaux > 0) {
+        try {
+          await apiClient.post(`/projets/${nouveauProjet.id}/initialize-individual-animals`, {});
+        } catch (e) {
+          // Ne pas bloquer la création du projet si l'initialisation échoue (le user peut créer à la main)
+          console.warn('[CreateProjectScreen] Initialisation cheptel échouée:', e);
+        }
+      } else if (nouveauProjet?.management_method === 'batch' && totalAnimaux > 0) {
+        try {
+          await apiClient.post(`/projets/${nouveauProjet.id}/initialize-batches`, {});
+        } catch (e) {
+          console.warn('[CreateProjectScreen] Initialisation des loges échouée:', e);
+        }
+      }
+
       // S'assurer que le rôle actif est "producer" après la création d'un projet
-      // et que le profil producteur existe
+      // et mettre à jour le profil producteur avec le nom de la ferme
       if (finalUserId) {
-        const db = await getDatabase();
-        const userRepo = new UserRepository(db);
-        const currentUser = await userRepo.findById(finalUserId);
-        
+        // Récupérer l'utilisateur actuel depuis l'API backend
+        const currentUser = await apiClient.get<any>(`/users/${finalUserId}`);
+
         if (currentUser) {
-          // Vérifier si le profil producteur existe, sinon le créer
+          // Mettre à jour le profil producteur avec le nom de la ferme
           let updatedRoles = currentUser.roles || {};
-          if (!updatedRoles.producer) {
-            updatedRoles = {
-              ...updatedRoles,
-              producer: {
-                isActive: true,
-                activatedAt: new Date().toISOString(),
-                farmName: formData.nom,
-                farmType: 'individual',
-                capacity: {
-                  totalCapacity: 0,
-                  currentOccupancy: 0,
-                },
-                stats: {
-                  totalSales: 0,
-                  totalRevenue: 0,
-                  averageRating: 0,
-                  totalReviews: 0,
-                },
-                marketplaceSettings: {
-                  defaultPricePerKg: 450,
-                  autoAcceptOffers: false,
-                  minimumOfferPercentage: 80,
-                  notificationsEnabled: true,
-                },
+          
+          // Si le profil producteur existe, mettre à jour farmName
+          if (updatedRoles.producer) {
+            updatedRoles.producer = {
+              ...updatedRoles.producer,
+              farmName: formData.nom,
+            };
+          } else {
+            // Si le profil n'existe pas (cas rare, ne devrait pas arriver), le créer
+            updatedRoles.producer = {
+              isActive: true,
+              activatedAt: new Date().toISOString(),
+              farmName: formData.nom,
+              farmType: 'individual',
+              capacity: {
+                totalCapacity: 0,
+                currentOccupancy: 0,
+              },
+              stats: {
+                totalSales: 0,
+                totalRevenue: 0,
+                averageRating: 0,
+                totalReviews: 0,
+              },
+              marketplaceSettings: {
+                defaultPricePerKg: 450,
+                autoAcceptOffers: false,
+                minimumOfferPercentage: 80,
+                notificationsEnabled: true,
               },
             };
           }
 
-          // Mettre à jour le rôle actif à "producer"
-          // Les informations de base (nom, prénom, email, téléphone, photo) sont déjà au niveau User
-          // donc elles sont automatiquement synchronisées entre tous les profils
-          await userRepo.update(finalUserId, {
+          // Mettre à jour le rôle actif à "producer" via l'API backend
+          const updatedUser = await apiClient.patch<any>(`/users/${finalUserId}`, {
             roles: updatedRoles,
             activeRole: 'producer',
-            // Les informations de base (nom, prénom, email, téléphone, photo) ne sont pas modifiées ici
-            // car elles sont déjà au niveau User et partagées entre tous les profils
           });
 
-          // Recharger l'utilisateur mis à jour pour Redux
-          const updatedUser = await userRepo.findById(finalUserId);
+          // Mettre à jour Redux avec l'utilisateur mis à jour
           if (updatedUser) {
             dispatch(updateUser(updatedUser));
           }
 
-          // Utiliser switchRole pour mettre à jour le contexte
-          await switchRole('producer');
+          // Utiliser switchRole pour mettre à jour le contexte (si le rôle existe déjà)
+          try {
+            await switchRole('producer');
+          } catch (error) {
+            // Si switchRole échoue (profil pas encore dans availableRoles), ignorer l'erreur
+            // Le profil sera disponible au prochain rafraîchissement du context
+            console.warn('switchRole failed, context will update on next render:', error);
+          }
+
+          // Marquer l'onboarding comme terminé si ce n'est pas déjà fait
+          // (important pour le premier projet, pas pour l'ajout ultérieur d'un profil producteur)
+          if (!currentUser.onboardingCompletedAt) {
+            const onboardingService = await getOnboardingService();
+            await onboardingService.completeOnboarding(finalUserId);
+            // Recharger l'utilisateur pour avoir onboardingCompletedAt à jour
+            const finalUser = await apiClient.get<any>(`/users/${finalUserId}`);
+            if (finalUser) {
+              dispatch(updateUser(finalUser));
+            }
+          }
         }
       }
 
@@ -243,8 +300,8 @@ export default function CreateProjectScreen() {
           }, 1000);
         }
       }
-    } catch (error: any) {
-      Alert.alert('Erreur', error || 'Erreur lors de la création du projet');
+    } catch (error: unknown) {
+      Alert.alert('Erreur', getErrorMessage(error) || 'Erreur lors de la création du projet');
     } finally {
       setLoading(false);
     }
@@ -257,8 +314,8 @@ export default function CreateProjectScreen() {
         index: 0,
         routes: [{ name: SCREENS.WELCOME }],
       });
-    } catch (error: any) {
-      Alert.alert('Erreur', error || 'Impossible de se déconnecter pour le moment.');
+    } catch (error: unknown) {
+      Alert.alert('Erreur', getErrorMessage(error) || 'Impossible de se déconnecter pour le moment.');
     }
   };
 
@@ -345,6 +402,14 @@ export default function CreateProjectScreen() {
                     required
                   />
                 </View>
+              </Card>
+
+              {/* Section Méthode d'élevage */}
+              <Card elevation="small" padding="large" style={styles.sectionCard}>
+                <ManagementMethodSelector
+                  value={formData.management_method || 'individual'}
+                  onChange={(method) => setFormData({ ...formData, management_method: method })}
+                />
               </Card>
 
               {/* Section Effectifs */}

@@ -7,7 +7,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useAppDispatch } from '../store/hooks';
 import { createIngredient, updateIngredient } from '../store/slices/nutritionSlice';
-import { CreateIngredientInput, Ingredient, getValeursNutritionnelles } from '../types';
+import type { CreateIngredientInput, Ingredient } from '../types/nutrition';
+import { getValeursNutritionnelles } from '../types/nutrition';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
@@ -125,11 +126,9 @@ export default function IngredientFormModal({
         Alert.alert('Succès', 'Ingrédient créé avec succès');
       }
       onSuccess();
-    } catch (error: any) {
-      Alert.alert(
-        'Erreur',
-        error || `Erreur lors de ${isEditing ? 'la modification' : 'la création'} de l\'ingrédient`
-      );
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : `Erreur lors de ${isEditing ? 'la modification' : 'la création'} de l'ingrédient`;
+      Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
     }

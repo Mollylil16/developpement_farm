@@ -4,14 +4,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  FlatList,
-  Text,
-  StyleSheet,
-  RefreshControl,
-  TouchableOpacity,
-} from 'react-native';
+import { View, FlatList, Text, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -47,7 +40,7 @@ const TasksScreen: React.FC = () => {
     return isPast(taskDate);
   });
 
-  const renderTask = ({ item }: { item: typeof todayTasks[0] }) => {
+  const renderTask = ({ item }: { item: (typeof todayTasks)[0] }) => {
     const priorityColors = {
       low: colors.info,
       medium: colors.warning,
@@ -69,33 +62,49 @@ const TasksScreen: React.FC = () => {
     };
 
     return (
-      <Card style={[styles.taskCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <Card
+        style={[styles.taskCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      >
         <View style={styles.taskHeader}>
-          <View style={[styles.taskIcon, { backgroundColor: priorityColors[item.priority as keyof typeof priorityColors] + '20' }]}>
+          <View
+            style={[
+              styles.taskIcon,
+              {
+                backgroundColor: priorityColors[item.priority] + '20',
+              },
+            ]}
+          >
             <Ionicons
-              name={taskIcons[item.taskType as keyof typeof taskIcons] || 'checkmark'}
+              name={(taskIcons[item.taskType as keyof typeof taskIcons] || 'checkmark') as any}
               size={24}
-              color={priorityColors[item.priority as keyof typeof priorityColors]}
+              color={priorityColors[item.priority]}
             />
           </View>
           <View style={styles.taskInfo}>
             <Text style={[styles.taskType, { color: colors.text }]}>
               {taskLabels[item.taskType as keyof typeof taskLabels] || item.taskType}
             </Text>
-            <Text style={[styles.taskFarm, { color: colors.textSecondary }]}>
-              {item.farmName}
-            </Text>
+            <Text style={[styles.taskFarm, { color: colors.textSecondary }]}>{item.farmName}</Text>
           </View>
-          <View style={[styles.priorityBadge, { backgroundColor: priorityColors[item.priority as keyof typeof priorityColors] + '20' }]}>
-            <Text style={[styles.priorityText, { color: priorityColors[item.priority as keyof typeof priorityColors] }]}>
-              {item.priority === 'high' ? 'Urgent' : item.priority === 'medium' ? 'Moyen' : 'Faible'}
+          <View
+            style={[
+              styles.priorityBadge,
+              {
+                backgroundColor: priorityColors[item.priority] + '20',
+              },
+            ]}
+          >
+            <Text style={[styles.priorityText, { color: priorityColors[item.priority] }]}>
+              {item.priority === 'high'
+                ? 'Urgent'
+                : item.priority === 'medium'
+                  ? 'Moyen'
+                  : 'Faible'}
             </Text>
           </View>
         </View>
 
-        <Text style={[styles.taskDescription, { color: colors.text }]}>
-          {item.description}
-        </Text>
+        <Text style={[styles.taskDescription, { color: colors.text }]}>{item.description}</Text>
 
         <View style={styles.taskFooter}>
           <View style={styles.dateRow}>
@@ -112,9 +121,7 @@ const TasksScreen: React.FC = () => {
             }}
           >
             <Ionicons name="checkmark-circle" size={16} color={colors.success} />
-            <Text style={[styles.completeButtonText, { color: colors.success }]}>
-              Compléter
-            </Text>
+            <Text style={[styles.completeButtonText, { color: colors.success }]}>Compléter</Text>
           </TouchableOpacity>
         </View>
       </Card>
@@ -136,10 +143,7 @@ const TasksScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.divider }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Tâches</Text>
@@ -165,9 +169,7 @@ const TasksScreen: React.FC = () => {
           </Text>
           {activeTab === 'today' && todayTasks.length > 0 && (
             <View style={[styles.tabBadge, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.tabBadgeText, { color: '#FFF' }]}>
-                {todayTasks.length}
-              </Text>
+              <Text style={[styles.tabBadgeText, { color: '#FFF' }]}>{todayTasks.length}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -219,8 +221,8 @@ const TasksScreen: React.FC = () => {
             activeTab === 'today'
               ? "Vous n'avez pas de tâches prévues aujourd'hui"
               : activeTab === 'upcoming'
-              ? "Vous n'avez pas de tâches à venir"
-              : "Vous n'avez pas encore de tâches passées"
+                ? "Vous n'avez pas de tâches à venir"
+                : "Vous n'avez pas encore de tâches passées"
           }
         />
       ) : (
@@ -380,4 +382,3 @@ const styles = StyleSheet.create({
 });
 
 export default TasksScreen;
-

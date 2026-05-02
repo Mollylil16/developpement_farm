@@ -12,7 +12,7 @@ export const gestationSchema = yup.object().shape({
   projet_id: yup.string().required('Le projet est obligatoire'),
   truie_id: yup.string().required('La truie est obligatoire'),
   truie_nom: yup.string().nullable(),
-  verrat_id: yup.string().required('Le verrat est obligatoire'),
+  verrat_id: yup.string().nullable().optional(),
   verrat_nom: yup.string().nullable(),
   date_sautage: yup
     .string()
@@ -41,4 +41,3 @@ export async function validateGestationField(
 ) {
   return validateField(gestationSchema, fieldName as string, value, allData);
 }
-

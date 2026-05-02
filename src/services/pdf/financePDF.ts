@@ -10,7 +10,9 @@ import {
   formatDate,
   generateAndSharePDF,
 } from '../pdfService';
-import { Projet, ChargeFixe, DepensePonctuelle, Revenu } from '../../types';
+import type { Projet } from '../../types/projet';
+import type { ChargeFixe, DepensePonctuelle, Revenu } from '../../types/finance';
+import type { PerformanceGlobale } from '../../services/PerformanceGlobaleService';
 
 interface FinanceData {
   projet: Projet;
@@ -28,13 +30,16 @@ interface FinanceData {
     depensesMensuelle: number;
     revenusMensuel: number;
   };
+  performanceGlobale?: PerformanceGlobale | null;
+  dateDebut?: Date;
+  dateFin?: Date;
 }
 
 /**
  * Génère le HTML pour le rapport Finance
  */
 export function generateFinanceHTML(data: FinanceData): string {
-  const { projet, chargesFixes, depensesPonctuelles, revenus, totaux, moyennes } = data;
+  const { projet, chargesFixes, depensesPonctuelles, revenus, totaux, moyennes, performanceGlobale, dateDebut, dateFin } = data;
 
   const content = `
     ${generatePDFHeader(
@@ -161,7 +166,7 @@ export function generateFinanceHTML(data: FinanceData): string {
                 (depense) => `
               <tr>
                 <td>${formatDate(depense.date)}</td>
-                <td>${depense.libelle}</td>
+                <td>${depense.libelle_categorie || depense.commentaire || ''}</td>
                 <td><span class="badge badge-warning">${depense.categorie}</span></td>
                 <td class="text-right">${formatCurrency(depense.montant)}</td>
               </tr>
@@ -234,6 +239,128 @@ export function generateFinanceHTML(data: FinanceData): string {
       </div>
     </div>
 
+    <!-- Performance Globale -->
+    ${
+      performanceGlobale
+        ? `
+    <div class="section page-break">
+      <h2>📊 Performance Globale de Production</h2>
+      ${
+        dateDebut && dateFin
+          ? `
+      <p style="color: #666; font-size: 12px; margin-bottom: 15px;">
+        Période analysée : ${formatDate(dateDebut)} au ${formatDate(dateFin)}
+      </p>
+      `
+          : ''
+      }
+      
+      <!-- Indicateurs de coût -->
+      <div class="card" style="margin-bottom: 20px;">
+        <h3 style="font-size: 16px; margin-bottom: 15px; color: #2c3e50;">💰 Coûts de Production</h3>
+        <table style="font-size: 13px;">
+          <tr>
+            <td><strong>Coût moyen par kg (OPEX uniquement)</strong></td>
+            <td class="text-right"><strong>${formatCurrency(performanceGlobale.cout_kg_opex_global)} FCFA/kg</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Coût moyen par kg (OPEX + CAPEX amorti)</strong></td>
+            <td class="text-right"><strong>${formatCurrency(performanceGlobale.cout_kg_complet_global)} FCFA/kg</strong></td>
+          </tr>
+          <tr style="border-top: 1px solid #999;">
+            <td><strong>Prix du marché (référence)</strong></td>
+            <td class="text-right"><strong style="color: #2196F3;">${formatCurrency(performanceGlobale.prix_kg_marche)} FCFA/kg</strong></td>
+          </tr>
+          <tr style="border-top: 2px solid #333;">
+            <td><strong>Écart (Prix marché - Coût complet)</strong></td>
+            <td class="text-right">
+              <strong style="color: ${performanceGlobale.ecart_absolu >= 0 ? '#2E7D32' : '#C62828'};">
+                ${performanceGlobale.ecart_absolu >= 0 ? '+' : ''}${formatCurrency(performanceGlobale.ecart_absolu)} FCFA/kg
+                (${performanceGlobale.ecart_pourcentage >= 0 ? '+' : ''}${performanceGlobale.ecart_pourcentage.toFixed(1)}%)
+              </strong>
+            </td>
+          </tr>
+          ${
+            performanceGlobale.marge_realisee !== undefined
+              ? `
+          <tr style="border-top: 2px solid #333;">
+            <td><strong>Marge réalisée sur la période</strong></td>
+            <td class="text-right">
+              <strong style="color: ${performanceGlobale.marge_realisee >= 0 ? '#2E7D32' : '#C62828'};">
+                ${performanceGlobale.marge_realisee >= 0 ? '+' : ''}${formatCurrency(performanceGlobale.marge_realisee)} FCFA
+              </strong>
+            </td>
+          </tr>
+          `
+              : ''
+          }
+        </table>
+      </div>
+
+      <!-- Détails des coûts -->
+      <div class="card" style="margin-bottom: 20px;">
+        <h3 style="font-size: 16px; margin-bottom: 15px; color: #2c3e50;">📋 Détails des Coûts</h3>
+        <table style="font-size: 13px;">
+          <tr>
+            <td>Total OPEX (dépenses + charges fixes)</td>
+            <td class="text-right">${formatCurrency(performanceGlobale.total_opex_global)} FCFA</td>
+          </tr>
+          <tr>
+            <td>Total CAPEX amorti</td>
+            <td class="text-right">${formatCurrency(performanceGlobale.total_amortissement_capex_global)} FCFA</td>
+          </tr>
+          <tr style="border-top: 1px solid #999;">
+            <td><strong>Total coûts (OPEX + CAPEX)</strong></td>
+            <td class="text-right"><strong>${formatCurrency(performanceGlobale.total_opex_global + performanceGlobale.total_amortissement_capex_global)} FCFA</strong></td>
+          </tr>
+          <tr style="border-top: 1px solid #999;">
+            <td>Total kg vendus</td>
+            <td class="text-right">${formatCurrency(performanceGlobale.total_kg_vendus_global, 0)} kg</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Diagnostic -->
+      <div class="card" style="margin-bottom: 20px; background: ${
+        performanceGlobale.statut === 'rentable'
+          ? '#e8f5e9'
+          : performanceGlobale.statut === 'fragile'
+          ? '#fff3e0'
+          : '#ffebee'
+      }; border-left: 4px solid ${
+        performanceGlobale.statut === 'rentable'
+          ? '#2E7D32'
+          : performanceGlobale.statut === 'fragile'
+          ? '#FF9800'
+          : '#C62828'
+      };">
+        <h3 style="font-size: 16px; margin-bottom: 10px; color: #2c3e50;">
+          ${performanceGlobale.statut === 'rentable' ? '✅' : performanceGlobale.statut === 'fragile' ? '⚠️' : '🚨'} 
+          Diagnostic
+        </h3>
+        <p style="font-size: 13px; line-height: 1.6; color: #2c3e50;">
+          ${performanceGlobale.message_diagnostic}
+        </p>
+      </div>
+
+      <!-- Suggestions -->
+      ${
+        performanceGlobale.suggestions && performanceGlobale.suggestions.length > 0
+          ? `
+      <div class="card">
+        <h3 style="font-size: 16px; margin-bottom: 15px; color: #2c3e50;">💡 Suggestions d'Amélioration</h3>
+        <ul style="font-size: 13px; line-height: 1.8; color: #2c3e50; padding-left: 20px;">
+          ${performanceGlobale.suggestions.map((suggestion) => `<li>${suggestion}</li>`).join('')}
+        </ul>
+      </div>
+      `
+          : ''
+      }
+    </div>
+    `
+        : ''
+    }
+
     <!-- Résumé final -->
     <div class="section">
       <h2>📈 Résumé Final</h2>
@@ -263,8 +390,8 @@ export function generateFinanceHTML(data: FinanceData): string {
           </tr>
         </table>
         
-        <div style="margin-top: 15px; padding: 10px; background: ${totaux.solde >= 0 ? '#d4edda' : '#f8d7da'}; border-radius: 6px;">
-          <p style="text-align: center; font-size: 12px; color: ${totaux.solde >= 0 ? '#155724' : '#721c24'};">
+        <div style="margin-top: 15px; padding: 10px; background: ${totaux.solde >= 0 ? '#e3f2fd' : '#f8d7da'}; border-radius: 6px;">
+          <p style="text-align: center; font-size: 12px; color: ${totaux.solde >= 0 ? '#0d47a1' : '#721c24'};">
             ${
               totaux.solde >= 0
                 ? '✅ Votre exploitation est bénéficiaire'

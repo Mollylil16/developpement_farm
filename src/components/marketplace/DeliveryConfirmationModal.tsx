@@ -62,7 +62,7 @@ export default function DeliveryConfirmationModal({
     Alert.alert(
       'Confirmer la livraison',
       isProducer
-        ? 'Confirmez-vous avoir livré les sujets à l\'acheteur ?'
+        ? "Confirmez-vous avoir livré les sujets à l'acheteur ?"
         : 'Confirmez-vous avoir reçu les sujets du producteur ?',
       [
         { text: 'Annuler', style: 'cancel' },
@@ -85,12 +85,13 @@ export default function DeliveryConfirmationModal({
               } else {
                 Alert.alert(
                   'Confirmation enregistrée',
-                  'Votre confirmation a été enregistrée. En attente de la confirmation de l\'autre partie.',
+                  "Votre confirmation a été enregistrée. En attente de la confirmation de l'autre partie.",
                   [{ text: 'OK', onPress: onClose }]
                 );
               }
-            } catch (error: any) {
-              Alert.alert('Erreur', error.message || 'Impossible de confirmer la livraison');
+            } catch (error: unknown) {
+              const errorMessage = error instanceof Error ? error.message : 'Impossible de confirmer la livraison';
+              Alert.alert('Erreur', errorMessage);
             } finally {
               setLoading(false);
             }
@@ -132,9 +133,7 @@ export default function DeliveryConfirmationModal({
               <View style={styles.infoRow}>
                 <Ionicons name="cash-outline" size={20} color={colors.textSecondary} />
                 <View style={styles.infoContent}>
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                    Montant
-                  </Text>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Montant</Text>
                   <Text style={[styles.infoValue, { color: colors.primary }]}>
                     {formatPrice(transaction.finalPrice)}
                   </Text>
@@ -163,69 +162,74 @@ export default function DeliveryConfirmationModal({
               </Text>
 
               <View style={[styles.statusBox, { backgroundColor: colors.surface }]}>
-              <View style={styles.statusRow}>
-                <Ionicons
-                  name={
-                    transaction.deliveryDetails?.producerConfirmed
-                      ? 'checkmark-circle'
-                      : 'ellipse-outline'
-                  }
-                  size={24}
-                  color={
-                    transaction.deliveryDetails?.producerConfirmed
-                      ? colors.success
-                      : colors.textSecondary
-                  }
-                />
-                <Text
-                  style={[
-                    styles.statusText,
-                    {
-                      color: transaction.deliveryDetails?.producerConfirmed
+                <View style={styles.statusRow}>
+                  <Ionicons
+                    name={
+                      transaction.deliveryDetails?.producerConfirmed
+                        ? 'checkmark-circle'
+                        : 'ellipse-outline'
+                    }
+                    size={24}
+                    color={
+                      transaction.deliveryDetails?.producerConfirmed
                         ? colors.success
-                        : colors.textSecondary,
-                    },
-                  ]}
-                >
-                  Producteur
-                </Text>
-              </View>
+                        : colors.textSecondary
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.statusText,
+                      {
+                        color: transaction.deliveryDetails?.producerConfirmed
+                          ? colors.success
+                          : colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    Producteur
+                  </Text>
+                </View>
 
-              <View style={styles.statusRow}>
-                <Ionicons
-                  name={
-                    transaction.deliveryDetails?.buyerConfirmed
-                      ? 'checkmark-circle'
-                      : 'ellipse-outline'
-                  }
-                  size={24}
-                  color={
-                    transaction.deliveryDetails?.buyerConfirmed ? colors.success : colors.textSecondary
-                  }
-                />
-                <Text
-                  style={[
-                    styles.statusText,
-                    {
-                      color: transaction.deliveryDetails?.buyerConfirmed
+                <View style={styles.statusRow}>
+                  <Ionicons
+                    name={
+                      transaction.deliveryDetails?.buyerConfirmed
+                        ? 'checkmark-circle'
+                        : 'ellipse-outline'
+                    }
+                    size={24}
+                    color={
+                      transaction.deliveryDetails?.buyerConfirmed
                         ? colors.success
-                        : colors.textSecondary,
-                    },
-                  ]}
-                >
-                  Acheteur
-                </Text>
-              </View>
+                        : colors.textSecondary
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.statusText,
+                      {
+                        color: transaction.deliveryDetails?.buyerConfirmed
+                          ? colors.success
+                          : colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    Acheteur
+                  </Text>
+                </View>
               </View>
 
               {!alreadyConfirmed && (
                 <View
-                  style={[styles.infoBox, { backgroundColor: colors.primary + '10', borderColor: colors.primary }]}
+                  style={[
+                    styles.infoBox,
+                    { backgroundColor: colors.primary + '10', borderColor: colors.primary },
+                  ]}
                 >
                   <Ionicons name="information-circle" size={20} color={colors.primary} />
                   <Text style={[styles.infoBoxText, { color: colors.primary }]}>
                     {isProducer
-                      ? 'Confirmez avoir livré les sujets à l\'acheteur'
+                      ? "Confirmez avoir livré les sujets à l'acheteur"
                       : 'Confirmez avoir reçu les sujets du producteur'}
                   </Text>
                 </View>
@@ -233,7 +237,10 @@ export default function DeliveryConfirmationModal({
 
               {alreadyConfirmed && (
                 <View
-                  style={[styles.infoBox, { backgroundColor: colors.success + '10', borderColor: colors.success }]}
+                  style={[
+                    styles.infoBox,
+                    { backgroundColor: colors.success + '10', borderColor: colors.success },
+                  ]}
                 >
                   <Ionicons name="checkmark-circle" size={20} color={colors.success} />
                   <Text style={[styles.infoBoxText, { color: colors.success }]}>
@@ -246,18 +253,14 @@ export default function DeliveryConfirmationModal({
             {/* Notes */}
             {!alreadyConfirmed && (
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                  Notes (optionnel)
-                </Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Notes (optionnel)</Text>
                 <TextInput
                   style={[
                     styles.notesInput,
                     { backgroundColor: colors.surface, color: colors.text },
                   ]}
                   placeholder={
-                    isProducer
-                      ? 'Informations sur la livraison...'
-                      : 'État des sujets reçus...'
+                    isProducer ? 'Informations sur la livraison...' : 'État des sujets reçus...'
                   }
                   placeholderTextColor={colors.textSecondary}
                   value={notes}
@@ -281,7 +284,12 @@ export default function DeliveryConfirmationModal({
                 </Text>
                 <TouchableOpacity
                   style={[styles.photoButton, { backgroundColor: colors.surface }]}
-                  onPress={() => Alert.alert('Bientôt disponible', 'L\'ajout de photos sera disponible prochainement')}
+                  onPress={() =>
+                    Alert.alert(
+                      'Bientôt disponible',
+                      "L'ajout de photos sera disponible prochainement"
+                    )
+                  }
                 >
                   <Ionicons name="camera-outline" size={24} color={colors.textSecondary} />
                   <Text style={[styles.photoButtonText, { color: colors.textSecondary }]}>
@@ -292,11 +300,7 @@ export default function DeliveryConfirmationModal({
                 {photos.length > 0 && (
                   <View style={styles.photosPreview}>
                     {photos.map((photo, index) => (
-                      <Image
-                        key={index}
-                        source={{ uri: photo }}
-                        style={styles.photoPreview}
-                      />
+                      <Image key={index} source={{ uri: photo }} style={styles.photoPreview} />
                     ))}
                   </View>
                 )}
@@ -509,4 +513,3 @@ const styles = StyleSheet.create({
     fontWeight: MarketplaceTheme.typography.fontWeights.bold,
   },
 });
-

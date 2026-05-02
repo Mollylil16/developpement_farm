@@ -23,10 +23,7 @@ describe('NotificationCard', () => {
 
   it('should render notification title and body', () => {
     const { getByText } = render(
-      <NotificationCard
-        notification={mockNotification}
-        onPress={() => {}}
-      />
+      <NotificationCard notification={mockNotification} onPress={() => {}} />
     );
 
     expect(getByText('Nouvelle offre')).toBeTruthy();
@@ -35,10 +32,7 @@ describe('NotificationCard', () => {
 
   it('should show unread indicator for unread notifications', () => {
     const { getByTestId } = render(
-      <NotificationCard
-        notification={mockNotification}
-        onPress={() => {}}
-      />
+      <NotificationCard notification={mockNotification} onPress={() => {}} />
     );
 
     // The unread dot should be present
@@ -54,10 +48,7 @@ describe('NotificationCard', () => {
     };
 
     const { queryByTestId } = render(
-      <NotificationCard
-        notification={readNotification}
-        onPress={() => {}}
-      />
+      <NotificationCard notification={readNotification} onPress={() => {}} />
     );
 
     expect(queryByTestId('unread-badge')).toBeNull();
@@ -67,10 +58,7 @@ describe('NotificationCard', () => {
     const mockOnPress = jest.fn();
 
     const { getByText } = render(
-      <NotificationCard
-        notification={mockNotification}
-        onPress={mockOnPress}
-      />
+      <NotificationCard notification={mockNotification} onPress={mockOnPress} />
     );
 
     fireEvent.press(getByText('Nouvelle offre'));
@@ -107,22 +95,14 @@ describe('NotificationCard', () => {
     };
 
     const { rerender, getByTestId } = render(
-      <NotificationCard
-        notification={offerNotification}
-        onPress={() => {}}
-      />
+      <NotificationCard notification={offerNotification} onPress={() => {}} />
     );
 
     // Vérifier que l'icône est présente pour le type offer
     let icon = getByTestId('notification-icon');
     expect(icon).toBeTruthy();
 
-    rerender(
-      <NotificationCard
-        notification={messageNotification}
-        onPress={() => {}}
-      />
-    );
+    rerender(<NotificationCard notification={messageNotification} onPress={() => {}} />);
 
     // Vérifier que l'icône est présente pour le type message
     icon = getByTestId('notification-icon');
@@ -131,10 +111,7 @@ describe('NotificationCard', () => {
 
   it('should format date correctly', () => {
     const { getByText } = render(
-      <NotificationCard
-        notification={mockNotification}
-        onPress={() => {}}
-      />
+      <NotificationCard notification={mockNotification} onPress={() => {}} />
     );
 
     // Should display relative time (e.g., "Il y a 2 heures")
@@ -142,4 +119,3 @@ describe('NotificationCard', () => {
     expect(timeText).toBeTruthy();
   });
 });
-

@@ -41,7 +41,6 @@ export async function createVeterinariansTable(db: SQLite.SQLiteDatabase): Promi
     schemaLogger.success('Index idx_vet_location créé pour veterinarians');
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    schemaLogger.warn('Erreur lors de la création de l\'index idx_vet_location:', errorMessage);
+    schemaLogger.warn("Erreur lors de la création de l'index idx_vet_location:", errorMessage);
   }
 }
-

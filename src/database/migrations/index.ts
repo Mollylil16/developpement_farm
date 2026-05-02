@@ -38,6 +38,8 @@ import { updateDepensesPonctuellesCategorieCheck } from './029_update_depenses_p
 import { createVeterinariansTableMigration } from './030_create_veterinarians_table';
 import { addCategoriePoidsAndNombreCroissance } from './032_add_categorie_poids_and_nombre_croissance';
 import { createChatAgentTables } from './033_create_chat_agent_tables';
+import { addManagementMethodToProjets } from './034_add_management_method_to_projets';
+import { createBatchesTable } from './035_create_batches_table';
 
 /**
  * Liste de toutes les migrations dans l'ordre d'exécution
@@ -204,5 +206,14 @@ export const migrations: Migration[] = [
     name: 'create_chat_agent_tables',
     up: createChatAgentTables,
   },
+  {
+    version: 34,
+    name: 'add_management_method_to_projets',
+    up: addManagementMethodToProjets,
+  },
+  {
+    version: 35,
+    name: 'create_batches_table',
+    up: createBatchesTable,
+  },
 ];
-

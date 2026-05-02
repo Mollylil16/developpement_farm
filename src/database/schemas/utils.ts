@@ -12,24 +12,21 @@ import { schemaLogger } from '../../utils/logger';
  * @param tableName Nom de la table à vérifier
  * @returns true si la table existe et est valide, false sinon
  */
-export async function isTableValid(
-  db: SQLite.SQLiteDatabase,
-  tableName: string
-): Promise<boolean> {
+export async function isTableValid(db: SQLite.SQLiteDatabase, tableName: string): Promise<boolean> {
   try {
     // Vérifier si la table existe
     const tables = await db.getAllAsync<{ name: string }>(
       `SELECT name FROM sqlite_master WHERE type='table' AND name='${tableName}'`
     );
-    
+
     if (tables.length === 0) {
       return false; // La table n'existe pas
     }
-    
+
     // Essayer de lire le schéma de la table avec PRAGMA table_info
     // Si la table est corrompue, cela échouera
     await db.getAllAsync(`PRAGMA table_info(${tableName})`);
-    
+
     // Si on arrive ici, la table existe et est valide
     return true;
   } catch (error: unknown) {
@@ -63,7 +60,7 @@ export async function createTableSafely(
 ): Promise<void> {
   // Vérifier si la table existe et est valide
   const tableExistsAndValid = await isTableValid(db, tableName);
-  
+
   if (tableExistsAndValid) {
     // La table existe et est valide, utiliser CREATE TABLE IF NOT EXISTS
     // Cela ne fera rien si la table existe déjà
@@ -82,7 +79,9 @@ export async function createTableSafely(
         errorMessage.includes("near '") ||
         errorMessage.includes('malformed')
       ) {
-        schemaLogger.warn(`Table ${tableName} semble corrompue malgré la vérification, suppression...`);
+        schemaLogger.warn(
+          `Table ${tableName} semble corrompue malgré la vérification, suppression...`
+        );
         // Supprimer et recréer
         await dropTableSafely(db, tableName);
         await db.execAsync(createTableSQL);
@@ -92,14 +91,14 @@ export async function createTableSafely(
     }
     return;
   }
-  
+
   // La table n'existe pas ou est corrompue
   if (tableExistsAndValid === false) {
     // La table existe mais est corrompue, la supprimer d'abord
     schemaLogger.warn(`Table ${tableName} corrompue détectée, suppression...`);
     await dropTableSafely(db, tableName);
   }
-  
+
   // Créer la table
   schemaLogger.log(`Création de la table ${tableName}...`);
   await db.execAsync(createTableSQL);
@@ -110,15 +109,12 @@ export async function createTableSafely(
  * @param db Base de données SQLite
  * @param tableName Nom de la table à supprimer
  */
-export async function dropTableSafely(
-  db: SQLite.SQLiteDatabase,
-  tableName: string
-): Promise<void> {
+export async function dropTableSafely(db: SQLite.SQLiteDatabase, tableName: string): Promise<void> {
   const dropMethods = [
     `DROP TABLE IF EXISTS ${tableName};`,
     `DROP TABLE ${tableName};`, // Sans IF EXISTS
   ];
-  
+
   for (const dropSql of dropMethods) {
     try {
       await db.execAsync(dropSql);
@@ -143,18 +139,16 @@ export async function dropTableSafely(
       schemaLogger.warn(`Impossible de supprimer ${tableName} avec "${dropSql}":`, errorMessage);
     }
   }
-  
+
   // Si toutes les méthodes ont échoué, utiliser PRAGMA pour forcer
   try {
     schemaLogger.log(`Tentative de suppression forcée de ${tableName} avec PRAGMA...`);
-    await db.execAsync(
-      `DELETE FROM sqlite_master WHERE type='table' AND name='${tableName}';`
-    );
+    await db.execAsync(`DELETE FROM sqlite_master WHERE type='table' AND name='${tableName}';`);
     schemaLogger.log(`Table ${tableName} supprimée via PRAGMA`);
   } catch (pragmaError: unknown) {
-    const pragmaErrorMessage = pragmaError instanceof Error ? pragmaError.message : String(pragmaError);
+    const pragmaErrorMessage =
+      pragmaError instanceof Error ? pragmaError.message : String(pragmaError);
     schemaLogger.warn(`Impossible de supprimer ${tableName} via PRAGMA:`, pragmaErrorMessage);
     // Continuer quand même - on essaiera de créer la table
   }
 }
-

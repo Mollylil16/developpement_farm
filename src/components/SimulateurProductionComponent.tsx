@@ -12,10 +12,12 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  RefreshControlProps,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import {
   setObjectifProduction,
   simulerProduction,
@@ -32,14 +34,15 @@ import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { RACES_PERFORMANCES, calculerMoyennePorceletsSelonRaces } from '../constants/races';
 
 interface Props {
-  refreshControl: React.ReactElement;
+  refreshControl: React.ReactElement<RefreshControlProps>;
 }
 
 export default function SimulateurProductionComponent({ refreshControl }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
 
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { objectifProduction, simulationResultat, recommendations, loading } = useAppSelector(
     (state) => state.planningProduction
   );
@@ -435,7 +438,7 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
             {/* Titre de la recommandation */}
             <View style={styles.recommendationHeader}>
               <Ionicons
-                name={getIconePriorite(rec.priorite) as any}
+                name={getIconePriorite(rec.priorite) as keyof typeof Ionicons.glyphMap}
                 size={20}
                 color={getCouleurPriorite(rec.priorite)}
               />

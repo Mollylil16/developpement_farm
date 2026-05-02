@@ -16,6 +16,7 @@ interface StandardHeaderProps {
   subtitle?: string;
   badge?: number;
   badgeColor?: string;
+  onBack?: () => void; // ✅ Prop optionnelle pour le bouton retour (non utilisée par défaut - React Navigation gère le retour)
 }
 
 export default function StandardHeader({
@@ -26,7 +27,7 @@ export default function StandardHeader({
   badgeColor,
 }: StandardHeaderProps) {
   const { colors } = useTheme();
-  const validIcon = normalizeIconName(icon as string, 'help-circle-outline');
+  const validIcon = normalizeIconName(icon, 'help-circle-outline');
 
   return (
     <View style={[styles.header, { backgroundColor: colors.surface }]}>
@@ -51,7 +52,8 @@ export default function StandardHeader({
 const styles = StyleSheet.create({
   header: {
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingTop: SPACING.xs,
+    paddingBottom: SPACING.md,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

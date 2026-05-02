@@ -12,7 +12,7 @@ import productionReducer, {
   calculateGMQ,
   getPoidsActuelEstime,
 } from '../productionSlice';
-import { getDatabase } from '../../../services/database';
+import { getDatabase } from '../../database';
 import { AnimalRepository, PeseeRepository } from '../../../database/repositories';
 
 // Mock des modules
@@ -61,9 +61,7 @@ describe('productionSlice', () => {
       (getDatabase as jest.Mock).mockResolvedValue({});
       (AnimalRepository as jest.Mock).mockImplementation(() => mockRepo);
 
-      await store.dispatch(
-        loadProductionAnimaux({ projetId: 'proj-1', inclureInactifs: true })
-      );
+      await store.dispatch(loadProductionAnimaux({ projetId: 'proj-1', inclureInactifs: true }));
 
       const state = store.getState().production;
       expect(state.loading).toBe(false);
@@ -72,9 +70,7 @@ describe('productionSlice', () => {
     });
 
     it('devrait filtrer les animaux actifs seulement', async () => {
-      const mockAnimaux = [
-        { id: '1', projet_id: 'proj-1', code: 'A001', statut: 'actif' },
-      ];
+      const mockAnimaux = [{ id: '1', projet_id: 'proj-1', code: 'A001', statut: 'actif' }];
 
       const mockRepo = {
         findByProjet: jest.fn(),
@@ -84,9 +80,7 @@ describe('productionSlice', () => {
       (getDatabase as jest.Mock).mockResolvedValue({});
       (AnimalRepository as jest.Mock).mockImplementation(() => mockRepo);
 
-      await store.dispatch(
-        loadProductionAnimaux({ projetId: 'proj-1', inclureInactifs: false })
-      );
+      await store.dispatch(loadProductionAnimaux({ projetId: 'proj-1', inclureInactifs: false }));
 
       expect(mockRepo.findActifs).toHaveBeenCalledWith('proj-1');
       expect(mockRepo.findByProjet).not.toHaveBeenCalled();
@@ -203,7 +197,7 @@ describe('productionSlice', () => {
     });
   });
 
-  describe('Gestion d\'erreurs', () => {
+  describe("Gestion d'erreurs", () => {
     it('devrait gérer les erreurs lors du chargement des animaux', async () => {
       const mockRepo = {
         findByProjet: jest.fn().mockRejectedValue(new Error('Erreur DB')),
@@ -212,9 +206,7 @@ describe('productionSlice', () => {
       (getDatabase as jest.Mock).mockResolvedValue({});
       (AnimalRepository as jest.Mock).mockImplementation(() => mockRepo);
 
-      await store.dispatch(
-        loadProductionAnimaux({ projetId: 'proj-1', inclureInactifs: true })
-      );
+      await store.dispatch(loadProductionAnimaux({ projetId: 'proj-1', inclureInactifs: true }));
 
       const state = store.getState().production;
       expect(state.loading).toBe(false);
@@ -222,4 +214,3 @@ describe('productionSlice', () => {
     });
   });
 });
-

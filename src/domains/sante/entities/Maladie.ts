@@ -1,6 +1,6 @@
 /**
  * Entité Maladie - Domaine Santé
- * 
+ *
  * Représente une maladie dans le domaine métier
  */
 
@@ -9,7 +9,17 @@ export interface Maladie {
   projetId: string;
   animalId?: string;
   lotId?: string;
-  type: 'diarrhee' | 'respiratoire' | 'gale_parasites' | 'fievre' | 'boiterie' | 'digestive' | 'cutanee' | 'reproduction' | 'neurologique' | 'autre';
+  type:
+    | 'diarrhee'
+    | 'respiratoire'
+    | 'gale_parasites'
+    | 'fievre'
+    | 'boiterie'
+    | 'digestive'
+    | 'cutanee'
+    | 'reproduction'
+    | 'neurologique'
+    | 'autre';
   nomMaladie: string;
   gravite: 'faible' | 'moderee' | 'grave' | 'critique';
   dateDebut: string;
@@ -74,4 +84,3 @@ export class MaladieEntity {
     return this.isCritique() || (this.isEnCours() && this.maladie.contagieux);
   }
 }
-

@@ -107,7 +107,7 @@ export class TextRenderingErrorBoundary extends Component<Props, State> {
 /**
  * Hook pour logger les valeurs avant de les rendre
  */
-export function useTextRenderingLogger(value: any, label: string, componentName: string) {
+export function useTextRenderingLogger(value: unknown, label: string, componentName: string) {
   React.useEffect(() => {
     if (typeof value === 'string' && value.length > 0) {
       console.log(`[TextLogger] ${componentName}.${label}:`, {
@@ -127,7 +127,7 @@ export function useTextRenderingLogger(value: any, label: string, componentName:
 /**
  * Wrapper pour sécuriser le rendu d'une valeur
  */
-export function safeRender(value: any, fallback: ReactNode = null): ReactNode {
+export function safeRender(value: unknown, fallback: ReactNode = null): ReactNode {
   if (value === null || value === undefined) {
     return fallback;
   }
@@ -153,4 +153,3 @@ export function safeRender(value: any, fallback: ReactNode = null): ReactNode {
 
   return <Text>{String(value)}</Text>;
 }
-

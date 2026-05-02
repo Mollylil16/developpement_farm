@@ -1,372 +1,183 @@
-/**
- * Slice Redux pour la gestion financière
- * Utilise normalizr pour stocker les données de manière normalisée
- */
+import { createSlice, PayloadAction, Draft, createAsyncThunk } from '@reduxjs/toolkit';
+import type { Transaction, CashFlow, Porc } from '../../types';
+import { DatabaseService } from '../../services/database';
+import { CalculsAgricoles } from '../../utils/calculs';
 
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { normalize } from 'normalizr';
-import {
-  ChargeFixe,
-  DepensePonctuelle,
-  Revenu,
-  CreateChargeFixeInput,
-  CreateDepensePonctuelleInput,
-  UpdateDepensePonctuelleInput,
-  CreateRevenuInput,
-  UpdateRevenuInput,
-} from '../../types';
-import { getDatabase } from '../../services/database';
-import {
-  RevenuRepository,
-  DepensePonctuelleRepository,
-  ChargeFixeRepository,
-} from '../../database/repositories';
-import {
-  chargesFixesSchema,
-  depensesPonctuellesSchema,
-  revenusSchema,
-  chargeFixeSchema,
-  depensePonctuelleSchema,
-  revenuSchema,
-} from '../normalization/schemas';
+// Types pour les calculs de rentabilité
+export interface RentabilitePorc {
+  porcId: string;
+  coutTotal: number;
+  prixVente: number;
+  benefice: number;
+  margeBrute: number;
+  coutParKg: number;
+  rentabilite: number; // en pourcentage
+}
 
-// Structure normalisée de l'état
-interface NormalizedEntities {
-  chargesFixes: Record<string, ChargeFixe>;
-  depensesPonctuelles: Record<string, DepensePonctuelle>;
-  revenus: Record<string, Revenu>;
+export interface AnalyseFinanciere {
+  chiffreAffairesTotal: number;
+  coutsTotaux: number;
+  beneficeNet: number;
+  margeBrute: number;
+  rentabiliteGenerale: number;
+  coutParKgProduction: number;
+  transactionsParCategorie: Record<string, number>;
+  evolutionMensuelle: CashFlow[];
 }
 
 interface FinanceState {
-  entities: NormalizedEntities;
-  ids: {
-    chargesFixes: string[];
-    depensesPonctuelles: string[];
-    revenus: string[];
-  };
+  transactions: Transaction[];
+  cashFlow: CashFlow[];
+  rentabilitePorcs: RentabilitePorc[];
+  analyseFinanciere: AnalyseFinanciere | null;
   loading: boolean;
-  error: string | null;
+  error?: string;
 }
 
 const initialState: FinanceState = {
-  entities: {
-    chargesFixes: {},
-    depensesPonctuelles: {},
-    revenus: {},
-  },
-  ids: {
-    chargesFixes: [],
-    depensesPonctuelles: [],
-    revenus: [],
-  },
+  transactions: [],
+  cashFlow: [],
+  rentabilitePorcs: [],
+  analyseFinanciere: null,
   loading: false,
-  error: null,
 };
 
-// Helpers pour normaliser
-const normalizeChargesFixes = (charges: ChargeFixe[]) => normalize(charges, chargesFixesSchema);
-const normalizeDepensesPonctuelles = (depenses: DepensePonctuelle[]) =>
-  normalize(depenses, depensesPonctuellesSchema);
-const normalizeRevenus = (revenus: Revenu[]) => normalize(revenus, revenusSchema);
-const normalizeChargeFixe = (charge: ChargeFixe) => normalize([charge], chargesFixesSchema);
-const normalizeDepensePonctuelle = (depense: DepensePonctuelle) =>
-  normalize([depense], depensesPonctuellesSchema);
-const normalizeRevenu = (revenu: Revenu) => normalize([revenu], revenusSchema);
-
-// Thunks pour Charges Fixes
-export const createChargeFixe = createAsyncThunk(
-  'finance/createChargeFixe',
-  async (input: CreateChargeFixeInput, { rejectWithValue }) => {
+// Actions asynchrones
+export const loadTransactions = createAsyncThunk(
+  'finance/loadTransactions',
+  async (_, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const chargeRepo = new ChargeFixeRepository(db);
-      const charge = await chargeRepo.create({
-        ...input,
-        statut: 'actif',
+      const db = DatabaseService.getInstance();
+      const transactions = await db.getAllTransactions();
+      return transactions;
+    } catch (error) {
+      return rejectWithValue('Erreur lors du chargement des transactions');
+    }
+  }
+);
+
+export const saveTransaction = createAsyncThunk(
+  'finance/saveTransaction',
+  async (transaction: Transaction, { rejectWithValue }) => {
+    try {
+      const db = DatabaseService.getInstance();
+      await db.saveTransaction(transaction);
+      return transaction;
+    } catch (error) {
+      return rejectWithValue('Erreur lors de la sauvegarde de la transaction');
+    }
+  }
+);
+
+export const calculateRentabilite = createAsyncThunk(
+  'finance/calculateRentabilite',
+  async (porcs: Porc[], { rejectWithValue }) => {
+    try {
+      const db = DatabaseService.getInstance();
+      const transactions = await db.getAllTransactions();
+      
+      const rentabilitePorcs: RentabilitePorc[] = porcs.map(porc => {
+        // Calculer les coûts pour ce porc
+        const coutsPorc = transactions
+          .filter(t => t.porcId === porc.id && (t.type === 'achat' || t.type === 'depense'))
+          .reduce((sum, t) => sum + t.montant, 0);
+        
+        // Calculer les recettes pour ce porc
+        const recettesPorc = transactions
+          .filter(t => t.porcId === porc.id && t.type === 'vente')
+          .reduce((sum, t) => sum + t.montant, 0);
+        
+        const benefice = recettesPorc - coutsPorc;
+        const coutParKg = porc.poidsActuel > 0 ? coutsPorc / porc.poidsActuel : 0;
+        const rentabilite = coutsPorc > 0 ? (benefice / coutsPorc) * 100 : 0;
+        
+        return {
+          porcId: porc.id,
+          coutTotal: coutsPorc,
+          prixVente: recettesPorc,
+          benefice,
+          margeBrute: CalculsAgricoles.calculerMargeBrute(recettesPorc, coutsPorc),
+          coutParKg,
+          rentabilite,
+        };
       });
-      return charge;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la charge fixe');
+      
+      return rentabilitePorcs;
+    } catch (error) {
+      return rejectWithValue('Erreur lors du calcul de rentabilité');
     }
   }
 );
 
-export const loadChargesFixes = createAsyncThunk(
-  'finance/loadChargesFixes',
-  async (projetId: string, { rejectWithValue }) => {
+export const generateAnalyseFinanciere = createAsyncThunk(
+  'finance/generateAnalyseFinanciere',
+  async (_, { rejectWithValue }) => {
     try {
-      const db = await getDatabase();
-      const chargeRepo = new ChargeFixeRepository(db);
-      const charges = await chargeRepo.findByProjet(projetId);
-      return charges;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des charges fixes');
-    }
-  }
-);
-
-export const updateChargeFixe = createAsyncThunk(
-  'finance/updateChargeFixe',
-  async ({ id, updates }: { id: string; updates: Partial<ChargeFixe> }, { rejectWithValue }) => {
-    try {
-      const db = await getDatabase();
-      const chargeRepo = new ChargeFixeRepository(db);
-      const charge = await chargeRepo.update(id, updates);
-      return charge;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour de la charge fixe');
-    }
-  }
-);
-
-export const deleteChargeFixe = createAsyncThunk(
-  'finance/deleteChargeFixe',
-  async (id: string, { rejectWithValue }) => {
-    try {
-      const db = await getDatabase();
-      const chargeRepo = new ChargeFixeRepository(db);
-      await chargeRepo.delete(id);
-      return id;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la charge fixe');
-    }
-  }
-);
-
-// Thunks pour Dépenses Ponctuelles
-export const createDepensePonctuelle = createAsyncThunk(
-  'finance/createDepensePonctuelle',
-  async (input: CreateDepensePonctuelleInput, { rejectWithValue }) => {
-    try {
-      const db = await getDatabase();
-      const depenseRepo = new DepensePonctuelleRepository(db);
-      const depense = await depenseRepo.create(input);
-      return depense;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création de la dépense');
-    }
-  }
-);
-
-export const loadDepensesPonctuelles = createAsyncThunk(
-  'finance/loadDepensesPonctuelles',
-  async (projetId: string, { rejectWithValue }) => {
-    try {
-      console.log(`🔄 [financeSlice] loadDepensesPonctuelles appelé pour projetId: ${projetId}`);
-      const db = await getDatabase();
-      const depenseRepo = new DepensePonctuelleRepository(db);
-      const depenses = await depenseRepo.findByProjet(projetId);
-      console.log(`✅ [financeSlice] ${depenses.length} dépenses chargées depuis la DB`);
-      return depenses;
-    } catch (error: unknown) {
-      console.error(`❌ [financeSlice] Erreur lors du chargement des dépenses:`, error);
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des dépenses');
-    }
-  }
-);
-
-export const updateDepensePonctuelle = createAsyncThunk(
-  'finance/updateDepensePonctuelle',
-  async (
-    { id, updates }: { id: string; updates: UpdateDepensePonctuelleInput },
-    { rejectWithValue }
-  ) => {
-    try {
-      const db = await getDatabase();
-      const depenseRepo = new DepensePonctuelleRepository(db);
-      const depense = await depenseRepo.update(id, updates);
-      return depense;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour de la dépense');
-    }
-  }
-);
-
-export const deleteDepensePonctuelle = createAsyncThunk(
-  'finance/deleteDepensePonctuelle',
-  async (id: string, { rejectWithValue }) => {
-    try {
-      const db = await getDatabase();
-      const depenseRepo = new DepensePonctuelleRepository(db);
-      await depenseRepo.delete(id);
-      return id;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression de la dépense');
-    }
-  }
-);
-
-// Thunks pour Revenus
-export const createRevenu = createAsyncThunk(
-  'finance/createRevenu',
-  async (input: CreateRevenuInput, { rejectWithValue }) => {
-    try {
-      const db = await getDatabase();
-      const revenuRepo = new RevenuRepository(db);
-      const revenu = await revenuRepo.create(input);
-      return revenu;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création du revenu');
-    }
-  }
-);
-
-export const loadRevenus = createAsyncThunk(
-  'finance/loadRevenus',
-  async (projetId: string, { rejectWithValue }) => {
-    try {
-      console.log(`🔄 [financeSlice] loadRevenus appelé pour projetId: ${projetId}`);
-      const db = await getDatabase();
-      const revenuRepo = new RevenuRepository(db);
-      const revenus = await revenuRepo.findByProjet(projetId);
-      console.log(`✅ [financeSlice] ${revenus.length} revenus chargés depuis la DB`);
-      return revenus;
-    } catch (error: unknown) {
-      console.error(`❌ [financeSlice] Erreur lors du chargement des revenus:`, error);
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des revenus');
-    }
-  }
-);
-
-export const updateRevenu = createAsyncThunk(
-  'finance/updateRevenu',
-  async ({ id, updates }: { id: string; updates: UpdateRevenuInput }, { rejectWithValue }) => {
-    try {
-      const db = await getDatabase();
-      const revenuRepo = new RevenuRepository(db);
-      const revenu = await revenuRepo.update(id, updates);
-      return revenu;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour du revenu');
-    }
-  }
-);
-
-export const deleteRevenu = createAsyncThunk(
-  'finance/deleteRevenu',
-  async (id: string, { rejectWithValue }) => {
-    try {
-      const db = await getDatabase();
-      const revenuRepo = new RevenuRepository(db);
-      await revenuRepo.delete(id);
-      return id;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression du revenu');
-    }
-  }
-);
-
-// ========================================
-// Thunks OPEX/CAPEX - Calcul des marges
-// ========================================
-
-/**
- * Calcule et sauvegarde les marges pour une vente de porc
- */
-export const calculateAndSaveMargesVente = createAsyncThunk(
-  'finance/calculateAndSaveMargesVente',
-  async (
-    { venteId, poidsKg }: { venteId: string; poidsKg: number },
-    { getState, rejectWithValue }
-  ) => {
-    try {
-      const state = getState() as any;
-      const vente = state.finance.entities.revenus[venteId];
-      const projet = state.projet.projetActif;
-
-      if (!vente) {
-        throw new Error('Vente non trouvée');
+      const db = DatabaseService.getInstance();
+      const transactions = await db.getAllTransactions();
+      
+      // Calculs généraux
+      const chiffreAffairesTotal = transactions
+        .filter(t => t.type === 'vente' || t.type === 'recette')
+        .reduce((sum, t) => sum + t.montant, 0);
+      
+      const coutsTotaux = transactions
+        .filter(t => t.type === 'achat' || t.type === 'depense')
+        .reduce((sum, t) => sum + t.montant, 0);
+      
+      const beneficeNet = chiffreAffairesTotal - coutsTotaux;
+      const margeBrute = CalculsAgricoles.calculerMargeBrute(chiffreAffairesTotal, coutsTotaux);
+      const rentabiliteGenerale = coutsTotaux > 0 ? (beneficeNet / coutsTotaux) * 100 : 0;
+      
+      // Transactions par catégorie
+      const transactionsParCategorie: Record<string, number> = {};
+      transactions.forEach(t => {
+        transactionsParCategorie[t.categorie] = (transactionsParCategorie[t.categorie] || 0) + t.montant;
+      });
+      
+      // Évolution mensuelle (simplifiée)
+      const evolutionMensuelle: CashFlow[] = [];
+      const currentDate = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const monthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+        const monthTransactions = transactions.filter(t => {
+          const tDate = new Date(t.date);
+          return tDate.getMonth() === monthDate.getMonth() && 
+                 tDate.getFullYear() === monthDate.getFullYear();
+        });
+        
+        const recettes = monthTransactions
+          .filter(t => t.type === 'vente' || t.type === 'recette')
+          .reduce((sum, t) => sum + t.montant, 0);
+        
+        const depenses = monthTransactions
+          .filter(t => t.type === 'achat' || t.type === 'depense')
+          .reduce((sum, t) => sum + t.montant, 0);
+        
+        evolutionMensuelle.push({
+          date: monthDate,
+          recettes,
+          depenses,
+          solde: recettes - depenses,
+        });
       }
-
-      if (!projet) {
-        throw new Error('Aucun projet actif');
-      }
-
-      // Importer le service dynamiquement
-      const CoutProductionService = (await import('../../services/CoutProductionService')).default;
-      const db = await getDatabase();
-      CoutProductionService.setDatabase(db);
-
-      // Calculer et sauvegarder les marges
-      const venteUpdated = await CoutProductionService.calculateAndSaveMargesForNewVente(
-        vente,
-        poidsKg,
-        projet
-      );
-
-      return venteUpdated;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du calcul des marges');
-    }
-  }
-);
-
-/**
- * Recalcule les marges de toutes les ventes d'une période
- */
-export const recalculerMargesPeriode = createAsyncThunk(
-  'finance/recalculerMargesPeriode',
-  async (
-    { projetId, dateDebut, dateFin }: { projetId: string; dateDebut: Date; dateFin: Date },
-    { getState, rejectWithValue }
-  ) => {
-    try {
-      const state = getState() as any;
-      const projet = state.projet.projetActif;
-
-      if (!projet) {
-        throw new Error('Aucun projet actif');
-      }
-
-      // Importer le service dynamiquement
-      const CoutProductionService = (await import('../../services/CoutProductionService')).default;
-      const db = await getDatabase();
-      CoutProductionService.setDatabase(db);
-
-      // Recalculer toutes les marges
-      const nombreVentesRecalculees = await CoutProductionService.recalculerMargesPeriode(
-        projetId,
-        dateDebut,
-        dateFin,
-        projet
-      );
-
-      // Recharger tous les revenus pour obtenir les nouvelles marges
-      const revenuRepo = new RevenuRepository(db);
-      const revenus = await revenuRepo.findByProjet(projetId);
-
-      return { nombreVentesRecalculees, revenus };
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du recalcul des marges');
-    }
-  }
-);
-
-/**
- * Obtient les statistiques financières du mois en cours
- */
-export const loadStatistiquesMoisActuel = createAsyncThunk(
-  'finance/loadStatistiquesMoisActuel',
-  async (projetId: string, { getState, rejectWithValue }) => {
-    try {
-      const state = getState() as any;
-      const projet = state.projet.projetActif;
-
-      if (!projet) {
-        throw new Error('Aucun projet actif');
-      }
-
-      // Importer le service dynamiquement
-      const CoutProductionService = (await import('../../services/CoutProductionService')).default;
-      const db = await getDatabase();
-      CoutProductionService.setDatabase(db);
-
-      // Obtenir les statistiques
-      const stats = await CoutProductionService.getStatistiquesMoisActuel(projetId, projet);
-
-      return stats;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des statistiques');
+      
+      // Calcul du coût par kg de production (estimation)
+      const poidsTotalProduction = 1000; // À remplacer par le poids réel des porcs vendus
+      const coutParKgProduction = CalculsAgricoles.calculerCoutParKg(coutsTotaux, poidsTotalProduction);
+      
+      return {
+        chiffreAffairesTotal,
+        coutsTotaux,
+        beneficeNet,
+        margeBrute,
+        rentabiliteGenerale,
+        coutParKgProduction,
+        transactionsParCategorie,
+        evolutionMensuelle,
+      };
+    } catch (error) {
+      return rejectWithValue('Erreur lors de la génération de l\'analyse financière');
     }
   }
 );
@@ -375,240 +186,103 @@ const financeSlice = createSlice({
   name: 'finance',
   initialState,
   reducers: {
-    clearError: (state) => {
-      state.error = null;
+    addTransaction: (state: Draft<FinanceState>, action: PayloadAction<Transaction>) => {
+      state.transactions.push(action.payload);
     },
-    // Migration: convertir l'ancienne structure en nouvelle structure normalisée
-    migrateFromLegacy: (state, action: PayloadAction<any>) => {
-      const legacyState = action.payload;
-      if (legacyState && !legacyState.entities) {
-        // Ancienne structure: arrays directs
-        if (Array.isArray(legacyState.chargesFixes)) {
-          const normalized = normalizeChargesFixes(legacyState.chargesFixes);
-          state.entities.chargesFixes = normalized.entities.chargesFixes;
-          state.ids.chargesFixes = normalized.result;
-        }
-        if (Array.isArray(legacyState.depensesPonctuelles)) {
-          const normalized = normalizeDepensesPonctuelles(legacyState.depensesPonctuelles);
-          state.entities.depensesPonctuelles = normalized.entities.depensesPonctuelles;
-          state.ids.depensesPonctuelles = normalized.result;
-        }
-        if (Array.isArray(legacyState.revenus)) {
-          const normalized = normalizeRevenus(legacyState.revenus);
-          state.entities.revenus = normalized.entities.revenus;
-          state.ids.revenus = normalized.result;
-        }
+    updateTransaction: (state: Draft<FinanceState>, action: PayloadAction<Transaction>) => {
+      const index = state.transactions.findIndex((t: Transaction) => t.id === action.payload.id);
+      if (index !== -1) {
+        state.transactions[index] = action.payload;
       }
+    },
+    deleteTransaction: (state: Draft<FinanceState>, action: PayloadAction<string>) => {
+      state.transactions = state.transactions.filter((t: Transaction) => t.id !== action.payload);
+    },
+    updateCashFlow: (state: Draft<FinanceState>, action: PayloadAction<CashFlow[]>) => {
+      state.cashFlow = action.payload;
+    },
+    setLoading: (state: Draft<FinanceState>, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
+    },
+    setError: (state: Draft<FinanceState>, action: PayloadAction<string>) => {
+      state.error = action.payload;
+    },
+    clearError: (state: Draft<FinanceState>) => {
+      state.error = undefined;
     },
   },
   extraReducers: (builder) => {
     builder
-      // Charges Fixes
-      .addCase(createChargeFixe.pending, (state) => {
+      // Load Transactions
+      .addCase(loadTransactions.pending, (state) => {
         state.loading = true;
-        state.error = null;
+        state.error = undefined;
       })
-      .addCase(createChargeFixe.fulfilled, (state, action) => {
+      .addCase(loadTransactions.fulfilled, (state, action) => {
         state.loading = false;
-        const normalized = normalizeChargeFixe(action.payload);
-        state.entities.chargesFixes = {
-          ...state.entities.chargesFixes,
-          ...normalized.entities.chargesFixes,
-        };
-        state.ids.chargesFixes = [normalized.result[0], ...state.ids.chargesFixes];
+        state.transactions = action.payload;
       })
-      .addCase(createChargeFixe.rejected, (state, action) => {
+      .addCase(loadTransactions.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
-      .addCase(loadChargesFixes.pending, (state) => {
+      
+      // Save Transaction
+      .addCase(saveTransaction.pending, (state) => {
         state.loading = true;
-        state.error = null;
+        state.error = undefined;
       })
-      .addCase(loadChargesFixes.fulfilled, (state, action) => {
+      .addCase(saveTransaction.fulfilled, (state, action) => {
         state.loading = false;
-        const normalized = normalizeChargesFixes(action.payload);
-        state.entities.chargesFixes = {
-          ...state.entities.chargesFixes,
-          ...normalized.entities.chargesFixes,
-        };
-        state.ids.chargesFixes = normalized.result;
+        const existingIndex = state.transactions.findIndex(t => t.id === action.payload.id);
+        if (existingIndex !== -1) {
+          state.transactions[existingIndex] = action.payload;
+        } else {
+          state.transactions.push(action.payload);
+        }
       })
-      .addCase(loadChargesFixes.rejected, (state, action) => {
+      .addCase(saveTransaction.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
-      .addCase(updateChargeFixe.fulfilled, (state, action) => {
-        const normalized = normalizeChargeFixe(action.payload);
-        state.entities.chargesFixes = {
-          ...state.entities.chargesFixes,
-          ...normalized.entities.chargesFixes,
-        };
-      })
-      .addCase(updateChargeFixe.rejected, (state, action) => {
-        state.error = action.payload as string;
-      })
-      .addCase(deleteChargeFixe.fulfilled, (state, action) => {
-        const chargeId = action.payload;
-        state.ids.chargesFixes = state.ids.chargesFixes.filter((id) => id !== chargeId);
-        delete state.entities.chargesFixes[chargeId];
-      })
-      .addCase(deleteChargeFixe.rejected, (state, action) => {
-        state.error = action.payload as string;
-      })
-      // Dépenses Ponctuelles
-      .addCase(createDepensePonctuelle.pending, (state) => {
+      
+      // Calculate Rentabilite
+      .addCase(calculateRentabilite.pending, (state) => {
         state.loading = true;
-        state.error = null;
+        state.error = undefined;
       })
-      .addCase(createDepensePonctuelle.fulfilled, (state, action) => {
+      .addCase(calculateRentabilite.fulfilled, (state, action) => {
         state.loading = false;
-        const normalized = normalizeDepensePonctuelle(action.payload);
-        state.entities.depensesPonctuelles = {
-          ...state.entities.depensesPonctuelles,
-          ...normalized.entities.depensesPonctuelles,
-        };
-        state.ids.depensesPonctuelles = [normalized.result[0], ...state.ids.depensesPonctuelles];
+        state.rentabilitePorcs = action.payload;
       })
-      .addCase(createDepensePonctuelle.rejected, (state, action) => {
+      .addCase(calculateRentabilite.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })
-      .addCase(loadDepensesPonctuelles.pending, (state) => {
+      
+      // Generate Analyse Financiere
+      .addCase(generateAnalyseFinanciere.pending, (state) => {
         state.loading = true;
-        state.error = null;
+        state.error = undefined;
       })
-      .addCase(loadDepensesPonctuelles.fulfilled, (state, action) => {
+      .addCase(generateAnalyseFinanciere.fulfilled, (state, action) => {
         state.loading = false;
-        console.log(`📦 [financeSlice] Stockage de ${action.payload.length} dépenses dans Redux`);
-        const normalized = normalizeDepensesPonctuelles(action.payload);
-        state.entities.depensesPonctuelles = {
-          ...state.entities.depensesPonctuelles,
-          ...normalized.entities.depensesPonctuelles,
-        };
-        state.ids.depensesPonctuelles = normalized.result;
-        console.log(`✅ [financeSlice] State Redux mis à jour: ${state.ids.depensesPonctuelles.length} dépenses`);
+        state.analyseFinanciere = action.payload;
       })
-      .addCase(loadDepensesPonctuelles.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      .addCase(updateDepensePonctuelle.fulfilled, (state, action) => {
-        const normalized = normalizeDepensePonctuelle(action.payload);
-        state.entities.depensesPonctuelles = {
-          ...state.entities.depensesPonctuelles,
-          ...normalized.entities.depensesPonctuelles,
-        };
-      })
-      .addCase(updateDepensePonctuelle.rejected, (state, action) => {
-        state.error = action.payload as string;
-      })
-      .addCase(deleteDepensePonctuelle.fulfilled, (state, action) => {
-        const depenseId = action.payload;
-        state.ids.depensesPonctuelles = state.ids.depensesPonctuelles.filter(
-          (id) => id !== depenseId
-        );
-        delete state.entities.depensesPonctuelles[depenseId];
-      })
-      .addCase(deleteDepensePonctuelle.rejected, (state, action) => {
-        state.error = action.payload as string;
-      })
-      // Revenus
-      .addCase(createRevenu.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(createRevenu.fulfilled, (state, action) => {
-        state.loading = false;
-        const normalized = normalizeRevenu(action.payload);
-        state.entities.revenus = { ...state.entities.revenus, ...normalized.entities.revenus };
-        state.ids.revenus = [normalized.result[0], ...state.ids.revenus];
-      })
-      .addCase(createRevenu.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      .addCase(loadRevenus.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(loadRevenus.fulfilled, (state, action) => {
-        state.loading = false;
-        console.log(`📦 [financeSlice] Stockage de ${action.payload.length} revenus dans Redux`);
-        const normalized = normalizeRevenus(action.payload);
-        state.entities.revenus = { ...state.entities.revenus, ...normalized.entities.revenus };
-        state.ids.revenus = normalized.result;
-        console.log(`✅ [financeSlice] State Redux mis à jour: ${state.ids.revenus.length} revenus`);
-      })
-      .addCase(loadRevenus.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      .addCase(updateRevenu.fulfilled, (state, action) => {
-        const normalized = normalizeRevenu(action.payload);
-        state.entities.revenus = { ...state.entities.revenus, ...normalized.entities.revenus };
-      })
-      .addCase(updateRevenu.rejected, (state, action) => {
-        state.error = action.payload as string;
-      })
-      .addCase(deleteRevenu.fulfilled, (state, action) => {
-        const revenuId = action.payload;
-        state.ids.revenus = state.ids.revenus.filter((id) => id !== revenuId);
-        delete state.entities.revenus[revenuId];
-      })
-      .addCase(deleteRevenu.rejected, (state, action) => {
-        state.error = action.payload as string;
-      })
-      // OPEX/CAPEX - Calcul des marges
-      .addCase(calculateAndSaveMargesVente.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(calculateAndSaveMargesVente.fulfilled, (state, action) => {
-        state.loading = false;
-        const venteUpdated = action.payload;
-        // Mettre à jour la vente avec les nouvelles marges
-        const normalized = normalizeRevenu(venteUpdated);
-        state.entities.revenus = {
-          ...state.entities.revenus,
-          ...normalized.entities.revenus,
-        };
-      })
-      .addCase(calculateAndSaveMargesVente.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      .addCase(recalculerMargesPeriode.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(recalculerMargesPeriode.fulfilled, (state, action) => {
-        state.loading = false;
-        // Recharger tous les revenus avec les nouvelles marges
-        const { revenus } = action.payload;
-        const normalized = normalizeRevenus(revenus);
-        state.entities.revenus = normalized.entities.revenus;
-        state.ids.revenus = normalized.result;
-      })
-      .addCase(recalculerMargesPeriode.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      .addCase(loadStatistiquesMoisActuel.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(loadStatistiquesMoisActuel.fulfilled, (state) => {
-        state.loading = false;
-        // Les stats sont retournées mais pas stockées dans le state
-        // Elles seront utilisées directement par les composants
-      })
-      .addCase(loadStatistiquesMoisActuel.rejected, (state, action) => {
+      .addCase(generateAnalyseFinanciere.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       });
   },
 });
 
-export const { clearError } = financeSlice.actions;
+export const { 
+  addTransaction, 
+  updateTransaction, 
+  deleteTransaction, 
+  updateCashFlow, 
+  setLoading, 
+  setError,
+  clearError
+} = financeSlice.actions;
 export default financeSlice.reducer;

@@ -7,13 +7,15 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-na
 import * as ImagePicker from 'expo-image-picker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { createDepensePonctuelle, updateDepensePonctuelle } from '../store/slices/financeSlice';
-import { DepensePonctuelle, CreateDepensePonctuelleInput, CategorieDepense } from '../types';
+import type { DepensePonctuelle, CreateDepensePonctuelleInput, CategorieDepense } from '../types/finance';
 import { getTypeDepense, CATEGORIE_DEPENSE_LABELS } from '../types/finance';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
+import DatePickerField from './DatePickerField';
 import { SPACING, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
+import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface DepenseFormModalProps {
   visible: boolean;
@@ -32,7 +34,8 @@ export default function DepenseFormModal({
 }: DepenseFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
+  const projetActif = useProjetEffectif();
   const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateDepensePonctuelleInput & { photos: string[] }>({
@@ -176,7 +179,7 @@ export default function DepenseFormModal({
       Alert.alert('Erreur', 'Données de dépense manquantes');
       return;
     }
-    
+
     if (!isEditing && !projetActif) {
       Alert.alert('Erreur', 'Aucun projet actif');
       return;
@@ -203,20 +206,20 @@ export default function DepenseFormModal({
         if (!projetActif) {
           throw new Error('Projet actif requis pour créer une dépense');
         }
-        
+
         await dispatch(
           createDepensePonctuelle({ ...formData, projet_id: projetActif.id })
         ).unwrap();
       }
-      
+
       // Succès : fermer le modal puis appeler callback
       onClose();
       setTimeout(() => {
         onSuccess();
       }, 300); // Délai pour animation de fermeture
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Afficher le message d'erreur correct
-      const errorMessage = error?.message || error?.toString() || "Erreur lors de l'enregistrement";
+      const errorMessage = error instanceof Error ? error.message : (typeof error === 'string' ? error : "Erreur lors de l'enregistrement");
       Alert.alert('Erreur', errorMessage);
     } finally {
       setLoading(false);
@@ -308,9 +311,7 @@ export default function DepenseFormModal({
                     ? colors.warning + '20'
                     : colors.info + '20',
                 borderColor:
-                  getTypeDepense(formData.categorie) === 'CAPEX'
-                    ? colors.warning
-                    : colors.info,
+                  getTypeDepense(formData.categorie) === 'CAPEX' ? colors.warning : colors.info,
               },
             ]}
           >
@@ -319,9 +320,7 @@ export default function DepenseFormModal({
                 styles.typeLabel,
                 {
                   color:
-                    getTypeDepense(formData.categorie) === 'CAPEX'
-                      ? colors.warning
-                      : colors.info,
+                    getTypeDepense(formData.categorie) === 'CAPEX' ? colors.warning : colors.info,
                 },
               ]}
             >
@@ -344,11 +343,11 @@ export default function DepenseFormModal({
           />
         )}
 
-        <FormField
+        <DatePickerField
           label="Date"
           value={formData.date}
-          onChangeText={(text) => setFormData({ ...formData, date: text })}
-          placeholder="YYYY-MM-DD"
+          onChange={(date) => setFormData({ ...formData, date })}
+          maximumDate={new Date()}
         />
 
         <FormField

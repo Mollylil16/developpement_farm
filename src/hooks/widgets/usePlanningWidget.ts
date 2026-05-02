@@ -50,4 +50,3 @@ export function usePlanningWidget(projetId?: string): PlanningWidgetData | null 
     };
   }, [projetId, planifications]);
 }
-
