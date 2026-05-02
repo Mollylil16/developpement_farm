@@ -86,7 +86,7 @@ export class CloudinaryService {
         (error: UploadApiErrorResponse | undefined, result: UploadApiResponse | undefined) => {
           if (error) {
             this.logger.error(`Erreur upload Cloudinary: ${error.message}`, error);
-            reject(new BadRequestException(`Erreur lors de l'upload: ${error.message}`));
+            reject(new BadRequestException('Erreur lors de l\'upload de l\'image. Veuillez réessayer.'));
             return;
           }
 
@@ -160,7 +160,7 @@ export class CloudinaryService {
         (error: UploadApiErrorResponse | undefined, result: UploadApiResponse | undefined) => {
           if (error) {
             this.logger.error(`Erreur upload Cloudinary marketplace: ${error.message}`, error);
-            reject(new BadRequestException(`Erreur lors de l'upload: ${error.message}`));
+            reject(new BadRequestException('Erreur lors de l\'upload de l\'image. Veuillez réessayer.'));
             return;
           }
 

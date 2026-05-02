@@ -112,7 +112,7 @@ export class ImageService {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      throw new BadRequestException(`Erreur lors de la compression d'image: ${error.message}`);
+      throw new BadRequestException('Erreur lors du traitement de l\'image. Vérifiez que le fichier est valide.');
     }
   }
 
@@ -138,7 +138,7 @@ export class ImageService {
       return await this.compressImage(inputBuffer, options);
     } catch (error: any) {
       this.logger.error('Erreur lors de la conversion base64 → Buffer', error);
-      throw new BadRequestException(`Image base64 invalide: ${error.message}`);
+      throw new BadRequestException('Image base64 invalide ou corrompue.');
     }
   }
 
@@ -176,7 +176,7 @@ export class ImageService {
       };
     } catch (error: any) {
       this.logger.error('Erreur lors de la génération du thumbnail', error);
-      throw new BadRequestException(`Erreur lors de la génération du thumbnail: ${error.message}`);
+      throw new BadRequestException('Erreur lors de la génération du thumbnail. Vérifiez que le fichier est valide.');
     }
   }
 
@@ -243,7 +243,7 @@ export class ImageService {
       };
     } catch (error: any) {
       this.logger.error('Erreur lors de la lecture des métadonnées', error);
-      throw new BadRequestException(`Image invalide: ${error.message}`);
+      throw new BadRequestException('Fichier image invalide ou non supporté.');
     }
   }
 }

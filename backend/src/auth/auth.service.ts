@@ -159,9 +159,9 @@ export class AuthService {
 
     // ✅ Vérifier mot de passe pour inscription téléphone (sans OAuth)
     if (registerDto.telephone && !registerDto.provider_id) {
-      if (!registerDto.password || registerDto.password.length < 6) {
+      if (!registerDto.password || registerDto.password.length < 12) {
         throw new ConflictException(
-          'Mot de passe requis (minimum 6 caractères) pour inscription par téléphone'
+          'Mot de passe requis (minimum 12 caractères) pour inscription par téléphone'
         );
       }
     }
@@ -730,8 +730,8 @@ export class AuthService {
       }
 
       // Valider nouveau mot de passe
-      if (newPassword.length < 6) {
-        throw new BadRequestException('Mot de passe trop court (minimum 6 caractères)');
+      if (newPassword.length < 12) {
+        throw new BadRequestException('Mot de passe trop court (minimum 12 caractères)');
       }
 
       // Hash nouveau mot de passe
