@@ -67,9 +67,10 @@ function isSensitiveKey(key: string): boolean {
  * @param depth - Profondeur de récursion (pour éviter les boucles infinies)
  * @returns Message sanitizé avec toutes les données sensibles masquées
  */
+const MAX_SANITIZE_DEPTH = __DEV__ ? 10 : 3;
+
 function sanitizeLogMessage(message: any, depth: number = 0): any {
-  // Protection contre la récursion infinie
-  if (depth > 10) {
+  if (depth > MAX_SANITIZE_DEPTH) {
     return '[Object too deep to sanitize]';
   }
 

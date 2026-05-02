@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { Porc, Gestation, Transaction, Mortalite } from '../types';
+import { auditLog } from '../utils/auditLogger';
 
 export class DatabaseService {
   private static instance: DatabaseService;
@@ -194,12 +195,11 @@ export class DatabaseService {
   /**
    * Récupère tous les porcs
    */
-  public async getAllPorcs(): Promise<any[]> {
+  public async getAllPorcs(limit?: number, offset?: number): Promise<any[]> {
     if (!this.db) throw new Error('Base de données non initialisée');
 
-    const results = this.db.getAllSync(`
-      SELECT * FROM porcs ORDER BY createdAt DESC
-    `);
+    const pagination = limit != null ? ` LIMIT ${limit} OFFSET ${offset ?? 0}` : '';
+    const results = this.db.getAllSync(`SELECT * FROM porcs ORDER BY createdAt DESC${pagination}`);
 
     return results.map(row => ({
       ...row,
@@ -238,12 +238,11 @@ export class DatabaseService {
   /**
    * Récupère toutes les gestations
    */
-  public async getAllGestations(): Promise<any[]> {
+  public async getAllGestations(limit?: number, offset?: number): Promise<any[]> {
     if (!this.db) throw new Error('Base de données non initialisée');
 
-    const results = this.db.getAllSync(`
-      SELECT * FROM gestations ORDER BY createdAt DESC
-    `);
+    const pagination = limit != null ? ` LIMIT ${limit} OFFSET ${offset ?? 0}` : '';
+    const results = this.db.getAllSync(`SELECT * FROM gestations ORDER BY createdAt DESC${pagination}`);
 
     return results.map(row => ({
       ...row,
@@ -281,12 +280,11 @@ export class DatabaseService {
   /**
    * Récupère toutes les transactions
    */
-  public async getAllTransactions(): Promise<any[]> {
+  public async getAllTransactions(limit?: number, offset?: number): Promise<any[]> {
     if (!this.db) throw new Error('Base de données non initialisée');
 
-    const results = this.db.getAllSync(`
-      SELECT * FROM transactions ORDER BY date DESC
-    `);
+    const pagination = limit != null ? ` LIMIT ${limit} OFFSET ${offset ?? 0}` : '';
+    const results = this.db.getAllSync(`SELECT * FROM transactions ORDER BY date DESC${pagination}`);
 
     return results.map(row => ({
       ...row,
@@ -312,7 +310,7 @@ export class DatabaseService {
   public async clearAllData(): Promise<void> {
     if (!this.db) throw new Error('Base de données non initialisée');
 
-    const tables = [
+    const allowedTables = new Set([
       'rapports_croissance',
       'transactions',
       'ingredients_ration',
@@ -321,11 +319,13 @@ export class DatabaseService {
       'gestations',
       'porcs',
       'mortalites',
-    ];
+    ]);
 
-    for (const table of tables) {
+    for (const table of allowedTables) {
       this.db.runSync(`DELETE FROM ${table}`);
     }
+
+    await auditLog('data.clear_all', undefined, { tables: [...allowedTables].join(',') });
   }
 
   // Méthodes pour la gestion des mortalités

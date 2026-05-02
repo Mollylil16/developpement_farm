@@ -2,22 +2,18 @@ import axios from 'axios'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
-console.log('🔧 Configuration API:', {
-  API_BASE_URL,
-  VITE_API_URL: import.meta.env.VITE_API_URL,
-})
-
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
   },
-  timeout: 10000, // 10 secondes de timeout
+  timeout: 10000,
 })
 
 // Intercepteur pour ajouter le token admin
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('admin_token')
+  const token = sessionStorage.getItem('admin_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -29,7 +25,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('admin_token')
+      sessionStorage.removeItem('admin_token')
       window.location.href = '/login'
     }
     return Promise.reject(error)
@@ -38,25 +34,8 @@ api.interceptors.response.use(
 
 export const adminApi = {
   login: async (email: string, password: string) => {
-    try {
-      const url = `${API_BASE_URL}/admin/auth/login`
-      console.log('🔗 Tentative de connexion à:', url)
-      console.log('📡 API_BASE_URL:', API_BASE_URL)
-      const response = await api.post('/admin/auth/login', { email, password })
-      console.log('✅ Connexion réussie:', response.status)
-      return response.data
-    } catch (error: any) {
-      console.error('❌ Erreur API login:', error)
-      console.error('🌐 URL complète:', `${API_BASE_URL}/admin/auth/login`)
-      console.error('📊 Status:', error.response?.status)
-      console.error('📦 Data:', error.response?.data)
-      console.error('🔌 Code erreur:', error.code)
-      console.error('📡 Message:', error.message)
-      if (error.code === 'ERR_NETWORK' || error.code === 'ECONNREFUSED') {
-        console.error('⚠️ Erreur réseau - Le backend n\'est peut-être pas accessible')
-      }
-      throw error
-    }
+    const response = await api.post('/admin/auth/login', { email, password })
+    return response.data
   },
 
   getProfile: async () => {
@@ -65,18 +44,9 @@ export const adminApi = {
   },
 
   getDashboardStats: async (period?: string) => {
-    try {
-      const url = period ? `/admin/dashboard/stats?period=${period}` : '/admin/dashboard/stats'
-      console.log('📊 Appel API:', url)
-      const response = await api.get(url)
-      console.log('✅ Réponse dashboard stats:', response.status)
-      return response.data
-    } catch (error: any) {
-      console.error('❌ Erreur getDashboardStats:', error)
-      console.error('Status:', error.response?.status)
-      console.error('Data:', error.response?.data)
-      throw error
-    }
+    const url = period ? `/admin/dashboard/stats?period=${period}` : '/admin/dashboard/stats'
+    const response = await api.get(url)
+    return response.data
   },
 
   getFinanceStats: async (period: 'day' | 'week' | 'month' = 'month') => {
