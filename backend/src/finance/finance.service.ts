@@ -174,9 +174,10 @@ export class FinanceService {
       frequence, jour_paiement, notes, statut, date_creation, derniere_modification`;
 
     const result = await this.databaseService.query(
-      `SELECT ${chargeFixeColumns} FROM charges_fixes 
-       WHERE projet_id = $1 
-       ORDER BY date_debut DESC`,
+      `SELECT ${chargeFixeColumns} FROM charges_fixes
+       WHERE projet_id = $1
+       ORDER BY date_debut DESC
+       LIMIT 2000`,
       [projetId]
     );
     return result.rows.map((row) => this.mapRowToChargeFixe(row));
@@ -339,9 +340,10 @@ export class FinanceService {
       date_creation, derniere_modification`;
 
     const result = await this.databaseService.query(
-      `SELECT ${depenseColumns} FROM depenses_ponctuelles 
-       WHERE projet_id = $1 
-       ORDER BY date DESC`,
+      `SELECT ${depenseColumns} FROM depenses_ponctuelles
+       WHERE projet_id = $1
+       ORDER BY date DESC
+       LIMIT 2000`,
       [projetId]
     );
     return result.rows.map((row) => this.mapRowToDepensePonctuelle(row));
@@ -528,9 +530,10 @@ export class FinanceService {
       marge_opex_pourcent, marge_complete_pourcent, date_creation, derniere_modification`;
 
     const result = await this.databaseService.query(
-      `SELECT ${revenuColumns} FROM revenus 
-       WHERE projet_id = $1 
-       ORDER BY date DESC`,
+      `SELECT ${revenuColumns} FROM revenus
+       WHERE projet_id = $1
+       ORDER BY date DESC
+       LIMIT 2000`,
       [projetId]
     );
     return result.rows.map((row) => this.mapRowToRevenu(row));
@@ -1151,7 +1154,7 @@ export class FinanceService {
     await this.checkProjetOwnership(projetId, userId);
 
     const result = await this.databaseService.query(
-      `SELECT * FROM dettes WHERE projet_id = $1 ORDER BY date_debut DESC`,
+      `SELECT * FROM dettes WHERE projet_id = $1 ORDER BY date_debut DESC LIMIT 2000`,
       [projetId]
     );
 

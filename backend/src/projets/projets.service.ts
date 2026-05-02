@@ -405,10 +405,12 @@ this.logger.error(`Erreur lors de la création automatique des animaux individue
     ];
 
     let animalIndex = 1;
+    const animalsToInsert: any[][] = [];
+    const nowTs = new Date();
+    const nowIso = nowTs.toISOString();
 
     for (const cat of categories) {
       if (cat.count > 0) {
-// Calculer la répartition par sexe
         let maleCount = 0;
         let femaleCount = 0;
         let castratedCount = 0;
@@ -418,88 +420,81 @@ this.logger.error(`Erreur lors de la création automatique des animaux individue
         } else if (cat.sexe === 'femelle') {
           femaleCount = cat.count;
         } else {
-          // Répartition 50/50 pour porcelets, 30/40/30 pour croissance
           if (cat.category === 'porcelets') {
             maleCount = Math.floor(cat.count / 2);
             femaleCount = cat.count - maleCount;
           } else {
-            // porcs_croissance
             maleCount = Math.floor(cat.count * 0.3);
             femaleCount = Math.floor(cat.count * 0.4);
             castratedCount = cat.count - maleCount - femaleCount;
           }
         }
 
-        // Créer les animaux
-        const now = new Date();
-        const dateEntree = now.toISOString();
-        // Calculer la date de naissance estimée (âge moyen en jours)
-        const ageJours = cat.defaultAge * 30; // Approximation : 1 mois = 30 jours
-        const dateNaissance = new Date(now.getTime() - ageJours * 24 * 60 * 60 * 1000);
+        const dateEntree = nowIso;
+        const ageJours = cat.defaultAge * 30;
+        const dateNaissance = new Date(nowTs.getTime() - ageJours * 24 * 60 * 60 * 1000).toISOString();
+        const prefix = cat.category.substring(0, 3).toUpperCase();
 
-        // Créer les mâles
         let maleIndex = 1;
         for (let i = 0; i < maleCount; i++) {
-          const code = `${cat.category.substring(0, 3).toUpperCase()}-${String(animalIndex).padStart(3, '0')}`;
-          const nom = this.generateAnimalName(cat.category, 'male', maleIndex);
-          await this.createIndividualAnimal(
-            projetId,
-            code,
-            nom,
-            cat.defaultWeight,
-            dateNaissance.toISOString(),
-            dateEntree,
-            'male',
-            cat.reproducteur,
-            userId,
-          );
+          animalsToInsert.push([
+            `animal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            projetId, `${prefix}-${String(animalIndex).padStart(3, '0')}`,
+            this.generateAnimalName(cat.category, 'male', maleIndex),
+            'Effectif initial', 'male', dateNaissance, cat.defaultWeight,
+            dateEntree, true, 'actif', null, cat.reproducteur, null,
+            null, null, 'Créé automatiquement lors de la création du projet', null,
+            nowIso, nowIso,
+          ]);
           animalIndex++;
           maleIndex++;
         }
 
-        // Créer les femelles
         let femaleIndex = 1;
         for (let i = 0; i < femaleCount; i++) {
-          const code = `${cat.category.substring(0, 3).toUpperCase()}-${String(animalIndex).padStart(3, '0')}`;
-          const nom = this.generateAnimalName(cat.category, 'female', femaleIndex);
-          await this.createIndividualAnimal(
-            projetId,
-            code,
-            nom,
-            cat.defaultWeight,
-            dateNaissance.toISOString(),
-            dateEntree,
-            'femelle',
-            cat.reproducteur,
-            userId,
-          );
+          animalsToInsert.push([
+            `animal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            projetId, `${prefix}-${String(animalIndex).padStart(3, '0')}`,
+            this.generateAnimalName(cat.category, 'female', femaleIndex),
+            'Effectif initial', 'femelle', dateNaissance, cat.defaultWeight,
+            dateEntree, true, 'actif', null, cat.reproducteur, null,
+            null, null, 'Créé automatiquement lors de la création du projet', null,
+            nowIso, nowIso,
+          ]);
           animalIndex++;
           femaleIndex++;
         }
 
-        // Créer les castrés
         let castratedIndex = 1;
         for (let i = 0; i < castratedCount; i++) {
-          const code = `${cat.category.substring(0, 3).toUpperCase()}-${String(animalIndex).padStart(3, '0')}`;
-          const nom = this.generateAnimalName(cat.category, 'castrated', castratedIndex);
-          await this.createIndividualAnimal(
-            projetId,
-            code,
-            nom,
-            cat.defaultWeight,
-            dateNaissance.toISOString(),
-            dateEntree,
-            // La DB n'a pas de valeur "castre" pour sexe.
-            // Un porc castré est un mâle non reproducteur.
-            'male',
-            false,
-            userId,
-          );
+          animalsToInsert.push([
+            `animal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            projetId, `${prefix}-${String(animalIndex).padStart(3, '0')}`,
+            this.generateAnimalName(cat.category, 'castrated', castratedIndex),
+            'Effectif initial', 'male', dateNaissance, cat.defaultWeight,
+            dateEntree, true, 'actif', null, false, null,
+            null, null, 'Créé automatiquement lors de la création du projet', null,
+            nowIso, nowIso,
+          ]);
           animalIndex++;
           castratedIndex++;
         }
+      }
+    }
 
-}
+    if (animalsToInsert.length > 0) {
+      const COLS = 20;
+      const placeholders = animalsToInsert.map((_, i) =>
+        `(${Array.from({ length: COLS }, (__, j) => `$${i * COLS + j + 1}`).join(', ')})`
+      );
+      await this.databaseService.query(
+        `INSERT INTO production_animaux (
+          id, projet_id, code, nom, origine, sexe, date_naissance, poids_initial,
+          date_entree, actif, statut, race, reproducteur, categorie_poids,
+          pere_id, mere_id, notes, photo_uri, date_creation, derniere_modification
+        ) VALUES ${placeholders.join(', ')}`,
+        animalsToInsert.flat()
+      );
     }
   }
 
