@@ -99,12 +99,14 @@ async function bootstrap() {
     .addTag('marketplace', 'Marketplace (listings, offers, transactions)')
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document, {
-    swaggerOptions: {
-      persistAuthorization: true, // Garder le token JWT après rafraîchissement
-    },
-  });
+  if (!isProduction) {
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document, {
+      swaggerOptions: {
+        persistAuthorization: true,
+      },
+    });
+  }
 
   // Guard global JWT est configuré dans AppModule via APP_GUARD
 

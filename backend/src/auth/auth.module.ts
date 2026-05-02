@@ -55,8 +55,15 @@ import { AuthLoggingInterceptor } from './interceptors/auth-logging.interceptor'
           expiresIn = rawExpiresIn;
         }
 
+        const secret = configService.get<string>('JWT_SECRET') || process.env.JWT_SECRET;
+        if (!secret) {
+          throw new Error(
+            'JWT_SECRET environment variable is not set. The application cannot start securely without it.',
+          );
+        }
+
         return {
-          secret: configService.get<string>('JWT_SECRET') || process.env.JWT_SECRET || '',
+          secret,
           signOptions: {
             expiresIn: expiresIn as SignOptions['expiresIn'],
           },

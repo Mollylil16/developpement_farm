@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException, ConflictException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { verifyIdToken } from 'apple-signin-auth';
 import { UsersService } from '../users/users.service';
@@ -251,18 +252,23 @@ export class AuthService {
     return { message: 'Déconnexion réussie' };
   }
 
+  private tokenSelector(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
   private async createRefreshToken(userId: string, ipAddress?: string, userAgent?: string) {
     const id = uuidv4();
     const token = uuidv4();
     const hashedToken = await bcrypt.hash(token, 10);
+    const selector = this.tokenSelector(token);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 jours
 
     const result = await this.db.query(
-      `INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, ip_address, user_agent)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO refresh_tokens (id, user_id, token_hash, token_selector, expires_at, ip_address, user_agent)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, expires_at`,
-      [id, userId, hashedToken, expiresAt, ipAddress, userAgent]
+      [id, userId, hashedToken, selector, expiresAt, ipAddress, userAgent]
     );
 
     return {
@@ -273,15 +279,41 @@ export class AuthService {
   }
 
   private async findRefreshToken(token: string) {
-    const tokens = await this.db.query(
-      `SELECT * FROM refresh_tokens 
-       WHERE revoked = false 
-       AND expires_at > NOW()`
+    const selector = this.tokenSelector(token);
+
+    // Fast path: indexed lookup by SHA-256 selector (O(1))
+    const fast = await this.db.query(
+      `SELECT * FROM refresh_tokens
+       WHERE token_selector = $1
+         AND revoked = false
+         AND expires_at > NOW()
+       LIMIT 1`,
+      [selector]
     );
 
-    for (const tokenRecord of tokens.rows) {
+    if (fast.rows.length > 0) {
+      const record = fast.rows[0];
+      const isValid = await bcrypt.compare(token, record.token_hash);
+      return isValid ? record : null;
+    }
+
+    // Slow fallback for legacy rows created before migration 095 (no selector).
+    // These expire within 7 days; this branch can be removed after that window.
+    const legacy = await this.db.query(
+      `SELECT * FROM refresh_tokens
+       WHERE token_selector IS NULL
+         AND revoked = false
+         AND expires_at > NOW()`
+    );
+
+    for (const tokenRecord of legacy.rows) {
       const isValid = await bcrypt.compare(token, tokenRecord.token_hash);
       if (isValid) {
+        // Backfill the selector so future lookups are fast
+        await this.db.query(
+          `UPDATE refresh_tokens SET token_selector = $1 WHERE id = $2`,
+          [selector, tokenRecord.id]
+        );
         return tokenRecord;
       }
     }
@@ -296,15 +328,6 @@ export class AuthService {
         tokenRecord.id,
       ]);
     }
-  }
-
-  private async updateRefreshTokenUsage(tokenId: string, ipAddress?: string) {
-    await this.db.query(
-      `UPDATE refresh_tokens 
-       SET last_used_at = NOW(), ip_address = COALESCE($2, ip_address)
-       WHERE id = $1`,
-      [tokenId, ipAddress]
-    );
   }
 
   private async updateLastLogin(userId: string) {

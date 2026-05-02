@@ -11,10 +11,24 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
     private adminService: AdminService,
     private configService: ConfigService,
   ) {
+    // Prefer a dedicated admin secret so admin and user tokens cannot be swapped.
+    // Falls back to JWT_SECRET for backwards-compat until JWT_SECRET_ADMIN is provisioned.
+    const secret =
+      configService.get<string>('JWT_SECRET_ADMIN') ||
+      process.env.JWT_SECRET_ADMIN ||
+      configService.get<string>('JWT_SECRET') ||
+      process.env.JWT_SECRET;
+
+    if (!secret) {
+      throw new Error(
+        'Neither JWT_SECRET_ADMIN nor JWT_SECRET is set. Admin authentication cannot start.',
+      );
+    }
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET') || process.env.JWT_SECRET,
+      secretOrKey: secret,
     });
   }
 
