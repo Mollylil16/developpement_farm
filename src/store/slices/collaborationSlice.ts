@@ -1,515 +1,254 @@
-/**
- * Slice Redux pour la gestion des collaborations
- */
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { Projet, Utilisateur, ActiviteUtilisateur, InvitationProjet, PermissionsProjet } from '../../types';
 
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { getErrorMessage } from '../../types/common';
-import type {
-  Collaborateur,
-  CreateCollaborateurInput,
-  UpdateCollaborateurInput,
-} from '../../types/collaboration';
-import { DEFAULT_PERMISSIONS } from '../../types/collaboration';
-import apiClient from '../../services/api/apiClient';
+// Actions asynchrones pour la gestion des projets
+export const creerProjet = createAsyncThunk(
+  'collaboration/creerProjet',
+  async (donneesProjet: { nom: string; description?: string; proprietaireId: string; proprietaireNom: string }) => {
+    // Simulation d'un appel API
+    const dateNow = new Date().toISOString();
+    
+    const nouveauProjet: Projet = {
+      id: `projet_${Date.now()}`,
+      nom: donneesProjet.nom,
+      description: donneesProjet.description,
+      proprietaireId: donneesProjet.proprietaireId,
+      proprietaireNom: donneesProjet.proprietaireNom,
+      dateCreation: dateNow,
+      derniereModification: dateNow,
+      statut: 'actif',
+      utilisateurs: [{
+        id: donneesProjet.proprietaireId,
+        nom: donneesProjet.proprietaireNom,
+        email: 'proprietaire@example.com',
+        role: 'proprietaire',
+        dateAjout: dateNow,
+      }],
+      lienPartage: `farmtrack://projet/${Date.now()}`,
+      permissions: {
+        peutModifierPorcs: true,
+        peutModifierGestations: true,
+        peutModifierNutrition: true,
+        peutModifierFinance: true,
+        peutModifierPlanification: true,
+        peutInviterUtilisateurs: true,
+        peutVoirRapports: true,
+      },
+    };
+    
+    // Simuler un délai d'API
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return nouveauProjet;
+  }
+);
 
-import type { Projet } from '../../types/projet';
+export const rejoindreProjet = createAsyncThunk(
+  'collaboration/rejoindreProjet',
+  async (lienPartage: string) => {
+    // Simulation d'un appel API pour rejoindre un projet
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Simuler la récupération du projet
+    const projet: Projet = {
+      id: 'projet_exemple',
+      nom: 'Ferme Exemple',
+      description: 'Projet partagé',
+      proprietaireId: 'proprietaire_123',
+      proprietaireNom: 'Jean Dupont',
+      dateCreation: new Date('2024-01-01').toISOString(),
+      derniereModification: new Date().toISOString(),
+      statut: 'actif',
+      utilisateurs: [],
+      lienPartage,
+      permissions: {
+        peutModifierPorcs: true,
+        peutModifierGestations: true,
+        peutModifierNutrition: true,
+        peutModifierFinance: false,
+        peutModifierPlanification: false,
+        peutInviterUtilisateurs: false,
+        peutVoirRapports: true,
+      },
+    };
+    
+    return projet;
+  }
+);
+
+export const inviterUtilisateur = createAsyncThunk(
+  'collaboration/inviterUtilisateur',
+  async (donneesInvitation: { projetId: string; email: string; role: 'collaborateur' | 'lecteur' }) => {
+    // Simulation d'un appel API
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const dateNow = Date.now();
+    const invitation: InvitationProjet = {
+      id: `invitation_${dateNow}`,
+      projetId: donneesInvitation.projetId,
+      projetNom: 'Ferme Exemple',
+      emailInvite: donneesInvitation.email,
+      rolePropose: donneesInvitation.role,
+      statut: 'en_attente',
+      dateEnvoi: new Date(dateNow).toISOString(),
+      dateExpiration: new Date(dateNow + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 jours
+      codeInvitation: Math.random().toString(36).substring(2, 8).toUpperCase(),
+    };
+    
+    return invitation;
+  }
+);
+
+export const enregistrerActivite = createAsyncThunk(
+  'collaboration/enregistrerActivite',
+  async (activite: Omit<ActiviteUtilisateur, 'id' | 'date'>) => {
+    // Simulation d'un appel API
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    const nouvelleActivite: ActiviteUtilisateur = {
+      ...activite,
+      id: `activite_${Date.now()}`,
+      date: new Date().toISOString(),
+    };
+    
+    return nouvelleActivite;
+  }
+);
 
 interface CollaborationState {
-  collaborateurs: Collaborateur[];
-  collaborateurActuel: Collaborateur | null; // Collaborateur actuel pour le projet actif
-  invitationsEnAttente: Collaborateur[]; // Invitations en attente pour l'utilisateur connecté
-  // 🆕 Gestion des projets collaboratifs (pour vétérinaires/techniciens)
-  collaborationsActives: Collaborateur[]; // Toutes les collaborations actives de l'utilisateur
-  projetCollaboratifActif: Projet | null; // Le projet du producteur actuellement sélectionné
-  projetsAccessibles: Projet[]; // Liste des projets accessibles via collaborations
+  projets: Projet[];
+  projetActuel: Projet | null;
+  utilisateurActuel: Utilisateur | null;
+  activites: ActiviteUtilisateur[];
+  invitations: InvitationProjet[];
   loading: boolean;
-  error: string | null;
+  error?: string;
 }
 
 const initialState: CollaborationState = {
-  collaborateurs: [],
-  collaborateurActuel: null,
-  invitationsEnAttente: [],
-  collaborationsActives: [],
-  projetCollaboratifActif: null,
-  projetsAccessibles: [],
+  projets: [],
+  projetActuel: null,
+  utilisateurActuel: {
+    id: 'utilisateur_123',
+    nom: 'Utilisateur Local',
+    email: 'utilisateur@example.com',
+    role: 'proprietaire',
+    dateAjout: new Date().toISOString(),
+  },
+  activites: [],
+  invitations: [],
   loading: false,
-  error: null,
 };
-
-// Thunks pour Collaborations
-export const createCollaborateur = createAsyncThunk(
-  'collaboration/createCollaborateur',
-  async (input: CreateCollaborateurInput, { rejectWithValue }) => {
-    try {
-      const permissions = input.permissions
-        ? { ...DEFAULT_PERMISSIONS[input.role], ...input.permissions }
-        : DEFAULT_PERMISSIONS[input.role];
-
-      const collaborateur = await apiClient.post<Collaborateur>('/collaborations', {
-        ...input,
-        statut: input.statut || 'en_attente',
-        permissions,
-      });
-
-      // TODO: La synchronisation avec vetProfile.clients sera gérée côté backend si nécessaire
-      return collaborateur;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-export const loadCollaborateurs = createAsyncThunk(
-  'collaboration/loadCollaborateurs',
-  async (projetId: string, { rejectWithValue }) => {
-    try {
-      const response = await apiClient.get<{ data: Collaborateur[]; pagination: any } | Collaborateur[]>('/collaborations', {
-        params: { projet_id: projetId },
-      });
-      // Gérer la nouvelle structure avec pagination ou l'ancienne structure directe
-      const collaborateurs = Array.isArray(response) ? response : response.data || [];
-      return collaborateurs;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-export const loadCollaborateursParProjet = createAsyncThunk(
-  'collaboration/loadCollaborateursParProjet',
-  async (projetId: string, { rejectWithValue }) => {
-    try {
-      if (!projetId) {
-        return [];
-      }
-      const response = await apiClient.get<{ data: Collaborateur[]; pagination: any } | Collaborateur[]>('/collaborations', {
-        params: { projet_id: projetId },
-      });
-      // Gérer la nouvelle structure avec pagination ou l'ancienne structure directe
-      const collaborateurs = Array.isArray(response) ? response : response.data || [];
-      return collaborateurs;
-    } catch (error: unknown) {
-      // Si le projet n'existe pas (404), retourner un tableau vide sans logger d'erreur
-      const errorMessage = getErrorMessage(error);
-      const is404 = errorMessage?.includes('introuvable') || 
-                    errorMessage?.includes('Not Found') || 
-                    errorMessage?.includes('404') ||
-                    (error as any)?.response?.status === 404 ||
-                    (error as any)?.status === 404;
-      
-      if (is404) {
-        // Projet introuvable : retourner un tableau vide silencieusement
-        return [];
-      }
-      
-      // Pour les autres erreurs, logger et rejeter
-      console.warn('[CollaborationSlice] Erreur lors du chargement des collaborateurs:', errorMessage);
-      return rejectWithValue(errorMessage);
-    }
-  }
-);
-
-export const updateCollaborateur = createAsyncThunk(
-  'collaboration/updateCollaborateur',
-  async (
-    { id, updates }: { id: string; updates: UpdateCollaborateurInput },
-    { rejectWithValue }
-  ) => {
-    try {
-      const collaborateur = await apiClient.patch<Collaborateur>(`/collaborations/${id}`, updates);
-      // TODO: La synchronisation avec vetProfile.clients sera gérée côté backend si nécessaire
-      return collaborateur;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-export const deleteCollaborateur = createAsyncThunk(
-  'collaboration/deleteCollaborateur',
-  async (id: string, { rejectWithValue }) => {
-    try {
-      await apiClient.delete(`/collaborations/${id}`);
-      return id;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-export const accepterInvitation = createAsyncThunk(
-  'collaboration/accepterInvitation',
-  async (id: string, { rejectWithValue }) => {
-    try {
-      if (!id) {
-        throw new Error("L'ID de l'invitation est manquant");
-      }
-
-      const collaborateur = await apiClient.patch<Collaborateur>(`/collaborations/${id}/accepter`, {});
-      return collaborateur;
-    } catch (error: unknown) {
-      console.error(`Erreur lors de l'acceptation de l'invitation ${id}:`, error);
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-/**
- * Charger le collaborateur actuel pour le projet actif et l'utilisateur connecté
- */
-export const loadCollaborateurActuel = createAsyncThunk(
-  'collaboration/loadCollaborateurActuel',
-  async ({ userId, projetId }: { userId: string; projetId: string }, { rejectWithValue }) => {
-    try {
-      const collaborateur = await apiClient.get<Collaborateur | null>('/collaborations/actuel', {
-        params: { projet_id: projetId },
-      });
-      return collaborateur;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-/**
- * Charger les invitations en attente pour un utilisateur
- * Utilise user_id si disponible, sinon email OU telephone
- */
-export const loadInvitationsEnAttente = createAsyncThunk(
-  'collaboration/loadInvitationsEnAttente',
-  async (
-    { userId, email, telephone }: { userId?: string; email?: string; telephone?: string },
-    { rejectWithValue }
-  ) => {
-    try {
-      if (!userId && !email && !telephone) {
-        return [];
-      }
-
-      const params: Record<string, string> = {};
-      if (email) params.email = email;
-      if (telephone) params.telephone = telephone;
-
-      const invitations = await apiClient.get<Collaborateur[]>('/collaborations/invitations', {
-        params,
-      });
-      return invitations;
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-/**
- * Rejeter une invitation
- */
-export const rejeterInvitation = createAsyncThunk(
-  'collaboration/rejeterInvitation',
-  async (id: string, { rejectWithValue }) => {
-    try {
-      if (!id) {
-        throw new Error("L'ID de l'invitation est manquant");
-      }
-
-      await apiClient.patch(`/collaborations/${id}/rejeter`, {});
-      return id;
-    } catch (error: unknown) {
-      console.error(`Erreur lors du rejet de l'invitation ${id}:`, error);
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-// Type étendu pour les collaborations avec info projet
-interface CollaborateurAvecProjet extends Collaborateur {
-  projet_nom?: string;
-  projet_localisation?: string;
-}
-
-/**
- * 🆕 Charger toutes les collaborations actives d'un utilisateur (vétérinaire/technicien)
- * Utilise le nouvel endpoint GET /collaborations/mes-projets qui retourne les collaborations actives
- * avec les informations des projets associés
- */
-export const loadCollaborationsActives = createAsyncThunk(
-  'collaboration/loadCollaborationsActives',
-  async (
-    { userId, email, telephone }: { userId: string; email?: string; telephone?: string },
-    { rejectWithValue }
-  ) => {
-    try {
-      const params: Record<string, string> = {};
-      if (email) params.email = email;
-      if (telephone) params.telephone = telephone;
-
-      // 🆕 Utiliser le nouvel endpoint qui retourne directement les collaborations actives avec les projets
-      const response = await apiClient.get<CollaborateurAvecProjet[]>('/collaborations/mes-projets', {
-        params,
-      });
-
-      const collaborationsActives: Collaborateur[] = response || [];
-
-      // Construire la liste des projets à partir des données de collaborations
-      const projetsAccessibles: Projet[] = collaborationsActives.map((collab) => ({
-        id: collab.projet_id,
-        nom: (collab as CollaborateurAvecProjet).projet_nom || `Projet ${collab.projet_id}`,
-        localisation: (collab as CollaborateurAvecProjet).projet_localisation,
-        proprietaire_id: '', // Non disponible dans cette réponse
-        date_creation: collab.date_creation || new Date().toISOString(),
-      }));
-
-      return { collaborationsActives, projetsAccessibles };
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
-
-/**
- * 🆕 Sélectionner un projet collaboratif (pour vétérinaires/techniciens)
- * Charge les données du projet et met à jour collaborateurActuel
- */
-export const selectProjetCollaboratif = createAsyncThunk(
-  'collaboration/selectProjetCollaboratif',
-  async (
-    { projetId, userId }: { projetId: string; userId: string },
-    { rejectWithValue, getState }
-  ) => {
-    try {
-      // Récupérer le projet
-      const projet = await apiClient.get<Projet>(`/projets/${projetId}`);
-      
-      // Récupérer la collaboration actuelle pour ce projet
-      const collaborateur = await apiClient.get<Collaborateur | null>('/collaborations/actuel', {
-        params: { projet_id: projetId },
-      });
-
-      if (!collaborateur) {
-        throw new Error("Vous n'avez pas accès à ce projet");
-      }
-
-      if (collaborateur.statut !== 'actif') {
-        throw new Error("Votre collaboration n'est pas active pour ce projet");
-      }
-
-      return { projet, collaborateur };
-    } catch (error: unknown) {
-      return rejectWithValue(getErrorMessage(error));
-    }
-  }
-);
 
 const collaborationSlice = createSlice({
   name: 'collaboration',
   initialState,
   reducers: {
+    setProjetActuel: (state, action: PayloadAction<Projet>) => {
+      state.projetActuel = action.payload;
+    },
+    setUtilisateurActuel: (state, action: PayloadAction<Utilisateur>) => {
+      state.utilisateurActuel = action.payload;
+    },
+    ajouterActiviteLocale: (state, action: PayloadAction<ActiviteUtilisateur>) => {
+      state.activites.unshift(action.payload);
+      // Garder seulement les 100 dernières activités
+      if (state.activites.length > 100) {
+        state.activites = state.activites.slice(0, 100);
+      }
+    },
+    mettreAJourPermissions: (state, action: PayloadAction<{ utilisateurId: string; permissions: Partial<PermissionsProjet> }>) => {
+      if (state.projetActuel) {
+        const utilisateur = state.projetActuel.utilisateurs.find(u => u.id === action.payload.utilisateurId);
+        if (utilisateur) {
+          // Mettre à jour les permissions dans le projet
+          state.projetActuel.permissions = { ...state.projetActuel.permissions, ...action.payload.permissions };
+        }
+      }
+    },
+    setLoading: (state, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
+    },
+    setError: (state, action: PayloadAction<string>) => {
+      state.error = action.payload;
+    },
     clearError: (state) => {
-      state.error = null;
-    },
-    clearCollaborateurActuel: (state) => {
-      state.collaborateurActuel = null;
-    },
-    clearInvitationsEnAttente: (state) => {
-      state.invitationsEnAttente = [];
-    },
-    // 🆕 Actions pour la gestion des projets collaboratifs
-    clearProjetCollaboratif: (state) => {
-      state.projetCollaboratifActif = null;
-      state.collaborateurActuel = null;
-    },
-    clearCollaborationsActives: (state) => {
-      state.collaborationsActives = [];
-      state.projetsAccessibles = [];
-      state.projetCollaboratifActif = null;
-      state.collaborateurActuel = null;
+      state.error = undefined;
     },
   },
   extraReducers: (builder) => {
     builder
-      // createCollaborateur
-      .addCase(createCollaborateur.pending, (state) => {
+      // Créer un projet
+      .addCase(creerProjet.pending, (state) => {
         state.loading = true;
-        state.error = null;
+        state.error = undefined;
       })
-      .addCase(createCollaborateur.fulfilled, (state, action) => {
+      .addCase(creerProjet.fulfilled, (state, action) => {
         state.loading = false;
-        state.collaborateurs.unshift(action.payload);
+        state.projets.push(action.payload);
+        state.projetActuel = action.payload;
       })
-      .addCase(createCollaborateur.rejected, (state, action) => {
+      .addCase(creerProjet.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload as string;
+        state.error = action.error.message || 'Erreur lors de la création du projet';
       })
-      // loadCollaborateurs
-      .addCase(loadCollaborateurs.pending, (state) => {
+      
+      // Rejoindre un projet
+      .addCase(rejoindreProjet.pending, (state) => {
         state.loading = true;
-        state.error = null;
+        state.error = undefined;
       })
-      .addCase(loadCollaborateurs.fulfilled, (state, action) => {
+      .addCase(rejoindreProjet.fulfilled, (state, action) => {
         state.loading = false;
-        state.collaborateurs = action.payload;
-      })
-      .addCase(loadCollaborateurs.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // loadCollaborateursParProjet
-      .addCase(loadCollaborateursParProjet.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(loadCollaborateursParProjet.fulfilled, (state, action) => {
-        state.loading = false;
-        state.collaborateurs = action.payload;
-      })
-      .addCase(loadCollaborateursParProjet.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // updateCollaborateur
-      .addCase(updateCollaborateur.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(updateCollaborateur.fulfilled, (state, action) => {
-        state.loading = false;
-        const index = state.collaborateurs.findIndex(
-          (c: Collaborateur) => c.id === action.payload.id
-        );
-        if (index !== -1) {
-          state.collaborateurs[index] = action.payload;
+        state.projetActuel = action.payload;
+        // Ajouter le projet à la liste s'il n'y est pas déjà
+        if (!state.projets.find(p => p.id === action.payload.id)) {
+          state.projets.push(action.payload);
         }
       })
-      .addCase(updateCollaborateur.rejected, (state, action) => {
+      .addCase(rejoindreProjet.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload as string;
+        state.error = action.error.message || 'Erreur lors de la connexion au projet';
       })
-      // deleteCollaborateur
-      .addCase(deleteCollaborateur.pending, (state) => {
+      
+      // Inviter un utilisateur
+      .addCase(inviterUtilisateur.pending, (state) => {
         state.loading = true;
-        state.error = null;
+        state.error = undefined;
       })
-      .addCase(deleteCollaborateur.fulfilled, (state, action) => {
+      .addCase(inviterUtilisateur.fulfilled, (state, action) => {
         state.loading = false;
-        state.collaborateurs = state.collaborateurs.filter(
-          (c: Collaborateur) => c.id !== action.payload
-        );
+        state.invitations.push(action.payload);
       })
-      .addCase(deleteCollaborateur.rejected, (state, action) => {
+      .addCase(inviterUtilisateur.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload as string;
+        state.error = action.error.message || 'Erreur lors de l\'invitation';
       })
-      // accepterInvitation
-      .addCase(accepterInvitation.pending, (state) => {
-        state.loading = true;
-        state.error = null;
+      
+      // Enregistrer une activité
+      .addCase(enregistrerActivite.pending, (state) => {
+        // Pas de loading pour les activités
       })
-      .addCase(accepterInvitation.fulfilled, (state, action) => {
-        state.loading = false;
-        const index = state.collaborateurs.findIndex(
-          (c: Collaborateur) => c.id === action.payload.id
-        );
-        if (index !== -1) {
-          state.collaborateurs[index] = action.payload;
-        }
-        // Retirer de la liste des invitations en attente
-        state.invitationsEnAttente = state.invitationsEnAttente.filter(
-          (inv) => inv.id !== action.payload.id
-        );
-      })
-      .addCase(accepterInvitation.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // loadCollaborateurActuel
-      .addCase(loadCollaborateurActuel.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(loadCollaborateurActuel.fulfilled, (state, action) => {
-        state.loading = false;
-        state.collaborateurActuel = action.payload;
-      })
-      .addCase(loadCollaborateurActuel.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-        state.collaborateurActuel = null;
-      })
-      // loadInvitationsEnAttente
-      .addCase(loadInvitationsEnAttente.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(loadInvitationsEnAttente.fulfilled, (state, action) => {
-        state.loading = false;
-        state.invitationsEnAttente = action.payload;
-      })
-      .addCase(loadInvitationsEnAttente.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // rejeterInvitation
-      .addCase(rejeterInvitation.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(rejeterInvitation.fulfilled, (state, action) => {
-        state.loading = false;
-        state.invitationsEnAttente = state.invitationsEnAttente.filter(
-          (inv) => inv.id !== action.payload
-        );
-      })
-      .addCase(rejeterInvitation.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // 🆕 loadCollaborationsActives
-      .addCase(loadCollaborationsActives.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(loadCollaborationsActives.fulfilled, (state, action) => {
-        state.loading = false;
-        state.collaborationsActives = action.payload.collaborationsActives;
-        state.projetsAccessibles = action.payload.projetsAccessibles;
-        // Si un seul projet accessible, le sélectionner automatiquement
-        if (action.payload.projetsAccessibles.length === 1 && !state.projetCollaboratifActif) {
-          state.projetCollaboratifActif = action.payload.projetsAccessibles[0];
-          // Trouver la collaboration correspondante pour collaborateurActuel
-          const collab = action.payload.collaborationsActives.find(
-            (c) => c.projet_id === action.payload.projetsAccessibles[0].id
-          );
-          if (collab) {
-            state.collaborateurActuel = collab;
-          }
+      .addCase(enregistrerActivite.fulfilled, (state, action) => {
+        state.activites.unshift(action.payload);
+        // Garder seulement les 100 dernières activités
+        if (state.activites.length > 100) {
+          state.activites = state.activites.slice(0, 100);
         }
       })
-      .addCase(loadCollaborationsActives.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
-      })
-      // 🆕 selectProjetCollaboratif
-      .addCase(selectProjetCollaboratif.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(selectProjetCollaboratif.fulfilled, (state, action) => {
-        state.loading = false;
-        state.projetCollaboratifActif = action.payload.projet;
-        state.collaborateurActuel = action.payload.collaborateur;
-      })
-      .addCase(selectProjetCollaboratif.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload as string;
+      .addCase(enregistrerActivite.rejected, (state, action) => {
+        console.error('Erreur lors de l\'enregistrement de l\'activité:', action.error);
       });
   },
 });
 
-export const { 
-  clearError, 
-  clearCollaborateurActuel, 
-  clearInvitationsEnAttente,
-  clearProjetCollaboratif,
-  clearCollaborationsActives,
+export const {
+  setProjetActuel,
+  setUtilisateurActuel,
+  ajouterActiviteLocale,
+  mettreAJourPermissions,
+  setLoading,
+  setError,
+  clearError,
 } = collaborationSlice.actions;
+
 export default collaborationSlice.reducer;
