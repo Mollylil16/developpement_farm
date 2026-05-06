@@ -32,7 +32,7 @@ const App: React.FC = () => {
             <Tab.Navigator
               screenOptions={({ route }) => ({
                 tabBarIcon: ({ focused, color, size }) => {
-                  let iconName: string;
+                  let iconName: React.ComponentProps<typeof MaterialIcons>['name'];
 
                   switch (route.name) {
                     case 'Dashboard':
