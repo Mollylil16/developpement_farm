@@ -1,4 +1,4 @@
-/**
+﻿/**
  * VeterinaireComponent - Gestion complète du suivi vétérinaire
  * - Carte info vétérinaire (depuis Collaborations)
  * - Historique des visites
@@ -82,7 +82,7 @@ const PERIODICITE_JOURS: Record<Periodicite, number> = {
 function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const navigation = useNavigation<unknown>();
+  const navigation = useNavigation<any>();
 
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();
@@ -208,7 +208,7 @@ function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
         'Succès',
         `Planning créé avec succès !\n\n${planning.length} visites vétérinaires ont été créées sur 6 mois.`
       );
-    } catch (error: unknown) {
+    } catch (error) {
       Alert.alert(
         'Erreur',
         error?.message || 'Impossible de créer le planning. Vérifiez vos données et réessayez.'
@@ -246,7 +246,7 @@ function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
               try {
                 await dispatch(deleteVisiteVeterinaire(visite.id)).unwrap();
                 Alert.alert('Succès', 'Visite supprimée avec succès');
-              } catch (error: unknown) {
+              } catch (error) {
                 Alert.alert('Erreur', error || 'Erreur lors de la suppression de la visite');
               }
             },
@@ -427,8 +427,7 @@ function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
       {/* Modal Ajouter/Modifier Visite */}
       <VisiteVeterinaireFormModalNew
         visible={showModalVisite}
-        visite={visiteSelectionnee}
-        isEditing={modeEdition}
+        visite={visiteSelectionnee ?? undefined}
         onClose={() => {
           setShowModalVisite(false);
           setVisiteSelectionnee(null);

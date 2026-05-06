@@ -78,7 +78,7 @@ const MortalitesScreen: React.FC = () => {
         notes: mortaliteForm.notes || undefined,
       };
 
-      await dispatch(enregistrerMortalite(donneesMortalite)).unwrap();
+      await dispatch(enregistrerMortalite(donneesMortalite as any)).unwrap();
       
       // Mettre à jour le statut du porc à 'mort'
       await dispatch(mettreAJourStatutPorc({ 
@@ -118,8 +118,9 @@ const MortalitesScreen: React.FC = () => {
     );
   };
 
-  const MortaliteCard = ({ mortalite }: { mortalite: Mortalite }) => {
-    const porc = porcs.find(p => p.id === mortalite.porcId);
+  const MortaliteCard = ({ mortalite: _mortalite }: { mortalite: Mortalite }) => {
+    const mortalite = _mortalite as any;
+    const porc = porcs.find((p: any) => p.id === mortalite.porcId);
     
     return (
       <View style={styles.mortaliteCard}>
@@ -130,7 +131,7 @@ const MortalitesScreen: React.FC = () => {
               {mortalite.porcNumeroIdentification}
             </Text>
             <Text style={styles.mortaliteCause}>
-              {mortalite.causeDeces} - {mortalite.dateDeces.toLocaleDateString('fr-FR')}
+              {mortalite.causeDeces} - {new Date(mortalite.dateDeces).toLocaleDateString('fr-FR')}
             </Text>
           </View>
           <TouchableOpacity onPress={() => handleSupprimerMortalite(mortalite.id)}>
@@ -171,12 +172,13 @@ const MortalitesScreen: React.FC = () => {
   };
 
   const StatistiquesMortalite = () => {
-    const mortalitesMois = mortalites.filter(m => 
-      new Date(m.dateDeces).getMonth() === new Date().getMonth()
+    const mortalitesMois = mortalites.filter((m: any) =>
+      new Date(m.dateDeces ?? m.date).getMonth() === new Date().getMonth()
     ).length;
-    
-    const causesRepartition = mortalites.reduce((acc, m) => {
-      acc[m.causeDeces] = (acc[m.causeDeces] || 0) + 1;
+
+    const causesRepartition = mortalites.reduce((acc, m: any) => {
+      const cause = m.causeDeces ?? m.categorie ?? 'autre';
+      acc[cause] = (acc[cause] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
@@ -252,8 +254,8 @@ const MortalitesScreen: React.FC = () => {
             <Text style={styles.emptySubtext}>Les décès apparaîtront ici une fois enregistrés</Text>
           </View>
         ) : (
-          mortalites.map((mortalite) => (
-            <MortaliteCard key={mortalite.id} mortalite={mortalite} />
+          mortalites.map((mortalite: any) => (
+            <MortaliteCard key={mortalite.id} mortalite={mortalite as any} />
           ))
         )}
       </Section>

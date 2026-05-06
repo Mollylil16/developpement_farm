@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Vue détaillée - Notifications
  */
 
@@ -66,7 +66,7 @@ export default function SettingsNotificationsView({ onBack }: SettingsNotificati
         setScheduledCount(0);
         Alert.alert('Succès', 'Les notifications ont été désactivées');
       }
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la modification des notifications';
       Alert.alert('Erreur', errorMessage);
       setNotificationsEnabled(!value); // Revenir à l'état précédent

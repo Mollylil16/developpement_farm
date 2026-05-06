@@ -3,6 +3,9 @@
  * Tous les repositories utilisent maintenant l'API REST (PostgreSQL via backend)
  */
 
+import { UserRepository } from './UserRepository';
+import { ProjetRepository } from './ProjetRepository';
+
 export { BaseRepository } from './BaseRepository';
 export { UserRepository } from './UserRepository';
 export { ProjetRepository } from './ProjetRepository';
@@ -21,7 +24,7 @@ export { PlanificationRepository } from './PlanificationRepository';
 export { CollaborateurRepository } from './CollaborateurRepository';
 export { MortaliteRepository } from './MortaliteRepository';
 export { VaccinationRepository } from './VaccinationRepository';
-export { RappelVaccinationRepository } from './VaccinationRepository';
+export { RappelVaccinationRepository } from './RappelVaccinationRepository';
 export { MaladieRepository } from './MaladieRepository';
 export { TraitementRepository } from './TraitementRepository';
 export { VisiteVeterinaireRepository } from './VisiteVeterinaireRepository';

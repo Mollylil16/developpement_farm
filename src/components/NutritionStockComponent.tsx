@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Composant de gestion des stocks d'aliments
  */
 
@@ -147,7 +147,7 @@ export default function NutritionStockComponent() {
               if (selectedStock?.id === aliment.id) {
                 setSelectedStock(null);
               }
-            } catch (error: unknown) {
+            } catch (error) {
               const errorMessage = error instanceof Error ? error.message : "Erreur lors de la suppression de l'aliment";
               Alert.alert('Erreur', errorMessage);
             }

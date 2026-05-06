@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Composant pour gérer l'historique des animaux (vendu, offert, mort)
  */
 
@@ -32,6 +32,7 @@ import ProductionAnimalFormModal from './ProductionAnimalFormModal';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { Ionicons } from '@expo/vector-icons';
+import { useMarketplaceStatusForAnimals } from '../hooks/useMarketplaceStatusForAnimals';
 import Card from './Card';
 import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
@@ -122,7 +123,7 @@ export default function ProductionHistoriqueComponent() {
           onPress: async () => {
             try {
               await dispatch(deleteProductionAnimal(animal.id)).unwrap();
-            } catch (error: unknown) {
+            } catch (error) {
               const errorMessage = error instanceof Error ? error.message : String(error) || 'Erreur lors de la suppression';
               Alert.alert('Erreur', errorMessage);
             }
@@ -200,7 +201,7 @@ export default function ProductionHistoriqueComponent() {
               if (nouveauStatut === 'actif') {
                 navigation.goBack();
               }
-            } catch (error: unknown) {
+            } catch (error) {
               const errorMessage = error instanceof Error ? error.message : String(error) || 'Erreur lors de la mise à jour du statut';
               Alert.alert('Erreur', errorMessage);
             }

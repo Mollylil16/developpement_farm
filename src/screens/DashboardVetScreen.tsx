@@ -538,11 +538,6 @@ const styles = StyleSheet.create({
     marginTop: SPACING.lg,
     paddingBottom: SPACING.xl,
   },
-  sectionTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: FONT_WEIGHTS.bold,
-    marginBottom: SPACING.md,
-  },
   featureCard: {
     padding: SPACING.lg,
     borderRadius: BORDER_RADIUS.md,
@@ -635,93 +630,10 @@ const styles = StyleSheet.create({
   consultationsList: {
     gap: SPACING.sm,
   },
-  pendingBanner: {
-    margin: SPACING.md,
-    padding: SPACING.xl,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  pendingIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACING.lg,
-  },
-  pendingTitle: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: FONT_WEIGHTS.bold,
-    marginBottom: SPACING.sm,
-    textAlign: 'center',
-  },
-  pendingMessage: {
-    fontSize: FONT_SIZES.md,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: SPACING.lg,
-  },
-  pendingSteps: {
-    width: '100%',
-    marginBottom: SPACING.lg,
-  },
-  pendingStep: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
-  stepIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: SPACING.md,
-  },
-  stepText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.medium,
-  },
-  contactButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.lg,
-    borderRadius: BORDER_RADIUS.md,
-    gap: SPACING.xs,
-  },
-  contactButtonText: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semiBold,
-  },
-  previewSection: {
-    marginTop: SPACING.lg,
-    paddingBottom: SPACING.xl,
-  },
-  featureCard: {
-    padding: SPACING.lg,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    marginBottom: SPACING.md,
-    alignItems: 'center',
-  },
-  featureTitle: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.bold,
-    marginTop: SPACING.sm,
-    marginBottom: SPACING.xs,
-    textAlign: 'center',
-  },
-  featureDescription: {
-    fontSize: FONT_SIZES.sm,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
 });
 
 // Composant Card pour les consultations
-const ConsultationCard: React.FC<{ consultation: VisiteVeterinaire; colors: unknown }> = ({
+const ConsultationCard: React.FC<{ consultation: VisiteVeterinaire; colors: any }> = ({
   consultation,
   colors,
 }) => {

@@ -103,7 +103,7 @@ export default function VetConsultationsScreen() {
               try {
                 await dispatch(deleteVisiteVeterinaire(visite.id)).unwrap();
                 Alert.alert('Succès', 'Visite supprimée avec succès');
-              } catch (e: unknown) {
+              } catch (e) {
                 Alert.alert('Erreur', (e as Error)?.message || 'Erreur lors de la suppression');
               }
             },
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontWeight: FONT_WEIGHTS.semiBold,
     flex: 1,
   },
   addButton: {
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontWeight: FONT_WEIGHTS.semiBold,
     color: '#FFF',
   },
   emptySection: {

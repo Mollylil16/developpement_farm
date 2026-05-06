@@ -28,7 +28,9 @@ export interface Sevrage {
   gestation_id: string; // Référence à la gestation
   date_sevrage: string; // Date ISO
   nombre_porcelets_sevres: number;
+  nombre_porcelets?: number; // Alias for nombre_porcelets_sevres (compatibility)
   poids_moyen_sevrage?: number; // Poids moyen en kg
+  poids_moyen_kg?: number; // Alias pour compatibilité
   notes?: string;
   date_creation: string;
 }

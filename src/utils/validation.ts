@@ -198,3 +198,34 @@ export class ValidationFormulaires {
     };
   }
 }
+
+/** Validate email format */
+export function validateEmail(email: string): { valid: boolean; isValid: boolean; errors: string[]; message?: string } {
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const errors = valid ? [] : ['Veuillez entrer une adresse email valide'];
+  return { valid, isValid: valid, errors, message: errors[0] };
+}
+
+/** Validate phone number format */
+export function validatePhone(phone: string): { valid: boolean; isValid: boolean; errors: string[]; message?: string } {
+  const valid = /^\+?[\d\s\-()]{8,15}$/.test(phone);
+  const errors = valid ? [] : ['Veuillez entrer un numéro de téléphone valide'];
+  return { valid, isValid: valid, errors, message: errors[0] };
+}
+
+/** Validate registration data */
+export function validateRegisterData(data: {
+  nom?: string;
+  prenom?: string;
+  email?: string;
+  telephone?: string;
+  password?: string;
+}): { valid: boolean; isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  if (!data.nom?.trim()) errors.push('Le nom est requis');
+  if (!data.prenom?.trim()) errors.push('Le prénom est requis');
+  if (data.email && !validateEmail(data.email).valid) errors.push('Email invalide');
+  if (data.telephone && !validatePhone(data.telephone).valid) errors.push('Téléphone invalide');
+  const valid = errors.length === 0;
+  return { valid, isValid: valid, errors };
+}

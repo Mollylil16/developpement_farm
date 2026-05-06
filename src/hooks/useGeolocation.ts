@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hook pour la géolocalisation
  * Gère la localisation de l'utilisateur et le calcul de distances
  */
@@ -56,7 +56,7 @@ export function useGeolocation() {
       const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
       setPermissionGranted(status === 'granted');
       return status === 'granted';
-    } catch (err: unknown) {
+    } catch (err) {
       setError('Erreur lors de la demande de permission');
       logger.error('Permission error:', err);
       return false;
@@ -111,7 +111,7 @@ export function useGeolocation() {
 
       setLocation(userLocation);
       return userLocation;
-    } catch (err: unknown) {
+    } catch (err) {
       setError("Impossible d'obtenir votre localisation");
       logger.error('Location error:', err);
       return null;

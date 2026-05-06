@@ -388,7 +388,7 @@ export default function QRInvitationConfigScreen() {
             style={[
               styles.primaryButton,
               {
-                backgroundColor: hasAtLeastOnePermission ? colors.primary : colors.disabled,
+                backgroundColor: hasAtLeastOnePermission ? colors.primary : (colors as any).disabled,
               },
               !hasAtLeastOnePermission && styles.buttonDisabled,
             ]}
@@ -461,7 +461,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontWeight: FONT_WEIGHTS.semiBold,
     marginBottom: SPACING.md,
   },
   profileContainer: {
@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
   },
   profileName: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontWeight: FONT_WEIGHTS.semiBold,
     marginBottom: SPACING.xs,
   },
   badgeContainer: {
@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
   },
   roleText: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontWeight: FONT_WEIGHTS.semiBold,
     marginRight: SPACING.xs,
   },
   helperText: {
@@ -620,7 +620,7 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontWeight: FONT_WEIGHTS.semiBold,
   },
   secondaryButton: {
     alignItems: 'center',
@@ -642,7 +642,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontWeight: FONT_WEIGHTS.semiBold,
     marginTop: SPACING.md,
     marginBottom: SPACING.xl,
   },
@@ -653,6 +653,6 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: FONT_SIZES.md,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontWeight: FONT_WEIGHTS.semiBold,
   },
 });

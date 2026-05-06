@@ -52,7 +52,7 @@ export function useScreenPreloader(config: PreloadConfig) {
   const { preloadFn, delay = 0, cacheTime = 5 * 60 * 1000, preloadOnFocus = false } = config;
   const navigation = useNavigation<NavigationProp<any>>();
   const cacheRef = useRef<PreloadCache | null>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPreloadingRef = useRef(false);
 
   const preload = async () => {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Slice Redux pour l'authentification
  * Utilise maintenant l'API backend au lieu de SQLite
  */
@@ -65,7 +65,7 @@ export const loadUserFromStorageThunk = createAsyncThunk('auth/loadUserFromStora
           const { CollaborateurRepository } = await import('../../database/repositories');
           const collaborateurRepo = new CollaborateurRepository();
           await collaborateurRepo.lierCollaborateurAUtilisateur(user.id, user.email);
-        } catch (error: unknown) {
+        } catch (error) {
           // Ne pas bloquer le chargement si la liaison échoue
           logger.warn(
             'Avertissement lors de la liaison du collaborateur au démarrage:',
@@ -75,7 +75,7 @@ export const loadUserFromStorageThunk = createAsyncThunk('auth/loadUserFromStora
       }
 
       return user;
-    } catch (error: unknown) {
+    } catch (error) {
       // Token invalide ou erreur API
       logger.error('Erreur lors de la récupération du profil:', error);
 
@@ -163,7 +163,7 @@ export const signUp = createAsyncThunk(
             );
             // Le projet sera chargé automatiquement dans loadProjetActif
           }
-        } catch (error: unknown) {
+        } catch (error) {
           // Ne pas bloquer l'inscription si la liaison échoue
           logger.warn(
             "Avertissement lors de la liaison du collaborateur à l'inscription:",
@@ -183,7 +183,7 @@ export const signUp = createAsyncThunk(
       resetRateLimit(rateLimitKey);
 
       return user;
-    } catch (error: unknown) {
+    } catch (error) {
       // Gérer les erreurs API
       if (error && typeof error === 'object' && 'status' in error && error.status === 409) {
         const apiError = error as { status: number; data?: { message?: string } };
@@ -251,7 +251,7 @@ export const signIn = createAsyncThunk(
             const { CollaborateurRepository } = await import('../../database/repositories');
             const collaborateurRepo = new CollaborateurRepository();
             await collaborateurRepo.lierCollaborateurAUtilisateur(user.id, user.email);
-          } catch (error: unknown) {
+          } catch (error) {
             logger.warn(
               'Avertissement lors de la liaison du collaborateur:',
               getErrorMessage(error)
@@ -295,7 +295,7 @@ export const signIn = createAsyncThunk(
             logger.debug("Collaborateur lié à l'utilisateur:", collaborateur.id);
             // Le projet sera chargé automatiquement dans loadProjetActif
           }
-        } catch (error: unknown) {
+        } catch (error) {
           // Ne pas bloquer la connexion si la liaison échoue
           logger.warn(
             'Avertissement lors de la liaison du collaborateur:',
@@ -311,7 +311,7 @@ export const signIn = createAsyncThunk(
       resetRateLimit(rateLimitKey);
       
       return user;
-    } catch (error: unknown) {
+    } catch (error) {
       // Gérer les erreurs API
       if (error && typeof error === 'object' && 'status' in error && error.status === 401) {
         // Pour les erreurs 401 (identifiants incorrects), utiliser un message générique
@@ -368,7 +368,7 @@ export const signInWithGoogle = createAsyncThunk(
           if (collaborateur) {
             logger.debug("Collaborateur lié à l'utilisateur (Google):", collaborateur.id);
           }
-        } catch (error: unknown) {
+        } catch (error) {
           logger.warn(
             'Avertissement lors de la liaison du collaborateur (Google):',
             getErrorMessage(error)
@@ -383,7 +383,7 @@ export const signInWithGoogle = createAsyncThunk(
       dispatch(setProjetActif(null));
 
       return user;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error));
     }
   }
@@ -429,7 +429,7 @@ export const signInWithApple = createAsyncThunk(
           if (collaborateur) {
             logger.debug("Collaborateur lié à l'utilisateur (Apple):", collaborateur.id);
           }
-        } catch (error: unknown) {
+        } catch (error) {
           logger.warn(
             'Avertissement lors de la liaison du collaborateur (Apple):',
             getErrorMessage(error)
@@ -444,7 +444,7 @@ export const signInWithApple = createAsyncThunk(
       dispatch(setProjetActif(null));
 
       return user;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error));
     }
   }
@@ -507,7 +507,7 @@ export const deleteAccount = createAsyncThunk(
 
       logger.log('Compte supprimé avec succès');
       return null;
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur lors de la suppression du compte:', error);
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression du compte');
     }
@@ -637,3 +637,33 @@ const authSlice = createSlice({
 
 export const { clearError, updateUser } = authSlice.actions;
 export default authSlice.reducer;
+
+// OTP thunks (stub implementations — wired when backend supports it)
+export const requestOtp = createAsyncThunk(
+  'auth/requestOtp',
+  async (identifier: string, { rejectWithValue }) => {
+    try {
+      await apiClient.post('/auth/otp/request', { identifier }, { skipAuth: true });
+      return true;
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : "Erreur lors de l'envoi de l'OTP");
+    }
+  }
+);
+
+export const verifyOtp = createAsyncThunk(
+  'auth/verifyOtp',
+  async (params: { identifier: string; otp: string }, { rejectWithValue }) => {
+    try {
+      const response = await apiClient.post<{
+        access_token: string;
+        refresh_token: string;
+        user: import('../../types/auth').User;
+      }>('/auth/otp/verify', params, { skipAuth: true });
+      await apiClient.tokens.set(response.access_token, response.refresh_token);
+      return response.user;
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : "Erreur lors de la vérification de l'OTP");
+    }
+  }
+);

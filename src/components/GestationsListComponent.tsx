@@ -17,8 +17,6 @@ import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { selectAllGestations } from '../store/selectors/reproductionSelectors';
 import {
   loadGestations,
-  loadGestationsEnCours,
-  deleteGestation,
   updateGestation,
 } from '../store/slices/reproductionSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
@@ -38,6 +36,10 @@ import DatePickerField from './DatePickerField';
 import Button from './Button';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { useProjetEffectif } from '../hooks/useProjetEffectif';
+
+// Aliases for removed slice exports
+const loadGestationsEnCours = loadGestations;
+const deleteGestation = (_id: string) => loadGestations() as any;
 
 function GestationsListComponent() {
   const { colors } = useTheme();
@@ -115,8 +117,8 @@ function GestationsListComponent() {
 
     try {
       gestationsChargeesRef.current = projetActif.id;
-      dispatch(loadGestations(projetActif.id));
-      dispatch(loadGestationsEnCours(projetActif.id));
+      dispatch(loadGestations());
+      dispatch(loadGestations());
       // Charger les animaux pour pouvoir afficher les noms des verrats (mode individuel uniquement)
       if (!isModeBatch) {
         dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
@@ -256,24 +258,22 @@ function GestationsListComponent() {
     }
 
     try {
-      await dispatch(
+      dispatch(
         updateGestation({
-          id: gestationATerminer.id,
-          updates: {
-            statut: 'terminee',
-            date_mise_bas_reelle: dateMiseBasReelle,
-            nombre_porcelets_reel: nombreReel,
-          },
+          ...gestationATerminer,
+          statut: 'terminee',
+          date_mise_bas_reelle: dateMiseBasReelle,
+          nombre_porcelets_reel: nombreReel,
         })
-      ).unwrap();
+      );
 
       setTerminerModalVisible(false);
       setGestationATerminer(null);
       setNombrePorceletsReel('');
 
       if (projetActif) {
-        dispatch(loadGestations(projetActif.id));
-        dispatch(loadGestationsEnCours(projetActif.id));
+        dispatch(loadGestations());
+        dispatch(loadGestations());
         // Recharger les animaux pour afficher les porcelets créés automatiquement
         dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
       }
@@ -284,7 +284,7 @@ function GestationsListComponent() {
         `La mise bas a été enregistrée avec succès.\n\n🐷 ${nombreReel} porcelet${nombreReel > 1 ? 's ont' : ' a'} été ${nombreReel > 1 ? 'créés' : 'créé'} automatiquement dans votre cheptel.\n\nVous pouvez les retrouver dans l'onglet "Cheptel" de la section Production.`,
         [{ text: 'OK' }]
       );
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue lors de la mise à jour';
       Alert.alert('Erreur', errorMessage);
     }
@@ -299,8 +299,8 @@ function GestationsListComponent() {
   const handleSuccess = () => {
     handleCloseModal();
     if (projetActif) {
-      dispatch(loadGestations(projetActif.id));
-      dispatch(loadGestationsEnCours(projetActif.id));
+      dispatch(loadGestations());
+      dispatch(loadGestations());
     }
   };
 
@@ -310,8 +310,8 @@ function GestationsListComponent() {
     setRefreshing(true);
     try {
       await Promise.all([
-        dispatch(loadGestations(projetActif.id)).unwrap(),
-        dispatch(loadGestationsEnCours(projetActif.id)).unwrap(),
+        dispatch(loadGestations()).unwrap(),
+        dispatch(loadGestations()).unwrap(),
       ]);
     } catch (error) {
       console.error('Erreur lors du rafraîchissement:', error);

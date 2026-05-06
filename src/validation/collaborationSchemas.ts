@@ -75,8 +75,8 @@ export const collaborateurSchema = yup
     function (value) {
       const email = value?.email;
       const telephone = value?.telephone;
-      const hasEmail = email && email.trim().length > 0;
-      const hasTelephone = telephone && telephone.trim().length > 0;
+      const hasEmail = !!(email && email.trim().length > 0);
+      const hasTelephone = !!(telephone && telephone.trim().length > 0);
       return hasEmail || hasTelephone;
     }
   )

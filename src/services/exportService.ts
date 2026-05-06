@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Service d'export et d'import de données
  * Permet d'exporter les données en JSON/CSV et d'importer depuis JSON
  */
@@ -112,7 +112,7 @@ export async function exportAllDataJSON(projetId: string): Promise<string> {
 
     const json = JSON.stringify(exportData, null, 2);
     return json;
-  } catch (error: unknown) {
+  } catch (error) {
     throw new Error(`Erreur lors de l'export : ${getErrorMessage(error)}`);
   }
 }
@@ -140,7 +140,7 @@ export async function exportAndShareJSON(projetId: string): Promise<void> {
     } else {
       throw new Error("Le partage de fichiers n'est pas disponible sur cet appareil");
     }
-  } catch (error: unknown) {
+  } catch (error) {
     throw new Error(`Erreur lors de l'export et du partage : ${getErrorMessage(error)}`);
   }
 }
@@ -201,7 +201,7 @@ export async function exportDataCSV(projetId: string, module?: string): Promise<
     }
 
     return csv;
-  } catch (error: unknown) {
+  } catch (error) {
     throw new Error(`Erreur lors de l'export CSV : ${getErrorMessage(error)}`);
   }
 }
@@ -229,7 +229,7 @@ export async function exportAndShareCSV(projetId: string, module?: string): Prom
     } else {
       throw new Error("Le partage de fichiers n'est pas disponible sur cet appareil");
     }
-  } catch (error: unknown) {
+  } catch (error) {
     throw new Error(`Erreur lors de l'export CSV : ${getErrorMessage(error)}`);
   }
 }
@@ -393,7 +393,7 @@ export async function importDataFromJSON(jsonData: string): Promise<void> {
 
     // Pour l'instant, on importe seulement le projet et les gestations
     // Les autres modules peuvent être ajoutés de la même manière
-  } catch (error: unknown) {
+  } catch (error) {
     throw new Error(`Erreur lors de l'import : ${getErrorMessage(error)}`);
   }
 }
@@ -407,7 +407,7 @@ export async function readJSONFile(uri: string): Promise<string> {
     const FileSystem = require('expo-file-system');
     const content = await FileSystem.readAsStringAsync(uri);
     return content;
-  } catch (error: unknown) {
+  } catch (error) {
     throw new Error(`Erreur lors de la lecture du fichier : ${getErrorMessage(error)}`);
   }
 }

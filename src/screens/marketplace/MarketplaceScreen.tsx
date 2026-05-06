@@ -300,7 +300,7 @@ function MarketplaceScreen() {
             // ✅ Utiliser l'endpoint marketplace public au lieu des endpoints protégés
             try {
               const listingDetails = await marketplaceService.getListingWithSubjects(listing.id);
-              const subject = listingDetails.subjects?.[0]; // Premier sujet pour listing individuel
+              const subject = listingDetails?.subjects?.[0]; // Premier sujet pour listing individuel
 
               if (!subject) {
                 console.warn('[MarketplaceScreen] Aucun sujet trouvé pour listing:', listing.id);
@@ -459,7 +459,7 @@ function MarketplaceScreen() {
   }, [marketplaceNotifications, user?.id, markAsRead]);
 
   // Optimisation: Debounce le groupement des listings pour éviter les recalculs trop fréquents
-  const groupingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const groupingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastListingsRef = useRef<string>('');
 
   // Grouper les listings par ferme après chargement (avec debouncing)
@@ -930,7 +930,7 @@ function MarketplaceScreen() {
         setSelectedListing(null);
         setSelectedSubjectsForOffer(null);
         loadListings(); // Recharger pour voir les mises à jour
-      } catch (error: unknown) {
+      } catch (error) {
         console.error('Erreur création offre:', error);
         throw createAppError(error, ErrorCode.MARKETPLACE_UNAUTHORIZED); // L'erreur sera gérée par OfferModal
       }
@@ -1788,7 +1788,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
     textAlign: 'center',
     lineHeight: MarketplaceTheme.typography.fontSizes.md * 1.2,
   },
@@ -1896,7 +1896,7 @@ const styles = StyleSheet.create({
   },
   offresTabText: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   offresTabBadge: {
     minWidth: 18,
@@ -1938,7 +1938,7 @@ const styles = StyleSheet.create({
   },
   offerStatusText: {
     fontSize: MarketplaceTheme.typography.fontSizes.xs,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   offerNewBadge: {
     paddingHorizontal: SPACING.xs,
@@ -1988,7 +1988,7 @@ const styles = StyleSheet.create({
   },
   offerActionText: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   modalContainer: {
     flex: 1,
@@ -2043,7 +2043,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   statsRow: {
     flexDirection: 'row',

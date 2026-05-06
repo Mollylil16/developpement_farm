@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Vue détaillée - Préférences
  */
 
@@ -26,7 +26,7 @@ export default function SettingsPreferencesView({ onBack }: SettingsPreferencesV
     try {
       await setLanguage(lang);
       Alert.alert(t('settings.language_changed'), t('settings.language_changed_message'));
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur lors du changement de langue';
       Alert.alert(t('common.error'), errorMessage);
     }

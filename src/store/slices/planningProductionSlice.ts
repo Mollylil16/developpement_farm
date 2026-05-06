@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Redux Slice - Planning Production
  * Gestion de l'etat pour la simulation et planification de production
  */
@@ -95,7 +95,7 @@ export const simulerProduction = createAsyncThunk(
       };
 
       return result;
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('simulerProduction - Erreur:', error);
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la simulation');
     }
@@ -139,9 +139,8 @@ export const genererPlanSaillies = createAsyncThunk(
       };
 
       // Récupérer les gestations en cours pour exclure les truies déjà en gestation
-      const gestations = state.reproduction?.entities?.gestations || {};
-      const gestationsEnCours = Object.values(gestations).filter(
-        (g: unknown): g is Gestation =>
+      const gestationsEnCours = (state.reproduction?.gestations || []).filter(
+        (g: Gestation): g is Gestation =>
           isGestation(g) && g.statut === 'en_cours' && g.projet_id === projetActif.id
       );
       const truiesEnGestationIds = new Set(
@@ -410,7 +409,7 @@ export const genererPlanSaillies = createAsyncThunk(
       }
 
       return saillies;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la generation du plan');
     }
   }
@@ -489,7 +488,7 @@ export const genererPrevisionsVentes = createAsyncThunk(
       });
 
       return synthese;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(
         getErrorMessage(error) || 'Erreur lors de la generation des previsions'
       );
@@ -525,7 +524,7 @@ export const genererPrevisionsFuturesVentes = createAsyncThunk(
       });
 
       return synthese;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(
         getErrorMessage(error) || 'Erreur lors de la generation des previsions futures'
       );
@@ -626,7 +625,7 @@ export const validerPlanningSaillies = createAsyncThunk(
       } else {
         throw new Error('Échec de la création des tâches');
       }
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('[VALIDATION] Erreur:', error);
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la validation du planning');
     }

@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { createGestation, updateGestation } from '../store/slices/reproductionSlice';
+import { saveGestation, updateGestation } from '../store/slices/reproductionSlice';
+const createGestation = saveGestation;
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
 import type { Gestation, CreateGestationInput } from '../types/reproduction';
@@ -568,16 +569,14 @@ function GestationFormModal({
     setLoading(true);
     try {
       if (isEditing && gestation) {
-        await dispatch(
+        dispatch(
           updateGestation({
-            id: gestation.id,
-            updates: {
-              ...formData,
-              truie_nom: formData.truie_nom || formData.truie_id,
-              verrat_nom: formData.verrat_nom || formData.verrat_id || undefined,
-            },
+            ...gestation,
+            ...formData,
+            truie_nom: formData.truie_nom || formData.truie_id,
+            verrat_nom: formData.verrat_nom || formData.verrat_id || undefined,
           })
-        ).unwrap();
+        );
       } else {
         await dispatch(
           createGestation({
@@ -589,11 +588,11 @@ function GestationFormModal({
             date_sautage: formData.date_sautage,
             nombre_porcelets_prevu: formData.nombre_porcelets_prevu,
             notes: formData.notes,
-          })
+          } as any)
         ).unwrap();
       }
       onSuccess();
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'enregistrement";
       Alert.alert('Erreur', errorMessage);
     } finally {

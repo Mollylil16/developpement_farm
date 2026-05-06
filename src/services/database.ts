@@ -180,7 +180,7 @@ export class DatabaseService {
     this.db.runSync(query, [
       porc.id,
       porc.numeroIdentification,
-      porc.dateNaissance.toISOString(),
+      new Date(porc.dateNaissance).toISOString(),
       porc.sexe,
       porc.race,
       porc.poidsActuel,
@@ -201,7 +201,7 @@ export class DatabaseService {
     const pagination = limit != null ? ` LIMIT ${limit} OFFSET ${offset ?? 0}` : '';
     const results = this.db.getAllSync(`SELECT * FROM porcs ORDER BY createdAt DESC${pagination}`);
 
-    return results.map(row => ({
+    return results.map((row: any) => ({
       ...row,
       dateNaissance: new Date(row.dateNaissance),
       createdAt: new Date(row.createdAt),
@@ -225,9 +225,9 @@ export class DatabaseService {
     this.db.runSync(query, [
       gestation.id,
       gestation.truieId,
-      gestation.dateSautage.toISOString(),
-      gestation.dateMiseBasPrevue.toISOString(),
-      gestation.dateMiseBasReelle ? gestation.dateMiseBasReelle.toISOString() : null,
+      new Date(gestation.dateSautage).toISOString(),
+      new Date(gestation.dateMiseBasPrevue).toISOString(),
+      gestation.dateMiseBasReelle ? new Date(gestation.dateMiseBasReelle).toISOString() : null,
       gestation.nombrePorceletsPrevu,
       gestation.nombrePorceletsReel || null,
       gestation.statut,
@@ -244,7 +244,7 @@ export class DatabaseService {
     const pagination = limit != null ? ` LIMIT ${limit} OFFSET ${offset ?? 0}` : '';
     const results = this.db.getAllSync(`SELECT * FROM gestations ORDER BY createdAt DESC${pagination}`);
 
-    return results.map(row => ({
+    return results.map((row: any) => ({
       ...row,
       dateSautage: new Date(row.dateSautage),
       dateMiseBasPrevue: new Date(row.dateMiseBasPrevue),
@@ -270,7 +270,7 @@ export class DatabaseService {
       transaction.id,
       transaction.type,
       transaction.montant,
-      transaction.date.toISOString(),
+      new Date(transaction.date).toISOString(),
       transaction.description,
       transaction.categorie || null,
       transaction.porcId || null,
@@ -286,7 +286,7 @@ export class DatabaseService {
     const pagination = limit != null ? ` LIMIT ${limit} OFFSET ${offset ?? 0}` : '';
     const results = this.db.getAllSync(`SELECT * FROM transactions ORDER BY date DESC${pagination}`);
 
-    return results.map(row => ({
+    return results.map((row: any) => ({
       ...row,
       date: new Date(row.date),
       createdAt: new Date(row.createdAt),
@@ -345,7 +345,7 @@ export class DatabaseService {
         mortalite.id,
         mortalite.porcId,
         mortalite.porcNumeroIdentification,
-        mortalite.dateDeces.toISOString(),
+        new Date(mortalite.dateDeces).toISOString(),
         mortalite.causeDeces,
         mortalite.causeDetaillee || null,
         mortalite.poidsAuDeces,
@@ -371,11 +371,11 @@ export class DatabaseService {
       const query = 'SELECT * FROM mortalites ORDER BY dateDeces DESC';
       const results = instance.db.getAllSync(query);
       
-      return results.map(row => ({
+      return results.map((row: any) => ({
         id: row.id,
         porcId: row.porcId,
         porcNumeroIdentification: row.porcNumeroIdentification,
-        dateDeces: new Date(row.dateDeces),
+        dateDeces: row.dateDeces ? new Date(row.dateDeces).toISOString() : new Date().toISOString(),
         causeDeces: row.causeDeces,
         causeDetaillee: row.causeDetaillee,
         poidsAuDeces: row.poidsAuDeces,

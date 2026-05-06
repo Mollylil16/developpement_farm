@@ -30,7 +30,6 @@ import Button from '../components/Button';
 import FormField from '../components/FormField';
 import GoogleLogo from '../components/GoogleLogo';
 import AppleLogo from '../components/AppleLogo';
-import { databaseService } from '../services/database';
 import { validateEmail, validatePhone } from '../utils/validation';
 
 export default function AuthScreen() {

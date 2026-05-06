@@ -38,7 +38,7 @@ export default function LoginLogsScreen() {
 
       const data = await apiClient.get<AuthLog[]>('/auth/login-logs', { params: { limit: 100 } });
       setLogs(Array.isArray(data) ? data : []);
-    } catch (e: unknown) {
+    } catch (e) {
       setError(getErrorMessage(e) || 'Erreur lors du chargement du journal');
     } finally {
       setLoading(false);
@@ -121,13 +121,13 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACING.sm },
-  title: { fontSize: FONT_SIZES.md, fontWeight: FONT_WEIGHTS.semibold, flex: 1 },
+  title: { fontSize: FONT_SIZES.md, fontWeight: FONT_WEIGHTS.semiBold, flex: 1 },
   badge: { fontSize: FONT_SIZES.sm, fontWeight: FONT_WEIGHTS.bold },
   meta: { marginTop: 6, fontSize: FONT_SIZES.sm },
   errorText: { marginTop: 6, fontSize: FONT_SIZES.sm },
   center: { padding: SPACING.xl, alignItems: 'center' },
   empty: { fontSize: FONT_SIZES.md, fontStyle: 'italic' },
-  errorTitle: { fontSize: FONT_SIZES.md, fontWeight: FONT_WEIGHTS.semibold, textAlign: 'center' },
+  errorTitle: { fontSize: FONT_SIZES.md, fontWeight: FONT_WEIGHTS.semiBold, textAlign: 'center' },
 });
 
 

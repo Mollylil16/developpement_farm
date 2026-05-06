@@ -24,7 +24,7 @@ import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAppSelector } from '../../store/hooks';
@@ -74,11 +74,11 @@ export default function CollaborationVetTechScreen() {
   const infoHeightAnim = useRef(new Animated.Value(0)).current;
 
   // Timer pour le countdown
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const expirationTimeRef = useRef<number>(0);
   
   // Refs pour éviter les appels API multiples
-  const loadQRCodeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const loadQRCodeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLoadQRCodeInProgressRef = useRef<boolean>(false);
   const lastLoadedRoleRef = useRef<string | null>(null);
 
@@ -103,7 +103,7 @@ export default function CollaborationVetTechScreen() {
     if (roleToCheck !== 'veterinarian' && roleToCheck !== 'technician') {
       // Si le rôle n'est toujours pas valide après un court délai, définir l'erreur
       // Sinon, attendre un peu pour laisser le temps au contexte de se synchroniser
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await new Promise<void>((resolve) => setTimeout(() => resolve(), 300));
       
       // Vérifier à nouveau après le délai
       const finalRole = activeRole || user?.activeRole;
@@ -153,7 +153,7 @@ export default function CollaborationVetTechScreen() {
         // Démarrer le countdown
         startCountdown(response.expires_in);
       }
-    } catch (err: unknown) {
+    } catch (err) {
       console.error('Erreur lors du chargement du QR code:', err);
       const errorMessage =
         (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data
@@ -287,7 +287,7 @@ export default function CollaborationVetTechScreen() {
           visibilityTime: 2000,
         });
       }
-    } catch (err: unknown) {
+    } catch (err) {
       console.error('Erreur lors du partage:', err);
       Alert.alert('Erreur', 'Impossible de partager le QR code');
     }

@@ -33,7 +33,7 @@ export function useProjetEffectif(): Projet | null {
 
   // Pour vétérinaires et techniciens, utiliser le projet collaboratif
   if (activeRole === 'veterinarian' || activeRole === 'technician') {
-    return projetCollaboratifActif || projetActif; // Fallback sur projetActif si pas de projet collaboratif
+    return (projetCollaboratifActif || projetActif) as Projet | null; // Fallback sur projetActif si pas de projet collaboratif
   }
 
   // Pour producteurs et autres rôles, utiliser le projet actif

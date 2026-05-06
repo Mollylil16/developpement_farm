@@ -128,6 +128,7 @@ interface Logger {
   debug: (...args: any[]) => void;
   info: (...args: any[]) => void;
   success: (...args: any[]) => void;
+  step: (...args: any[]) => void;
   /**
    * Logger structuré avec sanitization automatique
    * @param options - Options de log avec message et données optionnelles
@@ -179,6 +180,11 @@ const createLogger = (prefix?: string): Logger => {
     success: (...args: any[]) => {
       if (__DEV__) {
         console.log(...formatMessage('success', ...args));
+      }
+    },
+    step: (...args: any[]) => {
+      if (__DEV__) {
+        console.log(...formatMessage('info', ...args));
       }
     },
     /**
@@ -272,6 +278,10 @@ export const createLoggerWithPrefix = (prefix: string): Logger => {
  * ⚠️ Utiliser le logger structuré de préférence
  */
 export { sanitizeLogMessage };
+
+// Convenience logger instances for specific modules
+export const migrationLogger = createLoggerWithPrefix('Migration');
+export const schemaLogger = createLoggerWithPrefix('Schema');
 
 /**
  * Export par défaut pour compatibilité

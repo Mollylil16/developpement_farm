@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Migration 027: Ajout de la colonne duree_amortissement_par_defaut_mois à la table projets
  *
  * Cette colonne est utilisée pour définir la durée d'amortissement par défaut
@@ -38,7 +38,7 @@ export async function addDureeAmortissementToProjets(db: SQLiteDatabase): Promis
     `);
 
     console.log('✅ [Migration 027] Colonne duree_amortissement_par_defaut_mois ajoutée à projets');
-  } catch (error: unknown) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('❌ [Migration 027] Erreur:', errorMessage);
 

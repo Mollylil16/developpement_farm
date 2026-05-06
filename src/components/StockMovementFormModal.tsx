@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Formulaire modal pour l'enregistrement des mouvements de stock
  */
 
@@ -140,7 +140,7 @@ export default function StockMovementFormModal({
       await dispatch(loadMouvementsParAliment({ alimentId: aliment.id })).unwrap();
 
       onSuccess();
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur lors de la création du mouvement:', error);
       const errorMessage = error instanceof Error ? error.message : String(error) || "Une erreur est survenue lors de l'enregistrement du mouvement";
       Alert.alert('Erreur', errorMessage);

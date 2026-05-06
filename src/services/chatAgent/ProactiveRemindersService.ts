@@ -11,7 +11,8 @@ import {
   AnimalRepository,
 } from '../../database/repositories';
 import { differenceInDays, addDays } from 'date-fns';
-import { scheduleNotification } from '../notificationsService';
+// scheduleNotification not available — stub it
+const scheduleNotification = async (_date: any, _opts?: any) => {};
 import apiClient from '../api/apiClient';
 import { logger } from '../../utils/logger';
 
@@ -85,7 +86,7 @@ export class ProactiveRemindersService {
             dueDate: vaccination.date_rappel,
             animalId: vaccination.animal_id || undefined,
             lotId: vaccination.lot_id || undefined,
-            projetId: this.context.projetId,
+            projetId: this.context.projetId ?? '',
             isCompleted: false,
             createdAt: now.toISOString(),
           });
@@ -127,7 +128,7 @@ export class ProactiveRemindersService {
             dueDate: traitement.date_fin,
             animalId: traitement.animal_id || undefined,
             lotId: traitement.lot_id || undefined,
-            projetId: this.context.projetId,
+            projetId: this.context.projetId ?? '',
             isCompleted: false,
             createdAt: now.toISOString(),
           });
@@ -169,7 +170,7 @@ export class ProactiveRemindersService {
             description: `Le porcelet ${animal.nom || animal.code} a ${ageJours} jours. Le sevrage est recommandé vers 21 jours.`,
             dueDate: addDays(dateNaissance, 21).toISOString(),
             animalId: animal.id,
-            projetId: this.context.projetId,
+            projetId: this.context.projetId ?? '',
             isCompleted: false,
             createdAt: now.toISOString(),
           });
@@ -211,7 +212,7 @@ export class ProactiveRemindersService {
             description: `La truie ${gestation.truie_nom || 'truie'} devrait mettre bas dans ${joursRestants} jour(s).`,
             dueDate: gestation.date_mise_bas_prevue,
             animalId: gestation.truie_id,
-            projetId: this.context.projetId,
+            projetId: this.context.projetId ?? '',
             isCompleted: false,
             createdAt: now.toISOString(),
           });

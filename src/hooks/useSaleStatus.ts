@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hook pour gérer le statut des ventes marketplace
  * Gère le statut des sujets (inMarketplace, inHerd, etc.)
  */
@@ -42,8 +42,8 @@ export function useSaleStatus(subjectId: string) {
 
       if (animal) {
         // Les champs marketplace_status et marketplace_listing_id peuvent être dans les données supplémentaires
-        const marketplaceStatus = animal.marketplace_status;
-        const marketplaceListingId = animal.marketplace_listing_id;
+        const marketplaceStatus = (animal as any).marketplace_status;
+        const marketplaceListingId = (animal as any).marketplace_listing_id;
         
         setStatus({
           inMarketplace: !!marketplaceStatus,
@@ -51,7 +51,7 @@ export function useSaleStatus(subjectId: string) {
           listingId: marketplaceListingId || null,
         });
       }
-    } catch (err: unknown) {
+    } catch (err) {
       setError('Erreur lors du chargement du statut');
       logger.error('Error loading sale status:', err);
     } finally {
@@ -79,7 +79,7 @@ export function useSaleStatus(subjectId: string) {
           marketplaceStatus,
           listingId,
         });
-      } catch (err: unknown) {
+      } catch (err) {
         setError('Erreur lors de la mise à jour du statut');
         logger.error('Error updating sale status:', err);
         throw err;
@@ -161,8 +161,8 @@ export function useBulkSaleStatus(subjectIds: string[]) {
       const statusMap = new Map<string, SubjectSaleStatus>();
       animals.forEach((animal, index) => {
         if (animal) {
-          const marketplaceStatus = animal.marketplace_status;
-          const marketplaceListingId = animal.marketplace_listing_id;
+          const marketplaceStatus = (animal as any).marketplace_status;
+          const marketplaceListingId = (animal as any).marketplace_listing_id;
           
           statusMap.set(subjectIds[index], {
             inMarketplace: !!marketplaceStatus,
@@ -173,7 +173,7 @@ export function useBulkSaleStatus(subjectIds: string[]) {
       });
 
       setStatuses(statusMap);
-    } catch (err: unknown) {
+    } catch (err) {
       setError('Erreur lors du chargement des statuts');
       logger.error('Error loading bulk sale statuses:', err);
     } finally {
@@ -202,7 +202,7 @@ export function useBulkSaleStatus(subjectIds: string[]) {
 
         // Recharger les statuts
         await loadStatuses();
-      } catch (err: unknown) {
+      } catch (err) {
         setError('Erreur lors de la mise à jour multiple');
         logger.error('Error bulk updating sale status:', err);
         throw err;

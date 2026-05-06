@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Création des index qui utilisent projet_id
  *
  * CRITIQUE: Ces index sont essentiels pour les performances (53+ requêtes utilisent projet_id)
@@ -185,13 +185,13 @@ async function createIndexWithRetry(
 
       console.log(`✅ Index ${index.name} créé avec succès (tentative ${attempt})`);
       return true;
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
 
       if (attempt < maxRetries) {
         // Attendre avant de réessayer (backoff exponentiel)
         const delay = Math.min(100 * Math.pow(2, attempt - 1), 1000);
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        await new Promise<void>((resolve) => setTimeout(() => resolve(), delay));
         console.warn(
           `⚠️  Tentative ${attempt}/${maxRetries} échouée pour l'index ${index.name}, nouvelle tentative dans ${delay}ms...`
         );
@@ -266,7 +266,7 @@ export async function createIndexesWithProjetId(db: SQLiteDatabase): Promise<voi
         }
       }
     }
-  } catch (error: unknown) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.warn('⚠️  Erreur lors de la création de idx_users_telephone:', errorMessage);
   }
@@ -291,7 +291,7 @@ export async function createIndexesWithProjetId(db: SQLiteDatabase): Promise<voi
         }
       }
     }
-  } catch (error: unknown) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.warn(
       '⚠️  Erreur lors de la création de idx_production_animaux_reproducteur:',
@@ -319,7 +319,7 @@ export async function createIndexesWithProjetId(db: SQLiteDatabase): Promise<voi
         }
       }
     }
-  } catch (error: unknown) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.warn('⚠️  Erreur lors de la création de idx_collaborations_user_id:', errorMessage);
   }

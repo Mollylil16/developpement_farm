@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hook pour gérer les notifications Marketplace
  * Avec support temps réel (polling ou WebSocket)
  */
@@ -87,7 +87,7 @@ export function useMarketplaceNotifications(
         // Compter les non lues
         const unread = sortedNotifications.filter((n) => !n.read).length;
         setUnreadCount(unread);
-      } catch (err: unknown) {
+      } catch (err) {
         // Ne pas logger les timeouts comme des erreurs critiques (opération en arrière-plan)
         const isTimeout = 
           (err instanceof APIError && err.status === 408) ||
@@ -135,7 +135,7 @@ export function useMarketplaceNotifications(
       );
 
       setUnreadCount((prev) => Math.max(0, prev - 1));
-    } catch (err: unknown) {
+    } catch (err) {
       logger.error('Erreur marquage notification:', err);
     }
   }, []);
@@ -153,7 +153,7 @@ export function useMarketplaceNotifications(
       // Mettre à jour l'état local
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
-    } catch (err: unknown) {
+    } catch (err) {
       logger.error('Erreur marquage toutes notifications:', err);
     }
   }, [currentUserId]);
@@ -175,7 +175,7 @@ export function useMarketplaceNotifications(
         }
         return prev.filter((n) => n.id !== notificationId);
       });
-    } catch (err: unknown) {
+    } catch (err) {
       logger.error('Erreur suppression notification:', err);
     }
   }, []);

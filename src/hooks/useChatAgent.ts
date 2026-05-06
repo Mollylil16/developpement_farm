@@ -218,27 +218,17 @@ export function useChatAgent() {
         conversationHistoryRef.current = convertMessagesToHistory(savedMessages);
 
         const remindersService = new ProactiveRemindersService();
-        const transcriptionApiKey = undefined;
-        const transcriptionProvider: 'assemblyai' | 'google' | 'openai' | 'none' =
-          transcriptionApiKey ? 'assemblyai' : 'none';
 
-        const voiceService = new VoiceService({
-          language: 'fr-CI',
-          enableSpeechToText: voiceEnabled,
-          enableTextToSpeech: voiceEnabled,
-          transcriptionProvider,
-          transcriptionApiKey,
-        });
+        const voiceService = new VoiceService();
 
         // Vérifier la disponibilité de la voix
-        const isTTSAvailable = await voiceService.isTextToSpeechAvailable();
-        const isSTTAvailable = await voiceService.isSpeechToTextAvailable();
-        
-        if (voiceEnabled && !isTTSAvailable && !isSTTAvailable) {
-          logger.warn('[useChatAgent] La voix est activée mais n\'est pas disponible sur cet appareil');
-          // Désactiver automatiquement si non disponible
-          if (!isCancelled) {
-            setVoiceEnabled(false);
+        if (voiceEnabled) {
+          const isAvailable = await voiceService.isAvailable();
+          if (!isAvailable) {
+            logger.warn('[useChatAgent] La voix est activée mais n\'est pas disponible sur cet appareil');
+            if (!isCancelled) {
+              setVoiceEnabled(false);
+            }
           }
         }
 
@@ -379,7 +369,7 @@ export function useChatAgent() {
       setIsThinking(true);
       
       // Attendre le délai de réflexion minimal
-      await new Promise(resolve => setTimeout(resolve, thinkingTime));
+      await new Promise<void>(resolve => setTimeout(() => resolve(), thinkingTime));
       
       // Phase 2: Kouakou répond (appel API)
       setIsThinking(false);
@@ -436,18 +426,12 @@ export function useChatAgent() {
 
         setMessages((prev) => [...prev, assistantMessage]);
 
-        // Si la voix est activée, lire la réponse (avec vérification de disponibilité)
+        // Si la voix est activée, lire la réponse
         if (voiceServiceRef.current && voiceEnabled) {
           try {
-            const isAvailable = await voiceServiceRef.current.isTextToSpeechAvailable();
-            if (isAvailable) {
-              await voiceServiceRef.current.speak(assistantMessage.content);
-            } else {
-              logger.debug('[useChatAgent] Text-to-Speech non disponible, réponse non lue');
-            }
+            await voiceServiceRef.current.speak(assistantMessage.content);
           } catch (voiceError) {
             logger.warn('[useChatAgent] Erreur lors de la lecture vocale:', voiceError);
-            // Ne pas bloquer l'UI si la voix échoue
           }
         }
       } catch (error) {
@@ -524,33 +508,15 @@ export function useChatAgent() {
   const toggleVoice = useCallback(async () => {
     const newVoiceEnabled = !voiceEnabled;
 
-    if (voiceServiceRef.current) {
-      if (newVoiceEnabled) {
-        // Vérifier d'abord la disponibilité
-        const isTTSAvailable = await voiceServiceRef.current.isTextToSpeechAvailable();
-        const isSTTAvailable = await voiceServiceRef.current.isSpeechToTextAvailable();
-
-        if (!isTTSAvailable && !isSTTAvailable) {
-          logger.warn('[useChatAgent] La voix n\'est pas disponible sur cet appareil');
-          // Ne pas activer si aucune fonctionnalité vocale n'est disponible
-          return;
-        }
-
-        // Demander les permissions si nécessaire
-        const hasPermission = await voiceServiceRef.current.requestPermissions();
-        if (!hasPermission) {
-          logger.warn('[useChatAgent] Permissions vocales refusées');
-          return;
-        }
-
-        setVoiceEnabled(true);
-      } else {
-        setVoiceEnabled(false);
+    if (voiceServiceRef.current && newVoiceEnabled) {
+      const isAvailable = await voiceServiceRef.current.isAvailable();
+      if (!isAvailable) {
+        logger.warn('[useChatAgent] La voix n\'est pas disponible sur cet appareil');
+        return;
       }
-    } else {
-      // Si le service n'est pas encore initialisé, juste changer l'état
-      setVoiceEnabled(newVoiceEnabled);
     }
+
+    setVoiceEnabled(newVoiceEnabled);
   }, [voiceEnabled]);
 
   /**
@@ -595,6 +561,5 @@ export function useChatAgent() {
     toggleVoice,
     clearConversation,
     refreshReminders,
-    voiceService: voiceServiceRef.current,
   };
 }

@@ -31,6 +31,7 @@ export interface IngredientRation {
 export interface Ration {
   id: string;
   projet_id: string;
+  nom?: string; // Nom optionnel pour la ration
   type_porc: TypePorc;
   poids_kg: number;
   nombre_porcs?: number; // Nombre de porcs pour lesquels la ration est calculée
@@ -326,6 +327,7 @@ export interface CreateStockAlimentInput {
   nom: string;
   categorie?: string;
   quantite_initiale?: number;
+  quantite_actuelle?: number; // Alias for quantite_initiale (compatibility)
   unite: UniteStock;
   seuil_alerte?: number;
   notes?: string;

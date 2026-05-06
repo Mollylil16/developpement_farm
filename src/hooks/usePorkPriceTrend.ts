@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hook pour charger les tendances de prix hebdomadaires du porc poids vif
  */
 
@@ -94,7 +94,7 @@ export function usePorkPriceTrend() {
           lastUpdated: undefined,
         });
       }
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur lors du chargement des tendances de prix:', error);
       setData((prev) => ({
         ...prev,

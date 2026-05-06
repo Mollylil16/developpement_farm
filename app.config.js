@@ -38,16 +38,11 @@ module.exports = {
     },
     scheme: "fermierpro",
     plugins: [
-      "expo-localization",
-      "expo-apple-authentication",
-      // "./app.plugin.js",  // Désactivé temporairement - incompatible avec Expo SDK 51 (AndroidX déjà géré nativement)
+      // "expo-localization",         // Not installed – native only, remove for web preview
+      // "expo-apple-authentication", // Not installed – iOS only, remove for web preview
+      // "./app.plugin.js",           // Désactivé temporairement - incompatible avec Expo SDK 51
       "expo-font",
-      [
-        "expo-camera",
-        {
-          cameraPermission: "FarmConnect a besoin d'accéder à votre caméra pour scanner les codes QR des collaborateurs et faciliter l'ajout rapide à vos projets."
-        }
-      ]
+      // ["expo-camera", { cameraPermission: "..." }], // Not installed – native only
     ],
     extra: {
       eas: {

@@ -28,7 +28,7 @@ export function useDebouncedCallback<T extends (...args: any[]) => any>(
   delay: number = 300,
   deps: React.DependencyList = []
 ): T {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const callbackRef = useRef(callback);
 
   useEffect(() => {
@@ -86,7 +86,7 @@ export function useCachedMemo<T>(
     // Limiter la taille du cache à 50 entrées
     if (cacheRef.current.size > 50) {
       const firstKey = cacheRef.current.keys().next().value;
-      cacheRef.current.delete(firstKey);
+      if (firstKey !== undefined) cacheRef.current.delete(firstKey);
     }
 
     return value;

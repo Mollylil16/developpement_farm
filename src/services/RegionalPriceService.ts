@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Service pour gérer le prix régional du porc poids vif
  * Supporte la récupération depuis une API externe avec fallback
  */
@@ -162,7 +162,7 @@ export class RegionalPriceService {
       }
 
       return Math.round(price);
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('aborted')) {
         throw new Error('API request timeout');

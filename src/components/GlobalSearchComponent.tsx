@@ -67,43 +67,16 @@ export default function GlobalSearchComponent({
     if (!prodState?.entities?.pesees || !prodState?.peseesRecents) return [];
     return prodState.peseesRecents.map((id) => prodState.entities.pesees[id]).filter(Boolean);
   });
-  const gestations = useAppSelector((state) => {
-    const reproState = state.reproduction;
-    if (!reproState?.entities?.gestations || !reproState?.ids?.gestations) return [];
-    return reproState.ids.gestations
-      .map((id) => reproState.entities.gestations[id])
-      .filter(Boolean);
-  });
-  const sevrages = useAppSelector((state) => {
-    const reproState = state.reproduction;
-    if (!reproState?.entities?.sevrages || !reproState?.ids?.sevrages) return [];
-    return reproState.ids.sevrages.map((id) => reproState.entities.sevrages[id]).filter(Boolean);
-  });
+  const gestations = useAppSelector((state) => state.reproduction?.gestations || []);
+  const sevrages = useAppSelector((state) => state.reproduction?.sevrages || []);
   const stocks = useAppSelector((state) => state.stocks?.stocks || []);
   const ingredients = useAppSelector((state) => state.nutrition?.ingredients || []);
   const rations = useAppSelector((state) => state.nutrition?.rations || []);
-  const depensesPonctuelles = useAppSelector((state) => {
-    const financeState = state.finance;
-    if (!financeState?.entities?.depensesPonctuelles || !financeState?.ids?.depensesPonctuelles)
-      return [];
-    return financeState.ids.depensesPonctuelles
-      .map((id) => financeState.entities.depensesPonctuelles[id])
-      .filter(Boolean);
-  });
-  const chargesFixes = useAppSelector((state) => {
-    const financeState = state.finance;
-    if (!financeState?.entities?.chargesFixes || !financeState?.ids?.chargesFixes) return [];
-    return financeState.ids.chargesFixes
-      .map((id) => financeState.entities.chargesFixes[id])
-      .filter(Boolean);
-  });
+  const depensesPonctuelles = useAppSelector((state) => state.finance?.depensesPonctuelles || []);
+  const chargesFixes = useAppSelector((state) => state.finance?.chargesFixes || []);
   const planifications = useAppSelector((state) => state.planification?.planifications || []);
   const collaborateurs = useAppSelector((state) => state.collaboration?.collaborateurs || []);
-  const mortalites = useAppSelector((state) => {
-    const mortState = state.mortalites;
-    if (!mortState?.entities?.mortalites || !mortState?.ids?.mortalites) return [];
-    return mortState.ids.mortalites.map((id) => mortState.entities.mortalites[id]).filter(Boolean);
-  });
+  const mortalites = useAppSelector((state) => state.mortalites?.mortalites || []);
 
   // Charger l'historique de recherche
   useEffect(() => {

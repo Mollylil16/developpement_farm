@@ -116,7 +116,7 @@ export default function IngredientFormModal({
         await dispatch(
           updateIngredient({
             id: ingredient.id,
-            updates: formData,
+            data: formData,
           })
         ).unwrap();
         Alert.alert('Succès', 'Ingrédient modifié avec succès');
@@ -126,7 +126,7 @@ export default function IngredientFormModal({
         Alert.alert('Succès', 'Ingrédient créé avec succès');
       }
       onSuccess();
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : `Erreur lors de ${isEditing ? 'la modification' : 'la création'} de l'ingrédient`;
       Alert.alert('Erreur', errorMessage);
     } finally {

@@ -371,7 +371,6 @@ const styles = StyleSheet.create({
   paginationDot: {
     height: 8,
     borderRadius: 4,
-    transition: 'all 0.3s',
   },
   actions: {
     flexDirection: 'row',

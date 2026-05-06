@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Modal pour modifier l'email
  */
 
@@ -74,7 +74,7 @@ export default function ChangeEmailModal({ visible, onClose }: ChangeEmailModalP
           },
         },
       ]);
-    } catch (error: unknown) {
+    } catch (error) {
       Alert.alert('Erreur', getErrorMessage(error) || "Erreur lors de la modification de l'email");
     } finally {
       setLoading(false);

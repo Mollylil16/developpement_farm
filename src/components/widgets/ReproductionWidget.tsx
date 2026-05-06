@@ -7,7 +7,7 @@ import React, { useMemo, useEffect, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { selectAllGestations } from '../../store/selectors/reproductionSelectors';
-import { loadGestations, loadGestationsEnCours } from '../../store/slices/reproductionSlice';
+import { loadGestations } from '../../store/slices/reproductionSlice';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 import Card from '../Card';

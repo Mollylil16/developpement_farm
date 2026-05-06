@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Composant formulaire modal pour revenu avec upload photos
  * Intègre la validation Yup pour une robustesse maximale
  */
@@ -310,7 +310,7 @@ export default function RevenuFormModal({
       poids_kg: poidsKg ? parseFloat(poidsKg) : null,
     };
 
-    const { isValid, errors } = await validateWithSchema(revenuSchema, dataToValidate);
+    const { isValid, errors } = await validateWithSchema(revenuSchema, dataToValidate as any);
 
     if (!isValid) {
       // Marquer tous les champs comme touchés pour afficher les erreurs
@@ -391,9 +391,9 @@ export default function RevenuFormModal({
         await dispatch(
           updateRevenu({
             id: revenu.id,
-            updates: {
+            data: {
               montant: formData.montant,
-              categorie: formData.categorie,
+              categorie: formData.categorie as any,
               libelle_categorie: formData.libelle_categorie,
               date: formData.date,
               description: formData.description,
@@ -406,12 +406,12 @@ export default function RevenuFormModal({
         ).unwrap();
 
         // Si vente de porc avec poids, calculer les marges
-        if (formData.categorie === 'vente_porc' && poidsKg && parseFloat(poidsKg) > 0) {
+        if ((formData.categorie as string) === 'vente_porc' && poidsKg && parseFloat(poidsKg) > 0) {
           await dispatch(
             calculateAndSaveMargesVente({
               venteId: revenu.id,
               poidsKg: parseFloat(poidsKg),
-            })
+            } as any)
           ).unwrap();
         }
       } else {
@@ -446,7 +446,7 @@ export default function RevenuFormModal({
               'Succès',
               `Vente enregistrée avec succès. Le cheptel a été mis à jour : ${isModeBatch ? `${batchQuantite} porc(s) retirés de la loge` : `${selectedAnimalIds.length} porc(s) marqués comme vendus`}.`
             );
-          } catch (error: unknown) {
+          } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error) || "Erreur lors de l'enregistrement";
             Alert.alert('Erreur', errorMessage);
             setLoading(false);
@@ -460,16 +460,16 @@ export default function RevenuFormModal({
               projet_id: projetActif.id,
               animal_id: selectedAnimalId || animalId,
               poids_kg: poidsKg ? parseFloat(poidsKg) : undefined,
-            })
+            } as any)
           ).unwrap();
 
           // Si vente de porc avec poids, calculer les marges
-          if (formData.categorie === 'vente_porc' && poidsKg && parseFloat(poidsKg) > 0) {
+          if ((formData.categorie as string) === 'vente_porc' && poidsKg && parseFloat(poidsKg) > 0) {
             await dispatch(
               calculateAndSaveMargesVente({
                 venteId: result.id,
                 poidsKg: parseFloat(poidsKg),
-              })
+              } as any)
             ).unwrap();
           }
         }
@@ -485,7 +485,7 @@ export default function RevenuFormModal({
       setTimeout(() => {
         onSuccess();
       }, 100);
-    } catch (error: unknown) {
+    } catch (error) {
       setLoading(false);
       const errorMessage = error instanceof Error ? error.message : String(error) || "Erreur lors de l'enregistrement";
       Alert.alert('Erreur', errorMessage);

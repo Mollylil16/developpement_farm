@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Script de migration : Convertir les utilisateurs existants vers le système multi-rôles
  *
  * Ce script :
@@ -90,7 +90,7 @@ async function migrateUserToMultiRole(
     });
 
     return { success: true };
-  } catch (error: unknown) {
+  } catch (error) {
     return { success: false, error: (error instanceof Error ? error.message : String(error)) || 'Erreur inconnue' };
   }
 }
@@ -157,7 +157,7 @@ export async function migrateUsersToMultiRole(): Promise<MigrationStats> {
     console.log('\n✅ Migration terminée!\n');
 
     return stats;
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('\n❌ Erreur fatale lors de la migration:', error);
     throw error;
   }
@@ -176,6 +176,8 @@ export async function runMigration(): Promise<void> {
 }
 
 // Si exécuté directement (node migrateUsersToMultiRole.ts)
-if (require.main === module) {
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+if ((require as any).main === module) {
   runMigration();
 }

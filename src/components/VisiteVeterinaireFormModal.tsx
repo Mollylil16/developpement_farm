@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Modal de formulaire pour créer/modifier une visite vétérinaire
  */
 
@@ -154,7 +154,7 @@ export default function VisiteVeterinaireFormModal({ visible, onClose, visite }:
       }
 
       onClose();
-    } catch (err: unknown) {
+    } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err) || "Erreur lors de l'enregistrement";
       setError(errorMessage);
     } finally {
@@ -203,7 +203,7 @@ export default function VisiteVeterinaireFormModal({ visible, onClose, visite }:
           </TouchableOpacity>
           {showDatePicker && datePickerField === 'visite' && (
             <DateTimePicker
-              value={parseLocalDate(formData.date_visite)}
+              value={parseLocalDate(formData.date_visite) ?? new Date()}
               mode="date"
               display="default"
               onChange={handleDatePickerChange}
@@ -363,9 +363,9 @@ export default function VisiteVeterinaireFormModal({ visible, onClose, visite }:
           {showDatePicker && datePickerField === 'prochaine' && (
             <DateTimePicker
               value={
-                formData.prochaine_visite_prevue
+                (formData.prochaine_visite_prevue
                   ? parseLocalDate(formData.prochaine_visite_prevue)
-                  : new Date()
+                  : null) ?? new Date()
               }
               mode="date"
               display="default"

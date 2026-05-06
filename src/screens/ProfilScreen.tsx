@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ProfilScreen - Écran de profil utilisateur simple
  * Gestion des informations personnelles de base
  */
@@ -77,7 +77,7 @@ export default function ProfilScreen() {
           setLocalPhotoUri(null); // Réinitialiser l'URI locale
         }
       }
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('❌ Erreur chargement profil:', error);
       // En cas d'erreur, utiliser les données du state Redux comme fallback
       if (user) {
@@ -267,7 +267,7 @@ export default function ProfilScreen() {
       if (navigation.canGoBack()) {
         navigation.goBack();
       }
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('❌ Erreur sauvegarde profil:', error);
 
       // Vérifier si c'est une erreur de profil introuvable
@@ -510,7 +510,7 @@ export default function ProfilScreen() {
             disabled={loading || uploadingPhoto}
           >
             {loading || uploadingPhoto ? (
-              <View style={styles.loadingContainer}>
+              <View style={styles.loadingContainerRow}>
                 <ActivityIndicator color="#FFF" />
                 <Text style={styles.saveButtonText}>
                   {uploadingPhoto ? 'Téléchargement de la photo...' : 'Enregistrement...'}
@@ -652,7 +652,7 @@ const styles = StyleSheet.create({
   loadingText: {
     ...FONTS.body,
   },
-  loadingContainer: {
+  loadingContainerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,

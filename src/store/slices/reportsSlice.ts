@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Slice Redux pour la gestion des rapports
  */
 
@@ -38,7 +38,7 @@ export const createRapportCroissance = createAsyncThunk(
         input
       );
       return rapport;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création du rapport');
     }
   }
@@ -52,7 +52,7 @@ export const loadRapportsCroissance = createAsyncThunk(
         params: { projet_id: projetId },
       });
       return rapports;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des rapports');
     }
   }
@@ -66,7 +66,7 @@ export const loadRapportsCroissanceParProjet = createAsyncThunk(
         params: { projet_id: projetId },
       });
       return rapports;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des rapports');
     }
   }
@@ -78,7 +78,7 @@ export const deleteRapportCroissance = createAsyncThunk(
     try {
       await apiClient.delete(`/reports/rapports-croissance/${id}`);
       return id;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression du rapport');
     }
   }
@@ -96,7 +96,7 @@ export const loadIndicateursPerformance = createAsyncThunk(
         params: { projet_id: projetId, periode_jours: periodeJours },
       });
       return indicateurs;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(
         getErrorMessage(error) || 'Erreur lors du chargement des indicateurs de performance'
       );

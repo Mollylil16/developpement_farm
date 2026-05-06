@@ -47,7 +47,7 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: 'Annulé',
 };
 
-export default function MarketplaceMyPurchaseRequestsTab({
+function MarketplaceMyPurchaseRequestsTab({
   buyerId,
   onRequestPress,
   onEditRequest,

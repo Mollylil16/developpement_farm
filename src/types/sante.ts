@@ -90,17 +90,21 @@ export interface Vaccination {
   nombre_sujets_vaccines?: number; // Nombre de sujets vaccinés (mode batch)
   type_prophylaxie: TypeProphylaxie; // Nouveau : type de prophylaxie
   vaccin?: TypeVaccin; // Pour compatibilité
+  type_vaccin?: string; // Alias pour compatibilité
   nom_vaccin?: string;
   produit_administre: string; // Nom du produit
   photo_flacon?: string; // URI de la photo du flacon
   date_vaccination: string; // Date ISO format YYYY-MM-DD
+  date_administration?: string; // Alias pour compatibilité
   date_rappel?: string; // Date du prochain rappel
   numero_lot_vaccin?: string;
+  lot_numero?: string; // Alias pour compatibilité
   dosage: string; // Ex: "2ml", "1cc", "50mg"
   unite_dosage?: string; // ml, mg, cc, etc.
   raison_traitement: RaisonTraitement; // Raison du traitement
   raison_autre?: string; // Si raison = 'autre'
   veterinaire?: string;
+  veterinaire_id?: string; // Alias pour compatibilité
   cout?: number;
   statut: StatutVaccination;
   effets_secondaires?: string;

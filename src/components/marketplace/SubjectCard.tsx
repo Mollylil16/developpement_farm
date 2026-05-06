@@ -141,10 +141,10 @@ function SubjectCard({
 
         {/* Photos - Afficher la première photo en miniature si disponible */}
         {(subject as any).photos && Array.isArray((subject as any).photos) && (subject as any).photos.length > 0 && (
-          <View style={styles.photoContainer}>
+          <View style={(styles as any).photoContainer}>
             <PhotoGallery
               photos={(subject as any).photos}
-              baseUrl={apiClient.defaults?.baseURL || ''}
+              baseUrl={(apiClient as any).defaults?.baseURL || ''}
             />
           </View>
         )}
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: MarketplaceTheme.typography.fontSizes.xs,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   divider: {
     height: 1,

@@ -2,7 +2,7 @@
  * Actions liées aux animaux
  */
 
-import { AgentActionResult, AgentContext } from '../../../types/chatAgent';
+import { AgentActionResult, AgentContext } from '../../../../types/chatAgent';
 import apiClient from '../../../api/apiClient';
 
 export class AnimalActions {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Composant liste des sevrages
  */
 
@@ -195,7 +195,7 @@ export default function SevragesListComponent() {
       if (projetActif) {
         dispatch(loadSevrages(projetActif.id));
       }
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error) || 'Erreur lors de la création du sevrage';
       Alert.alert('Erreur', errorMessage);
     } finally {

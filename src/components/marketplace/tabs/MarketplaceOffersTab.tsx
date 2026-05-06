@@ -248,7 +248,8 @@ function MarketplaceOffersTab({
 
   const currentOffers = offersTab === 'received' ? receivedOffers : sentOffers;
 
-  const renderItem = ({ item }: { item: Offer }) => {
+  const renderItem = ({ item: _item }: { item: Offer }) => {
+    const item = _item as any;
     // ✅ LOGS SÉCURISÉS - Aucune donnée sensible exposée
     if (__DEV__) {
       console.log('[MarketplaceOffersTab] Debug sécurisé:', {
@@ -325,7 +326,7 @@ function MarketplaceOffersTab({
         <View style={styles.content}>
           {/* Afficher le nom du producteur pour les contre-propositions reçues */}
           {(item.isCounterProposalReceived || item.counterOfferOf) && offersTab === 'received' && (
-            <Text style={[styles.sellerName, { color: marketplaceColors.textSecondary, marginBottom: 4 }]}>
+            <Text style={[(styles as any).sellerName, { color: marketplaceColors.textSecondary, marginBottom: 4 }]}>
               De: {item.seller_nom || item.buyer_nom} {item.seller_prenom || item.buyer_prenom}
             </Text>
           )}
@@ -890,14 +891,14 @@ const styles = StyleSheet.create({
   },
   infoValue: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   inputSection: {
     marginBottom: MarketplaceTheme.spacing.md,
   },
   inputLabel: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
     marginBottom: MarketplaceTheme.spacing.xs,
   },
   modalInput: {
@@ -926,7 +927,7 @@ const styles = StyleSheet.create({
   },
   modalButtonTextCancel: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   modalButtonSend: {
     flex: 1,
@@ -936,7 +937,7 @@ const styles = StyleSheet.create({
   },
   modalButtonTextSend: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
 });
 

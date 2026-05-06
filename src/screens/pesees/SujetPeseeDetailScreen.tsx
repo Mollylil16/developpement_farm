@@ -294,12 +294,17 @@ export default function SujetPeseeDetailScreen() {
 
       {/* Modal de nouvelle pesée */}
       <ProductionPeseeFormModal
-        visible={showPeseeModal}
-        animalId={animalId}
-        onClose={() => {
-          setShowPeseeModal(false);
-          refetch();
-        }}
+        {...({
+          visible: showPeseeModal,
+          animalId,
+          onClose: () => {
+            setShowPeseeModal(false);
+            refetch();
+          },
+          onSuccess: () => { setShowPeseeModal(false); refetch(); },
+          projetId: '',
+          animal: null,
+        } as any)}
       />
     </SafeAreaView>
   );

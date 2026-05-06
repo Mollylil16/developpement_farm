@@ -23,7 +23,7 @@ import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAppSelector } from '../../store/hooks';
@@ -65,7 +65,7 @@ export default function MyQRCodeScreen() {
   const infoHeightAnim = useRef(new Animated.Value(0)).current;
 
   // Timer pour le countdown
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const expirationTimeRef = useRef<number>(0);
 
 
@@ -117,7 +117,7 @@ export default function MyQRCodeScreen() {
         // Démarrer le countdown
         startCountdown(response.expires_in);
       }
-    } catch (err: unknown) {
+    } catch (err) {
       console.error('Erreur lors du chargement du QR code:', err);
       const errorMessage = 
         (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ||
@@ -243,7 +243,7 @@ export default function MyQRCodeScreen() {
           visibilityTime: 2000,
         });
       }
-    } catch (err: unknown) {
+    } catch (err) {
       console.error('Erreur lors du partage:', err);
       Alert.alert('Erreur', 'Impossible de partager le QR code');
     }

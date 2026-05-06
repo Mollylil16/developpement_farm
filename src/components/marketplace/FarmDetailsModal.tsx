@@ -405,7 +405,7 @@ export default function FarmDetailsModal({
           }
         })();
       }
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur chargement listings:', error);
     } finally {
       setLoading(false);
@@ -750,7 +750,7 @@ export default function FarmDetailsModal({
                 'Succès',
                 `${count} sujet${count > 1 ? 's' : ''} retiré${count > 1 ? 's' : ''} du marketplace`
               );
-            } catch (error: unknown) {
+            } catch (error) {
               logger.error('Erreur retrait du marketplace:', error);
               const errorMessage = error instanceof Error ? error.message : 'Impossible de retirer les sujets du marketplace';
               Alert.alert('Erreur', errorMessage);

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Modal pour changer le mot de passe
  */
 
@@ -70,7 +70,7 @@ export default function ChangePasswordModal({ visible, onClose }: ChangePassword
           },
         },
       ]);
-    } catch (error: unknown) {
+    } catch (error) {
       Alert.alert(
         'Erreur',
         getErrorMessage(error) || 'Erreur lors de la modification du mot de passe'

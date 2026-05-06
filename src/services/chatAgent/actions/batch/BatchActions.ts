@@ -2,7 +2,7 @@
  * Actions liées à la gestion des loges en mode bande
  */
 
-import { AgentActionResult, AgentContext } from '../../../types/chatAgent';
+import { AgentActionResult, AgentContext } from '../../../../types/chatAgent';
 import apiClient from '../../../api/apiClient';
 
 export class BatchActions {
@@ -34,7 +34,7 @@ export class BatchActions {
         payload.average_weight_kg = params.average_weight_kg as number;
       }
 
-      const result = await apiClient.post('/batch-pigs/create-batch', payload);
+      const result = await apiClient.post<any>('/batch-pigs/create-batch', payload);
 
       const totalCount = payload.population
         ? (payload.population.male_count +

@@ -62,7 +62,7 @@ export default function AdminScreen() {
         usersWithPhone,
         totalProjets,
       });
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur lors du chargement des données';
       Alert.alert('Erreur', errorMessage);
     } finally {

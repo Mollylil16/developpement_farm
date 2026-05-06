@@ -39,12 +39,11 @@ L'agent conversationnel est un assistant intelligent intégré à l'application 
 
 ```
 src/services/chatAgent/
-├── ChatAgentService.ts          # Service principal
+├── ChatAgentService.ts          # Service principal (appelle le backend Gemini)
 ├── AgentActionExecutor.ts       # Exécution des actions
-├── ChatAgentAPI.ts              # Communication avec l'IA
-├── VoiceService.ts               # Reconnaissance et synthèse vocale
-├── ProactiveRemindersService.ts  # Rappels proactifs
-└── index.ts                      # Exports
+├── VoiceService.ts              # STT (@react-native-voice/voice) + TTS (expo-speech)
+├── ProactiveRemindersService.ts # Rappels proactifs
+└── index.ts                     # Exports
 ```
 
 ## Utilisation

@@ -8,8 +8,6 @@ import { useAppSelector } from '../store/hooks';
 import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { denormalize } from 'normalizr';
-import { gestationsSchema } from '../store/normalization/schemas';
 import type { Gestation } from '../types/reproduction';
 
 interface WidgetPerformanceProps {
@@ -21,13 +19,7 @@ export default function WidgetPerformance({ onPress }: WidgetPerformanceProps) {
   const { indicateursPerformance } = useAppSelector((state) => state.reports);
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();
-  const gestations: Gestation[] = useAppSelector((state) => {
-    const { entities, ids } = state.reproduction;
-    const result = denormalize(ids.gestations, gestationsSchema, {
-      gestations: entities.gestations,
-    });
-    return Array.isArray(result) ? result : [];
-  });
+  const gestations: Gestation[] = useAppSelector((state) => state.reproduction?.gestations || []);
 
   // Calculer la performance globale à partir des indicateurs
   const performanceGlobale = useMemo(() => {

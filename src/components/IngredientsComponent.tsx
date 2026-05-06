@@ -202,7 +202,7 @@ function IngredientsComponent() {
             try {
               await dispatch(deleteIngredient(ingredient.id)).unwrap();
               Alert.alert('Succès', 'Ingrédient supprimé avec succès');
-            } catch (error: unknown) {
+            } catch (error) {
               const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la suppression';
               Alert.alert('Erreur', errorMessage);
             }

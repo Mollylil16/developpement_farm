@@ -143,7 +143,7 @@ export default function RatingModal({
         'Votre avis a été enregistré et sera visible par les autres acheteurs.',
         [{ text: 'OK', onPress: onClose }]
       );
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Impossible d'enregistrer votre avis";
       Alert.alert('Erreur', errorMessage);
     } finally {
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
   },
   criteriaLabel: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
     marginBottom: 2,
   },
   criteriaDescription: {
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
   },
   averageLabel: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   averageRow: {
     flexDirection: 'row',
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   submitButton: {
     flex: 2,

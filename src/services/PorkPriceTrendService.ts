@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Service pour calculer et gérer les tendances de prix hebdomadaires du porc poids vif
  */
 
@@ -217,15 +217,13 @@ export class PorkPriceTrendService {
     // Sauvegarder la tendance via l'API backend
     try {
       return await apiClient.post<any>('/marketplace/price-trends', trendData);
-    } catch (error: unknown) {
+    } catch (error) {
       // Si l'endpoint n'existe pas encore (404), logger en debug seulement
       if (error instanceof APIError && error.status === 404) {
         logger.debug('[PorkPriceTrendService] Endpoint /marketplace/price-trends non disponible (404), création locale ignorée');
         // Retourner un objet mock pour éviter les erreurs en aval
         return {
           id: `${year}-${weekNumber}`,
-          year,
-          weekNumber,
           ...trendData,
           updatedAt: new Date().toISOString(),
         } as WeeklyPorkPriceTrend;
@@ -238,8 +236,6 @@ export class PorkPriceTrendService {
         logger.warn('[PorkPriceTrendService] Impossible de sauvegarder la tendance');
         return {
           id: `${year}-${weekNumber}`,
-          year,
-          weekNumber,
           ...trendData,
           updatedAt: new Date().toISOString(),
         } as WeeklyPorkPriceTrend;
@@ -471,7 +467,7 @@ export class PorkPriceTrendService {
         totalPriceFcfa: t.totalPriceFcfa || t.total_price_fcfa,
         updatedAt: t.updatedAt || t.updated_at || new Date().toISOString(),
       }));
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof APIError && error.status === 404) {
         logger.debug('[PorkPriceTrendService] Endpoint non disponible, retour tableau vide');
         return [];
@@ -500,11 +496,11 @@ export class PorkPriceTrendService {
       await apiClient.post(`/marketplace/price-trends/calculate?weeks=${weeks}`);
       
       // Attendre un peu pour que le calcul se termine
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise<void>(resolve => { setTimeout(resolve, 1500); });
       
       // Récupérer les tendances recalculées
       return await this.getLastWeeksTrends(weeks);
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('[PorkPriceTrendService] Erreur lors du recalcul forcé:', error);
       // En cas d'erreur, retourner les tendances existantes
       return await this.getLastWeeksTrends(weeks);

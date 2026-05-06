@@ -14,7 +14,16 @@ import { StatCard, QuickActionButton, Section } from '../components/UIComponents
 import { CustomModal, FormField, TypeSelector } from '../components/UIComponents';
 import { CalculsAgricoles } from '../utils/calculs';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Ration, IngredientRation, Porc } from '../types';
+import type { Ration } from '../types/nutrition';
+import type { Porc } from '../types';
+
+// Local IngredientRation type for form state (before saving)
+interface IngredientRation {
+  nom: string;
+  pourcentage: number;
+  coutParKg: number;
+  cout_par_kg?: number;
+}
 
 const NutritionScreen: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -36,9 +45,11 @@ const NutritionScreen: React.FC = () => {
   const [rationForm, setRationForm] = useState({
     nom: '',
     typePorc: 'porcelet',
+    type_porc: 'porcelet',
     poidsMin: '',
     poidsMax: '',
     coutParKg: '',
+    cout_par_kg: '',
     notes: '',
   });
 
@@ -47,6 +58,7 @@ const NutritionScreen: React.FC = () => {
     nom: '',
     pourcentage: '',
     coutParKg: '',
+    cout_par_kg: '',
   });
 
   // États d'erreur
@@ -55,11 +67,11 @@ const NutritionScreen: React.FC = () => {
 
   // Calculs pour les statistiques
   const totalRations = rations.length;
-  const rationsPorcelets = rations.filter(r => r.typePorc === 'porcelet').length;
-  const rationsCroissance = rations.filter(r => r.typePorc === 'porc_croissance').length;
-  const rationsReproduction = rations.filter(r => r.typePorc === 'truie_gestante' || r.typePorc === 'truie_allaitante').length;
-  const coutMoyenParKg = rations.length > 0 
-    ? rations.reduce((sum, r) => sum + r.coutParKg, 0) / rations.length 
+  const rationsPorcelets = rations.filter(r => r.type_porc === 'porcelet').length;
+  const rationsCroissance = rations.filter(r => r.type_porc === 'porc_croissance').length;
+  const rationsReproduction = rations.filter(r => r.type_porc === 'truie_gestante' || r.type_porc === 'truie_allaitante').length;
+  const coutMoyenParKg = rations.length > 0
+    ? rations.reduce((sum, r) => sum + (r.cout_par_kg ?? 0), 0) / rations.length
     : 0;
 
   // Fonctions de gestion
@@ -103,7 +115,7 @@ const NutritionScreen: React.FC = () => {
       // Calcul de la ration nécessaire
       const rationParPorcParJour = CalculsAgricoles.calculerRationQuotidienne(poidsMoyen, 3); // 3% du poids corporel
       const rationTotale = rationParPorcParJour * nombrePorcs * dureeJours;
-      const coutTotal = rationTotale * selectedRation!.coutParKg;
+      const coutTotal = rationTotale * (selectedRation!.cout_par_kg ?? 0);
 
       Alert.alert(
         'Calcul de ration',
@@ -138,9 +150,9 @@ const NutritionScreen: React.FC = () => {
       errors.poidsMax = 'Le poids maximum doit être supérieur au poids minimum';
     }
 
-    if (!rationForm.coutParKg || isNaN(parseFloat(rationForm.coutParKg))) {
+    if (!rationForm.cout_par_kg || isNaN(parseFloat(rationForm.cout_par_kg))) {
       errors.coutParKg = 'Le coût par kg doit être un nombre valide';
-    } else if (parseFloat(rationForm.coutParKg) <= 0) {
+    } else if (parseFloat(rationForm.cout_par_kg) <= 0) {
       errors.coutParKg = 'Le coût par kg doit être positif';
     }
 
@@ -152,16 +164,17 @@ const NutritionScreen: React.FC = () => {
     setRationErrors({});
 
     try {
-      const nouvelleRation: Ration = {
+      const nouvelleRation = {
         id: Date.now().toString(),
         nom: rationForm.nom.trim(),
-        typePorc: rationForm.typePorc as 'porcelet' | 'truie_gestante' | 'truie_allaitante' | 'verrat' | 'porc_croissance',
-        poidsMin: parseFloat(rationForm.poidsMin),
-        poidsMax: parseFloat(rationForm.poidsMax),
-        coutParKg: parseFloat(rationForm.coutParKg),
-        ingredients: ingredients,
+        type_porc: rationForm.type_porc as 'porcelet' | 'truie_gestante' | 'truie_allaitante' | 'verrat' | 'porc_croissance',
+        poids_kg: parseFloat(rationForm.poidsMin),
+        cout_par_kg: parseFloat(rationForm.cout_par_kg || rationForm.coutParKg),
+        ingredients: ingredients as any[],
         notes: rationForm.notes.trim(),
-      };
+        date_creation: new Date().toISOString(),
+        projet_id: '',
+      } as Ration;
 
       dispatch(addRation(nouvelleRation));
       
@@ -169,9 +182,11 @@ const NutritionScreen: React.FC = () => {
       setRationForm({
         nom: '',
         typePorc: 'porcelet',
+        type_porc: 'porcelet',
         poidsMin: '',
         poidsMax: '',
         coutParKg: '',
+        cout_par_kg: '',
         notes: '',
       });
       setIngredients([]);
@@ -183,7 +198,7 @@ const NutritionScreen: React.FC = () => {
   };
 
   const addIngredient = () => {
-    if (!newIngredient.nom.trim() || !newIngredient.pourcentage || !newIngredient.coutParKg) {
+    if (!newIngredient.nom.trim() || !newIngredient.pourcentage || !newIngredient.cout_par_kg) {
       Alert.alert('Erreur', 'Veuillez remplir tous les champs de l\'ingrédient');
       return;
     }
@@ -197,7 +212,8 @@ const NutritionScreen: React.FC = () => {
     const ingredient: IngredientRation = {
       nom: newIngredient.nom.trim(),
       pourcentage: pourcentage,
-      coutParKg: parseFloat(newIngredient.coutParKg),
+      coutParKg: parseFloat(newIngredient.cout_par_kg || newIngredient.coutParKg),
+      cout_par_kg: parseFloat(newIngredient.cout_par_kg || newIngredient.coutParKg),
     };
 
     setIngredients([...ingredients, ingredient]);
@@ -205,6 +221,7 @@ const NutritionScreen: React.FC = () => {
       nom: '',
       pourcentage: '',
       coutParKg: '',
+      cout_par_kg: '',
     });
   };
 
@@ -215,16 +232,16 @@ const NutritionScreen: React.FC = () => {
   const RationCard = ({ ration }: { ration: Ration }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>{ration.nom}</Text>
-        <View style={[styles.typeBadge, { backgroundColor: getTypeColor(ration.typePorc) }]}>
-          <Text style={styles.typeText}>{ration.typePorc}</Text>
+        <Text style={styles.cardTitle}>{ration.nom ?? ration.type_porc}</Text>
+        <View style={[styles.typeBadge, { backgroundColor: getTypeColor(ration.type_porc) }]}>
+          <Text style={styles.typeText}>{ration.type_porc}</Text>
         </View>
       </View>
       <Text style={styles.cardSubtitle}>
-        Poids: {ration.poidsMin} - {ration.poidsMax} kg
+        Poids: {ration.poids_kg} kg
       </Text>
       <Text style={styles.cardSubtitle}>
-        Coût: {ration.coutParKg} €/kg
+        Coût: {ration.cout_par_kg} €/kg
       </Text>
       {ration.ingredients && ration.ingredients.length > 0 && (
         <Text style={styles.cardSubtitle}>
@@ -368,7 +385,7 @@ const NutritionScreen: React.FC = () => {
                   value={selectedRation?.id || ''}
                   options={rations.map(r => ({
                     value: r.id,
-                    label: `${r.nom} (${r.typePorc})`
+                    label: `${r.nom ?? r.type_porc} (${r.type_porc})`
                   }))}
                   onSelect={(value) => {
                     const ration = rations.find(r => r.id === value);
@@ -429,7 +446,7 @@ const NutritionScreen: React.FC = () => {
                   <View style={styles.ingredientInfo}>
                     <Text style={styles.ingredientName}>{ingredient.nom}</Text>
                     <Text style={styles.ingredientDetails}>
-                      {ingredient.pourcentage}% - {ingredient.coutParKg}€/kg
+                      {ingredient.pourcentage}% - {ingredient.coutParKg ?? ingredient.cout_par_kg}€/kg
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -462,8 +479,8 @@ const NutritionScreen: React.FC = () => {
                   <View style={styles.ingredientField}>
                     <FormField
                       label="Coût (€/kg)"
-                      value={newIngredient.coutParKg}
-                      onChangeText={(text) => setNewIngredient({...newIngredient, coutParKg: text})}
+                      value={newIngredient.cout_par_kg}
+                      onChangeText={(text) => setNewIngredient({...newIngredient, coutParKg: text, cout_par_kg: text})}
                       placeholder="Ex: 0.25"
                       keyboardType="numeric"
                     />
@@ -509,7 +526,7 @@ const NutritionScreen: React.FC = () => {
             { value: 'truie_allaitante', label: 'Truie Allaitante' },
             { value: 'verrat', label: 'Verrat' }
           ]}
-          onSelect={(value) => setRationForm({...rationForm, typePorc: value})}
+          onSelect={(value) => setRationForm({...rationForm, typePorc: value, type_porc: value})}
           required
         />
         
@@ -540,8 +557,8 @@ const NutritionScreen: React.FC = () => {
         
         <FormField
           label="Coût par kg (€)"
-          value={rationForm.coutParKg}
-          onChangeText={(text) => setRationForm({...rationForm, coutParKg: text})}
+          value={rationForm.cout_par_kg}
+          onChangeText={(text) => setRationForm({...rationForm, coutParKg: text, cout_par_kg: text})}
           placeholder="Ex: 0.35"
           keyboardType="numeric"
           required

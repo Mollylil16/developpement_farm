@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hook pour récupérer les détails complets des pesées d'un animal
  * Mode individuel uniquement (pour le mode bande, utiliser les endpoints batch existants)
  */
@@ -63,7 +63,7 @@ export function useAnimalPeseeDetail({
       );
 
       setData(response);
-    } catch (err: unknown) {
+    } catch (err) {
       logger.error('[useAnimalPeseeDetail] Erreur lors du chargement des détails:', err);
       setError(getErrorMessage(err));
       setData(null);

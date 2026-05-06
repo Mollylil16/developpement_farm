@@ -175,7 +175,7 @@ export default function ScanQRCollaborateurScreen() {
           Alert.alert('Impossible d\'ajouter', response.reason || 'Ce collaborateur ne peut pas être ajouté');
           setScanned(false);
         }
-      } catch (error: unknown) {
+      } catch (error) {
         console.error('Erreur lors de la validation du QR code:', error);
         
         // Gestion des erreurs spécifiques
@@ -296,11 +296,11 @@ export default function ScanQRCollaborateurScreen() {
     );
   }
 
-  if (hasPermission === false) {
+  if ((hasPermission as boolean | null) === false) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.permissionContainer}>
-          <Ionicons name="camera-off-outline" size={64} color={colors.error} />
+          <Ionicons name={"camera-off-outline" as any} size={64} color={colors.error} />
           <Text style={[styles.permissionTitle, { color: colors.text }]}>
             Permission caméra refusée
           </Text>

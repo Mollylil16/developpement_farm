@@ -12,7 +12,8 @@ import { RootState, AppDispatch } from '../store/store';
 import { LoadingSpinner, ErrorMessage } from '../components/LoadingStates';
 import { Section, CustomModal, FormField } from '../components/UIComponents';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Gestation, Porc } from '../types';
+import type { Gestation } from '../types/reproduction';
+import type { Porc } from '../types';
 import { ValidationFormulaires } from '../utils/validation';
 
 interface GestationDetailScreenProps {
@@ -31,7 +32,7 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
   
   const { gestationId } = route.params;
   const gestation = gestations.find(g => g.id === gestationId);
-  const truie = porcs.find(p => p.id === gestation?.truieId);
+  const truie = porcs.find(p => p.id === gestation?.truie_id);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [showMiseBasModal, setShowMiseBasModal] = useState(false);
@@ -52,9 +53,9 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
   useEffect(() => {
     if (gestation) {
       setEditForm({
-        dateSautage: gestation.dateSautage.toISOString().split('T')[0],
-        dateMiseBasPrevue: gestation.dateMiseBasPrevue.toISOString().split('T')[0],
-        nombrePorceletsPrevu: gestation.nombrePorceletsPrevu.toString(),
+        dateSautage: (gestation.date_sautage as string).split('T')[0],
+        dateMiseBasPrevue: (gestation.date_mise_bas_prevue as string).split('T')[0],
+        nombrePorceletsPrevu: gestation.nombre_porcelets_prevu.toString(),
         notes: gestation.notes || '',
       });
     }
@@ -91,9 +92,9 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
     try {
       const gestationModifiee = {
         ...gestation,
-        dateSautage: new Date(editForm.dateSautage),
-        dateMiseBasPrevue: new Date(editForm.dateMiseBasPrevue),
-        nombrePorceletsPrevu: parseInt(editForm.nombrePorceletsPrevu),
+        date_sautage: editForm.dateSautage,
+        date_mise_bas_prevue: editForm.dateMiseBasPrevue,
+        nombre_porcelets_prevu: parseInt(editForm.nombrePorceletsPrevu),
         notes: editForm.notes,
       };
 
@@ -111,8 +112,8 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
     try {
       const gestationAvecMiseBas = {
         ...gestation,
-        dateMiseBasReelle: new Date(miseBasForm.dateMiseBasReelle),
-        nombrePorceletsReel: parseInt(miseBasForm.nombrePorceletsReel),
+        date_mise_bas_reelle: miseBasForm.dateMiseBasReelle,
+        nombre_porcelets_reel: parseInt(miseBasForm.nombrePorceletsReel),
         statut: 'terminee' as const,
         notes: miseBasForm.notes || gestation.notes,
       };
@@ -152,7 +153,7 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
 
   const calculerJoursRestants = () => {
     const aujourdhui = new Date();
-    const miseBasPrevue = gestation.dateMiseBasPrevue;
+    const miseBasPrevue = new Date(gestation.date_mise_bas_prevue as string);
     const diffTime = miseBasPrevue.getTime() - aujourdhui.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
@@ -182,8 +183,8 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
       <Section title="Statut de la Gestation">
         <View style={styles.statutContainer}>
           <View style={styles.statutCard}>
-            <MaterialIcons 
-              name={getStatutIcon(gestation.statut)} 
+            <MaterialIcons
+              name={getStatutIcon(gestation.statut) as any}
               size={32} 
               color={getStatutColor(gestation.statut)} 
             />
@@ -219,7 +220,7 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
             <MaterialIcons name="schedule" size={20} color="#2196F3" />
             <Text style={styles.infoLabel}>Date de sautage</Text>
             <Text style={styles.infoValue}>
-              {gestation.dateSautage.toLocaleDateString('fr-FR')}
+              {new Date(gestation.date_sautage as string).toLocaleDateString('fr-FR')}
             </Text>
           </View>
           
@@ -227,16 +228,16 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
             <MaterialIcons name="event" size={20} color="#4CAF50" />
             <Text style={styles.infoLabel}>Mise bas prévue</Text>
             <Text style={styles.infoValue}>
-              {gestation.dateMiseBasPrevue.toLocaleDateString('fr-FR')}
+              {new Date(gestation.date_mise_bas_prevue as string).toLocaleDateString('fr-FR')}
             </Text>
           </View>
           
-          {gestation.dateMiseBasReelle && (
+          {gestation.date_mise_bas_reelle && (
             <View style={styles.infoItem}>
               <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
               <Text style={styles.infoLabel}>Mise bas réelle</Text>
               <Text style={styles.infoValue}>
-                {gestation.dateMiseBasReelle.toLocaleDateString('fr-FR')}
+                {new Date(gestation.date_mise_bas_reelle as string).toLocaleDateString('fr-FR')}
               </Text>
             </View>
           )}
@@ -244,14 +245,14 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
           <View style={styles.infoItem}>
             <MaterialIcons name="child-care" size={20} color="#9C27B0" />
             <Text style={styles.infoLabel}>Porcelets prévus</Text>
-            <Text style={styles.infoValue}>{gestation.nombrePorceletsPrevu}</Text>
+            <Text style={styles.infoValue}>{gestation.nombre_porcelets_prevu}</Text>
           </View>
           
-          {gestation.nombrePorceletsReel && (
+          {gestation.nombre_porcelets_reel && (
             <View style={styles.infoItem}>
               <MaterialIcons name="pets" size={20} color="#E91E63" />
               <Text style={styles.infoLabel}>Porcelets réels</Text>
-              <Text style={styles.infoValue}>{gestation.nombrePorceletsReel}</Text>
+              <Text style={styles.infoValue}>{gestation.nombre_porcelets_reel}</Text>
             </View>
           )}
         </View>
@@ -320,14 +321,14 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
             onChangeText={(text) => setEditForm({...editForm, dateSautage: text})}
             placeholder="YYYY-MM-DD"
           />
-          
+
           <FormField
             label="Date de mise bas prévue *"
             value={editForm.dateMiseBasPrevue}
             onChangeText={(text) => setEditForm({...editForm, dateMiseBasPrevue: text})}
             placeholder="YYYY-MM-DD"
           />
-          
+
           <FormField
             label="Nombre de porcelets prévu *"
             value={editForm.nombrePorceletsPrevu}
@@ -363,7 +364,7 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
             onChangeText={(text) => setMiseBasForm({...miseBasForm, dateMiseBasReelle: text})}
             placeholder="YYYY-MM-DD"
           />
-          
+
           <FormField
             label="Nombre de porcelets réels *"
             value={miseBasForm.nombrePorceletsReel}

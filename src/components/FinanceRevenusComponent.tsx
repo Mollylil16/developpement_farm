@@ -430,7 +430,7 @@ function FinanceRevenusComponent() {
                   </View>
                 )}
 
-                {revenu.categorie === 'vente_porc' && (revenu.poids_total || revenu.poids_kg) && (revenu.poids_total || revenu.poids_kg) > 0 && (
+                {revenu.categorie === 'vente_porc' && (revenu.poids_total || revenu.poids_kg) && ((revenu.poids_total ?? revenu.poids_kg ?? 0)) > 0 && (
                   <TouchableOpacity
                     style={[styles.detailButton, { backgroundColor: colors.primary }]}
                     onPress={() => {

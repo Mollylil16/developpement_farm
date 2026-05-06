@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Modal pour créer ou modifier une pesée
  */
 
@@ -254,7 +254,7 @@ export default function ProductionPeseeFormModal({
         projet_id: projetId,
         user_id: currentUser?.id || '',
         auto_register: true,
-      });
+      } as any);
 
       if (result.success && result.weight_estimation) {
         const weight = result.weight_estimation.weight_kg;
@@ -409,7 +409,7 @@ export default function ProductionPeseeFormModal({
       }
       onSuccess();
       onClose();
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error) || `Erreur lors de ${isEditing ? 'la modification' : "l'enregistrement"} de la pesée.`;
       Alert.alert('Erreur', errorMessage);
     } finally {

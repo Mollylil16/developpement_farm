@@ -152,7 +152,7 @@ export default function ManageProfilesScreen() {
       await switchRole(role);
       // La navigation sera gérée automatiquement par AppNavigator
       navigation.goBack();
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Impossible de changer de profil';
       Alert.alert('Erreur', errorMessage);
     } finally {
@@ -186,7 +186,7 @@ export default function ManageProfilesScreen() {
       
       // Si c'était le profil actif, le context changera automatiquement
       navigation.goBack();
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Impossible de supprimer le profil';
       Alert.alert('Erreur', errorMessage);
     } finally {

@@ -36,7 +36,7 @@ export class KnowledgeActions {
       // Stratégie 1: Essayer l'API backend
       const apiResults = await KnowledgeBaseAPI.search(question, {
         category: topic,
-        projetId: context.projetId,
+        projetId: context.projetId ?? undefined,
         limit: 3,
       });
       
@@ -48,7 +48,7 @@ export class KnowledgeActions {
         if (bestMatch.relevance_score > 5) {
           KnowledgeBaseAPI.sendFeedback(
             bestMatch.id,
-            context.projetId,
+            context.projetId ?? '',
             'helpful',
             question
           );
@@ -166,7 +166,7 @@ export class KnowledgeActions {
   ): Promise<AgentActionResult> {
     try {
       // Essayer l'API backend
-      const categories = await KnowledgeBaseAPI.getCategories(context.projetId);
+      const categories = await KnowledgeBaseAPI.getCategories(context.projetId ?? undefined);
       
       if (categories && categories.length > 0) {
         const message = `📚 **Thèmes de formation disponibles:**\n\n` +

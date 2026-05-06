@@ -42,7 +42,7 @@ export function useThrottledCallback<T extends (...args: any[]) => any>(
   limit: number = 300
 ): T {
   const lastRan = useRef(0);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingArgsRef = useRef<Parameters<T> | null>(null);
 
   const throttledFn = useCallback((...args: Parameters<T>) => {

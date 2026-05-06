@@ -307,7 +307,7 @@ const DashboardBuyerScreen: React.FC = () => {
                 contentContainerStyle={styles.listingsList}
               >
                 {recentListings.slice(0, 3).map((listing) => (
-                  <ListingCard key={listing.id} listing={listing} colors={colors} navigation={navigation} />
+                  <ListingCard key={listing.id} listing={listing} colors={colors} navigation={navigation as any} />
                 ))}
               </ScrollView>
             )}

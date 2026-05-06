@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hook pour récupérer les statistiques globales des pesées
  * Fonctionne pour les modes individuel et bande
  */
@@ -58,7 +58,7 @@ export function usePeseesStats({
       });
 
       setData(response);
-    } catch (err: unknown) {
+    } catch (err) {
       logger.error('[usePeseesStats] Erreur lors du chargement des statistiques:', err);
       setError(getErrorMessage(err));
       setData(null);

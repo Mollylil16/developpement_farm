@@ -249,7 +249,7 @@ export function generateFinanceHTML(data: FinanceData): string {
         dateDebut && dateFin
           ? `
       <p style="color: #666; font-size: 12px; margin-bottom: 15px;">
-        Période analysée : ${formatDate(dateDebut)} au ${formatDate(dateFin)}
+        Période analysée : ${formatDate(dateDebut.toISOString())} au ${formatDate(dateFin.toISOString())}
       </p>
       `
           : ''
@@ -315,7 +315,7 @@ export function generateFinanceHTML(data: FinanceData): string {
           </tr>
           <tr style="border-top: 1px solid #999;">
             <td>Total kg vendus</td>
-            <td class="text-right">${formatCurrency(performanceGlobale.total_kg_vendus_global, 0)} kg</td>
+            <td class="text-right">${formatCurrency(performanceGlobale.total_kg_vendus_global)} kg</td>
           </tr>
         </table>
       </div>

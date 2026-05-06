@@ -77,7 +77,7 @@ const UserInfoScreen: React.FC = () => {
         );
 
         // Naviguer vers ProfileSelection
-        navigation.navigate(SCREENS.PROFILE_SELECTION as never, {
+        navigation.navigate(SCREENS.PROFILE_SELECTION as any, {
           userId: params.existingUser.id,
         });
         return;
@@ -94,10 +94,10 @@ const UserInfoScreen: React.FC = () => {
       });
 
       // Naviguer vers ProfileSelection avec userId
-      navigation.navigate(SCREENS.PROFILE_SELECTION as never, {
+      navigation.navigate(SCREENS.PROFILE_SELECTION as any, {
         userId: user.id,
       });
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur création compte:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
       

@@ -262,7 +262,7 @@ export default function VaccinationFormModalNew({
     }
   };
 
-  const renderAnimalItem = ({ item }: { item: unknown }) => {
+  const renderAnimalItem = ({ item }: { item: any }) => {
     const isSelected = animauxSelectionnes.includes(item.id);
     const categorie = getCategorieAnimal(item);
 
@@ -624,7 +624,7 @@ export default function VaccinationFormModalNew({
               <View>
                 {animauxFiltres.map((item, index) => (
                   <View key={item.id}>
-                    {renderAnimalItem({ item, index })}
+                    {renderAnimalItem({ item })}
                     {index < animauxFiltres.length - 1 && <View style={{ height: 8 }} />}
                   </View>
                 ))}

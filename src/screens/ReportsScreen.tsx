@@ -74,7 +74,7 @@ const ReportsScreen: React.FC = () => {
           fin: periode.fin,
         },
         porcs,
-        gestations,
+        gestations: gestations as any,
         transactions,
         deviseConfig,
       };
@@ -154,7 +154,7 @@ const ReportsScreen: React.FC = () => {
       onPress={onPress}
       disabled={!onPress}
     >
-      <MaterialIcons name={icon} size={24} color={color} />
+      <MaterialIcons name={icon as any} size={24} color={color} />
       <Text style={styles.reportValue}>{value}</Text>
       <Text style={styles.reportTitle}>{title}</Text>
       {subtitle && <Text style={styles.reportSubtitle}>{subtitle}</Text>}
@@ -164,7 +164,7 @@ const ReportsScreen: React.FC = () => {
   const RecommandationCard = ({ recommandation }: { recommandation: Recommandation }) => (
     <View style={styles.recommendationCard}>
       <View style={styles.recommendationHeader}>
-        <MaterialIcons name={recommandation.icon} size={20} color={recommandation.color} />
+        <MaterialIcons name={recommandation.icon as any} size={20} color={recommandation.color} />
         <Text style={styles.recommendationTitle}>{recommandation.titre}</Text>
       </View>
       <Text style={styles.recommendationDescription}>{recommandation.description}</Text>
@@ -484,14 +484,14 @@ const ReportsScreen: React.FC = () => {
                 />
                 <RapportCard
                   title="Saillies Planifiées"
-                  value={planifications.reduce((sum, p) => sum + p.saillies.length, 0)}
+                  value={(planifications as any[]).reduce((sum, p) => sum + (p.saillies?.length ?? 0), 0)}
                   icon="schedule"
                   color="#FF9800"
                   subtitle="Total"
                 />
                 <RapportCard
                   title="Saillies Réalisées"
-                  value={planifications.reduce((sum, p) => sum + p.saillies.filter(s => s.statut === 'realise').length, 0)}
+                  value={(planifications as any[]).reduce((sum, p) => sum + (p.saillies?.filter((s: any) => s.statut === 'realise').length ?? 0), 0)}
                   icon="check-circle"
                   color="#4CAF50"
                   subtitle="Réalisées"
@@ -499,7 +499,7 @@ const ReportsScreen: React.FC = () => {
                 <RapportCard
                   title="Objectifs Atteints"
                   value={planifications.filter(p => {
-                    const stats = CalculsAgricoles.analyserPlanification(p);
+                    const stats = CalculsAgricoles.analyserPlanification(p as any);
                     return stats.objectifAtteint;
                   }).length}
                   icon="flag"

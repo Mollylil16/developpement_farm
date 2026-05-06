@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Service principal pour l'agent conversationnel
  * V4.1 - Sans appels directs à Gemini (tout passe par le backend)
  * 
@@ -28,7 +28,6 @@ import {
   AgentActionResult,
 } from '../../types/chatAgent';
 import { AgentActionExecutor } from './AgentActionExecutor';
-import { ChatAgentAPI } from './ChatAgentAPI';
 import { buildOptimizedSystemPrompt } from './prompts/systemPrompt';
 import {
   ConversationContextManager,
@@ -74,7 +73,6 @@ interface GeminiParsedAction {
 
 export class ChatAgentService {
   private actionExecutor: AgentActionExecutor;
-  private api: ChatAgentAPI;
   private config: AgentConfig;
   private context: AgentContext | null = null;
   private conversationHistory: ChatMessage[] = [];
@@ -97,7 +95,6 @@ export class ChatAgentService {
       ...config,
     };
     this.actionExecutor = new AgentActionExecutor();
-    this.api = new ChatAgentAPI(this.config);
 
     // Initialiser les composants core
     this.conversationContext = new ConversationContextManager();
@@ -380,7 +377,7 @@ export class ChatAgentService {
       
       try {
         const kbResults = await KnowledgeBaseAPI.search(userMessage, {
-          projetId: this.context.projetId,
+          projetId: this.context?.projetId ?? undefined,
           limit: 1,
         });
         
@@ -422,7 +419,7 @@ export class ChatAgentService {
       const responseTime = Date.now() - startTime;
       this.performanceMonitor.recordInteraction(userMsg, errorMessage, responseTime);
       return errorMessage;
-    } catch (error: unknown) {
+    } catch (error) {
       // Log détaillé de l'erreur pour diagnostic
       logger.error("Erreur lors de l'envoi du message:", error);
       
@@ -461,7 +458,6 @@ export class ChatAgentService {
         timestamp: new Date().toISOString(),
         metadata: {
           error: errorMsg,
-          educationalSuggestion: suggestion,
         },
       };
       this.conversationHistory.push(errorMessage);
@@ -555,8 +551,8 @@ export class ChatAgentService {
       }
       
       // Format 3: La réponse est directement une string (cas improbable mais possible)
-      if (!geminiResponse && typeof response === 'string' && response.trim().length > 0) {
-        geminiResponse = response;
+      if (!geminiResponse && typeof (response as any) === 'string' && (response as any).trim().length > 0) {
+        geminiResponse = response as any as string;
       }
 
       if (geminiResponse && geminiResponse.trim().length > 0) {

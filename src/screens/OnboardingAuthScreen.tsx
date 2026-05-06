@@ -361,7 +361,7 @@ const OnboardingAuthScreen: React.FC = () => {
           // qui redirigera automatiquement vers le dashboard
         }
       }
-    } catch (error: unknown) {
+    } catch (error) {
       // Analyser l'erreur Google OAuth
       const analysis = analyzeAuthError(error);
       
@@ -443,7 +443,7 @@ const OnboardingAuthScreen: React.FC = () => {
           // qui redirigera automatiquement vers le dashboard
         }
       }
-    } catch (error: unknown) {
+    } catch (error) {
       // Analyser l'erreur Apple OAuth
       const analysis = analyzeAuthError(error);
       
@@ -549,7 +549,7 @@ const OnboardingAuthScreen: React.FC = () => {
           throw signInError;
         }
       }
-    } catch (error: unknown) {
+    } catch (error) {
       // Analyser l'erreur pour afficher un message convivial
       const analysis = analyzeAuthError(error);
       

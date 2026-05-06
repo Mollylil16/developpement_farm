@@ -409,12 +409,13 @@ const globalStatsStyles = StyleSheet.create({
 export default function WeighingScreen() {
   const { colors } = useTheme();
   const route = useRoute<RouteProp<{ params: WeighingRouteParams }, 'params'>>();
+  const navigation = useNavigation();
   const mode = useModeElevage();
   const dispatch = useAppDispatch();
   const { projetActif } = useAppSelector((state) => state.projet);
   
   // Paramètres batch (si navigation depuis une bande)
-  const batch = route.params?.batch;
+  const batch = route.params?.batch as Batch | undefined;
   const animalId = route.params?.animalId;
   const isBatchMode = mode === 'bande' || !!batch;
   
@@ -480,7 +481,8 @@ export default function WeighingScreen() {
     } finally {
       setBatchesLoading(false);
     }
-  }, [projetActif?.id, batch?.id, loadAllBatchesWeighings]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projetActif?.id, batch?.id]);
 
   const loadBatchWeighings = useCallback(
     async (targetBatch?: Batch | null) => {
@@ -489,9 +491,9 @@ export default function WeighingScreen() {
 
       setLoading(true);
       try {
-        const data = await apiClient.get(`/batch-weighings/batch/${batchToLoad.id}/history`);
+        const data = await apiClient.get<any[]>(`/batch-weighings/batch/${batchToLoad.id}/history`);
         // Trier les pesées par date croissante pour le graphique
-        const sortedData = (data || []).sort((a: any, b: any) => {
+        const sortedData = ((data as any[]) || []).sort((a: any, b: any) => {
           const dateA = new Date(a.weighing_date || a.date).getTime();
           const dateB = new Date(b.weighing_date || b.date).getTime();
           return dateA - dateB;
@@ -521,9 +523,9 @@ export default function WeighingScreen() {
     await Promise.all(
       batchList.map(async (b) => {
         try {
-          const data = await apiClient.get(`/batch-weighings/batch/${b.id}/history`);
+          const data = await apiClient.get<any[]>(`/batch-weighings/batch/${b.id}/history`);
           // Trier par date croissante pour le graphique
-          const sortedData = (data || []).sort((a: any, b: any) => {
+          const sortedData = ((data as any[]) || []).sort((a: any, b: any) => {
             const dateA = new Date(a.weighing_date || a.date).getTime();
             const dateB = new Date(b.weighing_date || b.date).getTime();
             return dateA - dateB;
@@ -1005,11 +1007,11 @@ export default function WeighingScreen() {
                         mode="individuel"
                         animal={animal}
                         dernierePesee={dernierePesee || undefined}
-                        gmq={gmq}
+                        gmq={gmq ?? undefined}
                         enRetard={enRetard}
-                        joursDepuisDernierePesee={joursDepuis}
+                        joursDepuisDernierePesee={joursDepuis ?? undefined}
                         onViewDetails={() => {
-                          navigation.navigate(SCREENS.SUJET_PESEE_DETAIL as never, {
+                          (navigation as any).navigate(SCREENS.SUJET_PESEE_DETAIL, {
                             animalId: animal.id,
                           });
                         }}

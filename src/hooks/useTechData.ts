@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hook pour charger les données spécifiques au technicien
  * Fermes assistées, tâches du jour, enregistrements récents
  */
@@ -168,7 +168,7 @@ export function useTechData(techUserId?: string) {
         loading: false,
         error: null,
       });
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur lors du chargement des données technicien:', error);
       setData((prev) => ({
         ...prev,

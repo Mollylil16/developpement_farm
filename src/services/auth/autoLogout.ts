@@ -11,7 +11,7 @@ import { logger } from '../../utils/logger';
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 const LAST_ACTIVITY_KEY = '@fermier_pro:last_activity';
 
-let inactivityTimer: NodeJS.Timeout | null = null;
+let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
 let onLogoutCallback: (() => void) | null = null;
 
 /**

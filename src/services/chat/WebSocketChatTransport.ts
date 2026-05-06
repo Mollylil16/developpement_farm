@@ -19,7 +19,7 @@ export class WebSocketChatTransport implements IChatTransport {
   private ws?: WebSocket;
   private conversationId?: string;
   private reconnectAttempts: number = 0;
-  private reconnectTimeout?: NodeJS.Timeout;
+  private reconnectTimeout?: ReturnType<typeof setTimeout>;
   
   // Propriétés utilisées dans les méthodes de la classe
   private config: ChatTransportConfig;
@@ -64,7 +64,7 @@ export class WebSocketChatTransport implements IChatTransport {
           try {
             const message: ChatMessage = JSON.parse(event.data);
             this.callbacks.onMessage(message);
-          } catch (error: unknown) {
+          } catch (error) {
             logger.error('Erreur parsing message:', error);
             this.callbacks.onError(
               error instanceof Error ? error : new Error(String(error))
@@ -88,7 +88,7 @@ export class WebSocketChatTransport implements IChatTransport {
           // Tentative de reconnexion
           this.attemptReconnect();
         };
-      } catch (error: unknown) {
+      } catch (error) {
         this._status = 'error';
         this.callbacks.onStatusChange('error');
         reject(error);

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Service OAuth pour Google et Apple
  * Gère l'authentification via OAuth avec le backend
  */
@@ -99,7 +99,7 @@ export async function signInWithGoogle(): Promise<OAuthResult> {
     } else {
       throw new Error(`Erreur lors de l'authentification: ${result.type}`);
     }
-  } catch (error: unknown) {
+  } catch (error) {
     logger.error('[Google OAuth] Erreur:', error);
     
     // Gestion spécifique des erreurs selon le type
@@ -238,7 +238,7 @@ export async function signInWithApple(): Promise<OAuthResult> {
     );
 
     return response;
-  } catch (error: unknown) {
+  } catch (error) {
     logger.error('[Apple OAuth] Erreur:', error);
 
     // Gestion spécifique des erreurs selon le type

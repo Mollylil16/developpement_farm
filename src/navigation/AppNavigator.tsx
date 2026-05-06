@@ -445,7 +445,7 @@ export default function AppNavigator() {
               userId: user.id,
               email: user.email || undefined,
               telephone: user.telephone || undefined,
-            })
+            } as any)
           );
           collaborationsActivesChargeesRef.current = cle;
         }
@@ -676,7 +676,7 @@ export default function AppNavigator() {
           name={SCREENS.SCAN_QR_COLLABORATEUR} 
           options={{ 
             headerShown: false, // Fullscreen pour la caméra
-            presentation: 'fullScreenModal', // Plein écran sur iOS
+            presentation: 'modal' as any, // Plein écran sur iOS
             gestureEnabled: false, // Désactiver le swipe back pour éviter de fermer la caméra
           }}
         >

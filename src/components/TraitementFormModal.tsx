@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Modal de formulaire pour créer/modifier un traitement médical
  */
 
@@ -217,7 +217,7 @@ export default function TraitementFormModal({
       }
 
       onClose();
-    } catch (err: unknown) {
+    } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err) || "Erreur lors de l'enregistrement";
       setError(errorMessage);
     } finally {
@@ -392,7 +392,7 @@ export default function TraitementFormModal({
           </TouchableOpacity>
           {showDatePicker && datePickerField === 'debut' && (
             <DateTimePicker
-              value={parseLocalDate(formData.date_debut)}
+              value={parseLocalDate(formData.date_debut) ?? new Date()}
               mode="date"
               display="default"
               onChange={handleDatePickerChange}

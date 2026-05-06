@@ -140,7 +140,7 @@ export default function MarketplaceSearchBar({
                     color: currentSort === option.value ? colors.primary : colors.text,
                     fontWeight:
                       currentSort === option.value
-                        ? typography.fontWeights.semibold
+                        ? typography.fontWeights.semiBold
                         : typography.fontWeights.regular,
                   },
                 ]}

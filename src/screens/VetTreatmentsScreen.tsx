@@ -30,7 +30,7 @@ export default function VetTreatmentsScreen() {
   // S'assurer que le projet collaboratif est sélectionné pour que TraitementsComponentNew utilise le bon projet
   useEffect(() => {
     if (projetId) {
-      dispatch(selectProjetCollaboratif(projetId));
+      dispatch(selectProjetCollaboratif(projetId as any));
     }
   }, [projetId, dispatch]);
 

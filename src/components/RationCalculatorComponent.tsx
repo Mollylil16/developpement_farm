@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Composant calculateur de rations
  */
 
@@ -149,7 +149,7 @@ export default function RationCalculatorComponent() {
           type_porc: typePorc,
           poids_kg: parseFloat(poidsKg),
           nombre_porcs: nombrePorcs ? parseInt(nombrePorcs) : undefined,
-          ingredients: selectedIngredients,
+          ingredients: selectedIngredients as any,
         })
       ).unwrap();
 
@@ -159,7 +159,7 @@ export default function RationCalculatorComponent() {
       setNombrePorcs('');
       setSelectedIngredients([]);
       setResult(null);
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error) || "Erreur lors de l'enregistrement";
       Alert.alert('Erreur', errorMessage);
     } finally {

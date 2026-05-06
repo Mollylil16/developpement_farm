@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Composant pour afficher la liste des animaux en production avec leurs pesées
  */
 
@@ -237,7 +237,7 @@ function ProductionAnimalsListComponent() {
                 if (selectedAnimal) {
                   dispatch(loadPeseesParAnimal(selectedAnimal.id));
                 }
-              } catch (error: unknown) {
+              } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : String(error) || 'Erreur lors de la suppression de la pesée.';
                 Alert.alert('Erreur', errorMessage);
               }

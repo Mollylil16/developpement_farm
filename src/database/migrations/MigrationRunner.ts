@@ -1,4 +1,4 @@
-/**
+﻿/**
  * MigrationRunner - Système de migrations versionné
  *
  * Gère l'exécution des migrations dans l'ordre et le suivi des migrations appliquées
@@ -74,11 +74,11 @@ export async function runMigrations(db: SQLiteDatabase, migrations: Migration[])
         await markMigrationApplied(db, migration.version, migration.name);
         await db.execAsync('COMMIT;');
         console.log(`✅ Migration ${migration.version}: ${migration.name} appliquée avec succès`);
-      } catch (error: unknown) {
+      } catch (error) {
         await db.execAsync('ROLLBACK;');
         throw error;
       }
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(
         `❌ Erreur lors de la migration ${migration.version}: ${migration.name}`,

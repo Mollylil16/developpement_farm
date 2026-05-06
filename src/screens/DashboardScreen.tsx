@@ -82,7 +82,7 @@ const DashboardScreen: React.FC = () => {
 
   // Calculer les alertes au chargement
   useEffect(() => {
-    dispatch(calculateAlertes({ porcs, gestations, transactions }));
+    dispatch(calculateAlertes({ porcs, gestations: gestations as any, transactions }));
   }, [dispatch, porcs, gestations, transactions]);
 
   // Fonctions pour les actions rapides
@@ -211,7 +211,7 @@ const DashboardScreen: React.FC = () => {
 
   // Calculs pour le dashboard
   const totalPorcs = porcs.length;
-  const truiesGestantes = gestations.filter((g: Gestation) => g.statut === 'en_cours').length;
+  const truiesGestantes = (gestations as any[]).filter((g: any) => g.statut === 'en_cours').length;
   const porcsEnCroissance = porcs.filter((p: Porc) => p.statut === 'croissance').length;
   const chiffreAffairesMois = transactions
     .filter((t: Transaction) => t.type === 'vente' && 
@@ -259,7 +259,7 @@ const DashboardScreen: React.FC = () => {
   const handleRetry = () => {
     dispatch(loadPorcs());
     dispatch(loadGestations());
-    dispatch(calculateAlertes({ porcs, gestations, transactions }));
+    dispatch(calculateAlertes({ porcs, gestations: gestations as any, transactions }));
   };
 
   // Affichage des états de chargement et d'erreur
@@ -391,7 +391,7 @@ const DashboardScreen: React.FC = () => {
                   <Text style={styles.activiteDescription}>{activite.description}</Text>
                 </View>
                 <Text style={styles.activiteDate}>
-                  {activite.date.toLocaleTimeString()}
+                  {new Date(activite.date as any).toLocaleTimeString()}
                 </Text>
               </View>
             </View>

@@ -3,7 +3,7 @@
  * V2.0 - Support mode batch (bande) et individuel
  */
 
-import { AgentActionResult, AgentContext } from '../../../types/chatAgent';
+import { AgentActionResult, AgentContext } from '../../../../types/chatAgent';
 import { format } from 'date-fns';
 import apiClient from '../../../api/apiClient';
 import { logger } from '../../../../utils/logger';
@@ -178,7 +178,7 @@ ${statsAnimaux.porcelets > 0 ? `• ${statsAnimaux.porcelets} porcelets` : ''}
   /**
    * Appel API sécurisé avec gestion d'erreur
    */
-  private static async safeApiGet<T>(endpoint: string, params: Record<string, string>): Promise<T | null> {
+  private static async safeApiGet<T>(endpoint: string, params: Record<string, string | null | undefined>): Promise<T | null> {
     try {
       return await apiClient.get<T>(endpoint, { params });
     } catch (error) {

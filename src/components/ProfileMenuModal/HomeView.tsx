@@ -57,7 +57,7 @@ export default function HomeView({
       setRoleSwitcherVisible(false);
       onClose();
       // Navigation sera gérée automatiquement par AppNavigator selon le nouveau rôle
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Impossible de changer de rôle';
       Alert.alert('Erreur', errorMessage);
     }

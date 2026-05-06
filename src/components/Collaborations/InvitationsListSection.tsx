@@ -128,7 +128,7 @@ export default function InvitationsListSection({ onShowAll }: InvitationsListSec
           })
         );
       }
-    } catch (error: unknown) {
+    } catch (error) {
       hapticError();
       const errorMessage = error?.message || 'Erreur lors de l\'acceptation de l\'invitation';
       Toast.show({
@@ -178,7 +178,7 @@ export default function InvitationsListSection({ onShowAll }: InvitationsListSec
                   })
                 );
               }
-            } catch (error: unknown) {
+            } catch (error) {
               hapticError();
               const errorMessage = error?.message || 'Erreur lors du rejet de l\'invitation';
               Toast.show({

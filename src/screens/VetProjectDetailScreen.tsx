@@ -80,11 +80,12 @@ export default function VetProjectDetailScreen() {
       ).unwrap();
 
       // Le résultat contient le projet et la collaboration
-      if (result.projet) {
-        setProjet(result.projet);
+      const resultAny = result as any;
+      if (resultAny.projet) {
+        setProjet(resultAny.projet);
       }
-      if (result.collaborateur) {
-        setCollaboration(result.collaborateur);
+      if (resultAny.collaborateur ?? resultAny.collaborateurActuel) {
+        setCollaboration(resultAny.collaborateur ?? resultAny.collaborateurActuel);
       }
     } catch (error) {
       console.error('Erreur lors du chargement du projet:', error);
@@ -231,14 +232,14 @@ export default function VetProjectDetailScreen() {
       };
       const initialTab = initialTabMap[section.id];
       
-      navigation.navigate('Main' as never, {
+      (navigation as any).navigate('Main', {
         screen: SCREENS.SANTE,
         params: {
           initialTab: initialTab,
         },
-      } as never);
+      });
     } else {
-      navigation.navigate(section.screen as never, { projetId } as never);
+      (navigation as any).navigate(section.screen, { projetId });
     }
   };
 

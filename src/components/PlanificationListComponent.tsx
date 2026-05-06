@@ -52,7 +52,7 @@ export default function PlanificationListComponent() {
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const ITEMS_PER_PAGE = 50;
-  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const syncIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const appStateRef = useRef(AppState.currentState);
 
   // Fonction pour charger les planifications
@@ -212,7 +212,7 @@ export default function PlanificationListComponent() {
           await dispatch(
             updatePlanification({
               id: planification.id,
-              updates: { statut: 'terminee' },
+              data: { statut: 'terminee' },
             })
           );
           // Recharger les planifications après mise à jour

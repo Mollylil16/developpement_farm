@@ -174,12 +174,15 @@ export function useKouakouStream() {
           },
         );
 
-        if (!response.ok || !response.body) {
+        if (!response.ok || !(response as any).body) {
           throw new Error(`Erreur service (${response.status})`);
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
+        const reader = (response as any).body.getReader();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const TextDecoderClass: any = (globalThis as any).TextDecoder || ((globalThis as any).TextDecoder);
+        const decoder = new TextDecoderClass('utf-8');
         let buffer = '';
 
         while (true) {

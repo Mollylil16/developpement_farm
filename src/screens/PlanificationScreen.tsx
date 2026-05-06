@@ -23,7 +23,7 @@ import { PlanificationAccouplement, SailliePlanifiee, ObjectifReproduction, Porc
 
 const PlanificationScreen: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const { planifications, planificationActive, loading, error } = useSelector((state: RootState) => state.planification);
+  const { accouplements: planifications, planificationActive, loading, error } = useSelector((state: RootState) => state.planification);
   const { porcs } = useSelector((state: RootState) => state.porcs);
 
   const [showPlanificationModal, setShowPlanificationModal] = useState(false);
@@ -106,8 +106,8 @@ const PlanificationScreen: React.FC = () => {
         nombreMisesBasMinimum: parseInt(planificationForm.nombreMisesBasMinimum),
         nombreMoyenPorceletsParMiseBas: parseInt(planificationForm.nombreMoyenPorceletsParMiseBas),
         periodePlanification: {
-          debut: new Date(planificationForm.dateDebut),
-          fin: new Date(planificationForm.dateFin),
+          debut: new Date(planificationForm.dateDebut).toISOString(),
+          fin: new Date(planificationForm.dateFin).toISOString(),
         },
         intervalleEntreSaillies: parseInt(planificationForm.intervalleEntreSaillies),
         dureeGestation: parseInt(planificationForm.dureeGestation),
@@ -163,7 +163,7 @@ const PlanificationScreen: React.FC = () => {
           Saillies: {stats.sailliesPlanifiees} planifiées, {stats.sailliesRealisees} réalisées
         </Text>
         <Text style={styles.cardSubtitle}>
-          Période: {planification.dateDebut.toLocaleDateString()} - {planification.dateFin.toLocaleDateString()}
+          Période: {new Date(planification.dateDebut).toLocaleDateString()} - {new Date(planification.dateFin).toLocaleDateString()}
         </Text>
         <View style={styles.cardActions}>
           <TouchableOpacity
@@ -203,10 +203,10 @@ const PlanificationScreen: React.FC = () => {
           </View>
         </View>
         <Text style={styles.saillieDate}>
-          Saillie: {saillie.dateSaillie.toLocaleDateString()}
+          Saillie: {new Date(saillie.dateSaillie).toLocaleDateString()}
         </Text>
         <Text style={styles.saillieDate}>
-          Mise bas prévue: {saillie.dateMiseBasPrevue.toLocaleDateString()}
+          Mise bas prévue: {new Date(saillie.dateMiseBasPrevue).toLocaleDateString()}
         </Text>
         {saillie.statut === 'planifie' && (
           <View style={styles.saillieActions}>

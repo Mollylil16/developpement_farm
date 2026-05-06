@@ -12,6 +12,8 @@ export interface ProductionAnimal {
   projet_id: string;
   code: string;
   nom?: string;
+  nom_personnalise?: string; // Custom display name
+  code_identification?: string; // Alternative identification code
   origine?: string;
   sexe: SexeAnimal;
   date_naissance?: string;

@@ -154,9 +154,10 @@ export class MontantExtractor {
       return null;
     }
 
-    const validNumbers = allNumbers
+    const validNumbers = (allNumbers
       .map((n) => this.parseNumber(n))
-      .filter((n) => {
+      .filter((n): n is number => {
+        if (n === null) return false;
         // Exclure les nombres explicitement exclus
         if (options.excludeNumbers?.includes(n)) {
           return false;
@@ -180,7 +181,7 @@ export class MontantExtractor {
 
         return true;
       })
-      .sort((a, b) => b - a); // Tri décroissant
+      .sort((a, b) => b - a)) as number[]; // Tri décroissant
 
     return validNumbers.length > 0 ? validNumbers[0] : null;
   }

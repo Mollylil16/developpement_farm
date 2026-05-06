@@ -539,17 +539,6 @@ export class ConversationContextManager {
   }
 
   /**
-   * Définit une action en attente
-   */
-  setPendingAction(action: string, params: Record<string, unknown>): void {
-    this.context.pendingAction = {
-      action,
-      params,
-      timestamp: new Date().toISOString(),
-    };
-  }
-
-  /**
    * Réinitialise l'action en attente
    */
   clearPendingAction(): void {

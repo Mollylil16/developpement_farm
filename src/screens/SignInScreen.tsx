@@ -40,7 +40,7 @@ const SignInScreen: React.FC = () => {
       setIsLoading(true);
       await dispatch(signIn({ identifier: identifier.trim(), password: password || undefined })).unwrap();
       // La navigation sera gérée par AppNavigator qui détecte isAuthenticated
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur connexion:', error);
       console.error('Type erreur:', typeof error, 'Is Error:', error instanceof Error);
       
@@ -76,7 +76,7 @@ const SignInScreen: React.FC = () => {
       setIsLoading(true);
       await dispatch(signInWithGoogle()).unwrap();
       // La navigation sera gérée par AppNavigator
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur Google OAuth:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
       
@@ -100,7 +100,7 @@ const SignInScreen: React.FC = () => {
       setIsLoading(true);
       await dispatch(signInWithApple()).unwrap();
       // La navigation sera gérée par AppNavigator
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur Apple OAuth:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
       

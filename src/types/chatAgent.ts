@@ -35,6 +35,11 @@ export interface ChatMessage {
     refreshHint?: 'finance' | 'production' | 'sante' | 'marketplace' | 'all';
     // Liste des sujets disponibles pour sélection (ventes, etc.)
     sujetsDisponibles?: SujetDisponible[];
+    // Additional metadata fields
+    source?: string;
+    error?: boolean | string;
+    confidence?: number;
+    [key: string]: unknown;
   };
 }
 
@@ -112,6 +117,8 @@ export type AgentActionType =
   // Suppressions
   | 'delete_revenu'
   | 'delete_depense'
+  // Stocks alimentaires
+  | 'get_stock_aliments'
   // Capacités / Aide
   | 'describe_capabilities'
   | 'other';
@@ -161,18 +168,6 @@ export interface AgentConfig {
   enableProactiveAlerts?: boolean;
 }
 
-export type TranscriptionProvider = 'assemblyai' | 'google' | 'openai' | 'none';
-
-export interface VoiceConfig {
-  language: string;
-  enableSpeechToText: boolean;
-  enableTextToSpeech: boolean;
-  speechRate?: number;
-  pitch?: number;
-  // Configuration pour la transcription vocale
-  transcriptionProvider?: TranscriptionProvider;
-  transcriptionApiKey?: string;
-}
 
 export interface Reminder {
   id: string;

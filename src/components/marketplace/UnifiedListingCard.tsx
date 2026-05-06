@@ -144,7 +144,7 @@ function BatchListingContent({
         {/* Header avec badge "Bande" */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={[badgeStyle('primary'), { marginRight: 8 }]}>
+            <View style={[badgeStyle('available' as any), { marginRight: 8 }]}>
               <Ionicons name="people" size={14} color={colors.primary} />
               <Text style={[styles.badgeText, { color: colors.primary }]}>Bande</Text>
             </View>
@@ -162,7 +162,7 @@ function BatchListingContent({
               ) : null;
             })()}
             {!isAvailable && (
-              <View style={[badgeStyle('warning')]}>
+              <View style={[badgeStyle('sold' as any)]}>
                 <Text style={[styles.badgeText, { color: colors.warning }]}>
                   {listing.status === 'sold' ? 'Vendu' : 'Indisponible'}
                 </Text>
@@ -307,7 +307,7 @@ function IndividualListingContent({
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={[badgeStyle('secondary'), { marginRight: 8 }]}>
+            <View style={[badgeStyle('reserved' as any), { marginRight: 8 }]}>
               <Ionicons name="paw" size={14} color={colors.secondary} />
               <Text style={[styles.badgeText, { color: colors.secondary }]}>Individuel</Text>
             </View>
@@ -325,7 +325,7 @@ function IndividualListingContent({
               ) : null;
             })()}
             {!isAvailable && (
-              <View style={[badgeStyle('warning')]}>
+              <View style={[badgeStyle('sold' as any)]}>
                 <Text style={[styles.badgeText, { color: colors.warning }]}>
                   {listing.status === 'sold' ? 'Vendu' : 'Indisponible'}
                 </Text>
@@ -426,12 +426,12 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: MarketplaceTheme.typography.fontSizes.xs,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
     marginLeft: 4,
   },
   pricePerKg: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
     color: MarketplaceTheme.colors.text,
   },
   animalInfo: {
@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
     color: MarketplaceTheme.colors.text,
     marginTop: 4,
   },

@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Porc, Gestation, Transaction, Projet, Utilisateur, DeviseConfig } from '../types';
 import { CalculsAgricoles } from '../utils/calculs';
@@ -99,7 +99,7 @@ export class PDFGeneratorService {
    */
   private static genererEnTete(data: RapportPDFData, options: RapportPDFOptions): string {
     const dateGeneration = new Date().toLocaleDateString('fr-FR');
-    const periode = `${data.periode.debut.toLocaleDateString('fr-FR')} - ${data.periode.fin.toLocaleDateString('fr-FR')}`;
+    const periode = `${new Date(data.periode.debut).toLocaleDateString('fr-FR')} - ${new Date(data.periode.fin).toLocaleDateString('fr-FR')}`;
     
     return `
 ================================================================================
@@ -237,7 +237,7 @@ TOP 5 DES VENTES
 ${transactionsVentes
   .sort((a, b) => b.montant - a.montant)
   .slice(0, 5)
-  .map((t, index) => `${index + 1}. ${t.description} - ${CalculsAgricoles.formaterMontant(t.montant, data.deviseConfig)} (${t.date.toLocaleDateString('fr-FR')})`)
+  .map((t, index) => `${index + 1}. ${t.description} - ${CalculsAgricoles.formaterMontant(t.montant, data.deviseConfig)} (${new Date(t.date).toLocaleDateString('fr-FR')})`)
   .join('\n')}
 
 ================================================================================
@@ -301,7 +301,7 @@ DÉTAIL DES GESTATIONS EN COURS
 --------------------------------------------------------------------------------
 ${gestationsEnCours.map(g => {
   const truie = data.porcs.find(p => p.id === g.truieId);
-  return `• Truie ${truie?.numeroIdentification || 'N/A'} - ${g.nombrePorceletsPrevu} porcelets prévus - ${g.dateMiseBasPrevue.toLocaleDateString('fr-FR')}`;
+  return `• Truie ${truie?.numeroIdentification || 'N/A'} - ${g.nombrePorceletsPrevu} porcelets prévus - ${new Date(g.dateMiseBasPrevue).toLocaleDateString('fr-FR')}`;
 }).join('\n')}
 
 ================================================================================
@@ -343,20 +343,20 @@ ${this.genererRecommandationsNutrition(data.porcs)}
 LISTE COMPLÈTE DES PORCS
 --------------------------------------------------------------------------------
 ${data.porcs.map(p => 
-  `${p.numeroIdentification} | ${p.sexe} | ${p.race} | ${p.poidsActuel}kg | ${p.dateNaissance.toLocaleDateString('fr-FR')} | ${p.statut}`
+  `${p.numeroIdentification} | ${p.sexe} | ${p.race} | ${p.poidsActuel}kg | ${new Date(p.dateNaissance).toLocaleDateString('fr-FR')} | ${p.statut}`
 ).join('\n')}
 
 LISTE DES TRANSACTIONS
 --------------------------------------------------------------------------------
 ${data.transactions.map(t => 
-  `${t.date.toLocaleDateString('fr-FR')} | ${t.type} | ${CalculsAgricoles.formaterMontant(t.montant, data.deviseConfig)} | ${t.description} | ${t.categorie || 'N/A'}`
+  `${new Date(t.date).toLocaleDateString('fr-FR')} | ${t.type} | ${CalculsAgricoles.formaterMontant(t.montant, data.deviseConfig)} | ${t.description} | ${t.categorie || 'N/A'}`
 ).join('\n')}
 
 LISTE DES GESTATIONS
 --------------------------------------------------------------------------------
 ${data.gestations.map(g => {
   const truie = data.porcs.find(p => p.id === g.truieId);
-  return `${g.dateMiseBasPrevue.toLocaleDateString('fr-FR')} | ${truie?.numeroIdentification || 'N/A'} | ${g.nombrePorceletsPrevu} porcelets | ${g.statut}`;
+  return `${new Date(g.dateMiseBasPrevue).toLocaleDateString('fr-FR')} | ${truie?.numeroIdentification || 'N/A'} | ${g.nombrePorceletsPrevu} porcelets | ${g.statut}`;
 }).join('\n')}
 
 ================================================================================
@@ -378,7 +378,7 @@ Ce rapport a été généré automatiquement par FarmTrack le ${dateGeneration}.
 Pour toute question concernant ce rapport, contactez ${data.utilisateurActuel.nom}.
 
 Projet: ${data.projet.nom}
-Période analysée: ${data.periode.debut.toLocaleDateString('fr-FR')} - ${data.periode.fin.toLocaleDateString('fr-FR')}
+Période analysée: ${new Date(data.periode.debut).toLocaleDateString('fr-FR')} - ${new Date(data.periode.fin).toLocaleDateString('fr-FR')}
 
 ================================================================================
 `;
@@ -423,7 +423,7 @@ Période analysée: ${data.periode.debut.toLocaleDateString('fr-FR')} - ${data.p
     };
 
     porcs.forEach(porc => {
-      const ageEnMois = (maintenant.getTime() - porc.dateNaissance.getTime()) / (1000 * 60 * 60 * 24 * 30);
+      const ageEnMois = (new Date(maintenant).getTime() - new Date(porc.dateNaissance).getTime()) / (1000 * 60 * 60 * 24 * 30);
       if (ageEnMois <= 6) groupes['0-6 mois']++;
       else if (ageEnMois <= 12) groupes['6-12 mois']++;
       else if (ageEnMois <= 24) groupes['1-2 ans']++;

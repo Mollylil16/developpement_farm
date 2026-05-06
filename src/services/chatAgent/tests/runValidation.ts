@@ -60,11 +60,11 @@ export async function runAndDisplayValidation(context: AgentContext): Promise<vo
   try {
     await exportValidationReportPDF({
       validationReport: report,
-      projectName: context.projetId,
-      userName: context.userName,
+      projectName: context.projetId ?? undefined,
+      userName: context.userName ?? undefined,
     });
     console.log('✅ Rapport PDF généré et prêt à être partagé !');
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('❌ Erreur lors de la génération du PDF:', error.message);
   }
 }
@@ -89,8 +89,8 @@ export async function generateValidationPDF(
   await exportValidationReportPDF({
     validationReport,
     performanceMetrics: metrics,
-    projectName: context.projetId,
-    userName: context.userName,
+    projectName: context.projetId ?? undefined,
+    userName: context.userName ?? undefined,
   });
 
   console.log('✅ Rapport PDF généré et prêt à être partagé !');

@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
   },
   priceProposalText: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   footer: {
     flexDirection: 'row',

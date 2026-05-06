@@ -60,7 +60,7 @@ const ForgotPasswordScreen: React.FC = () => {
         'Code envoyé',
         'Un code de réinitialisation a été envoyé par SMS'
       );
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur demande réinitialisation:', error);
       // Ne pas révéler si le compte existe ou non (sécurité)
       Alert.alert(
@@ -86,11 +86,11 @@ const ForgotPasswordScreen: React.FC = () => {
       const resetToken = await onboardingService.verifyResetOTP(cleanPhone, otp);
 
       // Navigation vers écran de nouveau mot de passe
-      navigation.navigate(SCREENS.RESET_PASSWORD as never, {
+      navigation.navigate(SCREENS.RESET_PASSWORD as any, {
         phone: cleanPhone,
         resetToken,
       });
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur vérification OTP:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
       Alert.alert(

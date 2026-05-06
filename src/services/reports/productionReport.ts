@@ -16,7 +16,7 @@ import {
 import { generateLineChartSVG, generateBarChartSVG } from '../pdf/chartGenerators';
 import apiClient from '../api/apiClient';
 import { logger } from '../../utils/logger';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
 

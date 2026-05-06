@@ -160,7 +160,7 @@ export default function CreatePurchaseRequestOfferModal({
       Alert.alert('Succès', "Votre offre a été envoyée à l'acheteur.");
       onSuccess();
       handleClose();
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Impossible de créer l'offre";
       Alert.alert('Erreur', errorMessage);
     } finally {

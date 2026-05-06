@@ -8,6 +8,14 @@ import planificationReducer from './slices/planificationSlice';
 import parametresReducer from './slices/parametresSlice';
 import collaborationReducer from './slices/collaborationSlice';
 import mortalitesReducer from './slices/mortalitesSlice';
+import stocksReducer from './slices/stocksSlice';
+import planningProductionReducer from './slices/planningProductionSlice';
+import authReducer from './slices/authSlice';
+import projetReducer from './slices/projetSlice';
+import santeReducer from './slices/santeSlice';
+import reportsReducer from './slices/reportsSlice';
+import marketplaceReducer from './slices/marketplaceSlice';
+import productionReducer from './slices/productionSlice';
 
 export const store = configureStore({
   reducer: {
@@ -20,6 +28,14 @@ export const store = configureStore({
     parametres: parametresReducer,
     collaboration: collaborationReducer,
     mortalites: mortalitesReducer,
+    stocks: stocksReducer,
+    planningProduction: planningProductionReducer,
+    auth: authReducer,
+    projet: projetReducer,
+    sante: santeReducer,
+    reports: reportsReducer,
+    marketplace: marketplaceReducer,
+    production: productionReducer,
   },
 });
 

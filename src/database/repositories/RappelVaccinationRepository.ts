@@ -19,7 +19,7 @@ export class RappelVaccinationRepository extends BaseRepository<RappelVaccinatio
     super('rappels_vaccinations', '/sante/rappels-vaccinations');
   }
 
-  private mapRow(row: unknown): RappelVaccination {
+  private mapRow(row: any): RappelVaccination {
     return {
       id: row.id,
       vaccination_id: row.vaccination_id,

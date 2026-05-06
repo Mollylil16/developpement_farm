@@ -197,7 +197,7 @@ export default function MaladieFormModal({ visible, onClose, maladie, animalId }
       }
 
       onClose();
-    } catch (err: unknown) {
+    } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Erreur lors de l'enregistrement";
       setError(errorMessage);
     } finally {
@@ -370,7 +370,7 @@ export default function MaladieFormModal({ visible, onClose, maladie, animalId }
           </TouchableOpacity>
           {showDatePicker && datePickerField === 'debut' && (
             <DateTimePicker
-              value={parseLocalDate(formData.date_debut)}
+              value={parseLocalDate(formData.date_debut) ?? new Date()}
               mode="date"
               display="default"
               onChange={handleDatePickerChange}

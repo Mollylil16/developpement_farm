@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Écran de création de projet avec animations fluides et design moderne
  */
 
@@ -142,11 +142,11 @@ export default function CreateProjectScreen() {
             lastName: '', // Sera complété plus tard
             password: '', // Pas de mot de passe pour l'instant
             profileType: 'producer',
-          });
+          } as any);
           finalUserId = newUser.id;
           // Mettre à jour l'utilisateur dans le store Redux
           dispatch(updateUser(newUser));
-        } catch (error: unknown) {
+        } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Impossible de créer ou récupérer le compte';
           Alert.alert('Erreur', errorMessage);
           setLoading(false);
@@ -300,7 +300,7 @@ export default function CreateProjectScreen() {
           }, 1000);
         }
       }
-    } catch (error: unknown) {
+    } catch (error) {
       Alert.alert('Erreur', getErrorMessage(error) || 'Erreur lors de la création du projet');
     } finally {
       setLoading(false);
@@ -314,7 +314,7 @@ export default function CreateProjectScreen() {
         index: 0,
         routes: [{ name: SCREENS.WELCOME }],
       });
-    } catch (error: unknown) {
+    } catch (error) {
       Alert.alert('Erreur', getErrorMessage(error) || 'Impossible de se déconnecter pour le moment.');
     }
   };

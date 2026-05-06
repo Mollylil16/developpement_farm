@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Service principal du Marketplace
  * Orchestre toutes les opérations marketplace
  */
@@ -99,7 +99,7 @@ export class MarketplaceService {
         throw new Error(
           `Le sujet "${subjectName}" (${subjectCode}) est déjà en vente sur le marketplace`
         );
-      } catch (error: unknown) {
+      } catch (error) {
         // Si l'erreur est déjà notre message personnalisé, la relancer
         if (isError(error) && error.message.includes('déjà en vente')) {
           throw error;
@@ -159,6 +159,18 @@ export class MarketplaceService {
     });
 
     return listing;
+  }
+
+  /**
+   * Récupérer tous les listings avec filtres optionnels
+   */
+  async getListings(params?: Record<string, any>): Promise<MarketplaceListing[]> {
+    try {
+      return await this.listingRepo.findAll(params ? undefined : undefined) || [];
+    } catch (error) {
+      logger.error('Erreur chargement listings:', error);
+      return [];
+    }
   }
 
   /**
@@ -313,7 +325,7 @@ export class MarketplaceService {
           // En cas d'erreur, retourner le listing de base sans enrichissement
           return {
             ...listing,
-            type: (listing.listingType === 'batch' ? 'batch' : 'subject') as const,
+            type: (listing.listingType === 'batch' ? 'batch' : 'subject') as 'batch' | 'subject',
             code: listing.subjectId ? `#${listing.subjectId.slice(0, 8)}` : 'N/A',
             race: 'Non spécifiée',
             weight: listing.weight || 0,
@@ -336,7 +348,7 @@ export class MarketplaceService {
     const totalPagesAfterFilter = Math.ceil(filteredTotal / limit);
 
     return {
-      listings: validListings,
+      listings: validListings as any as MarketplaceListing[],
       total: filteredTotal, // Total après filtrage et enrichissement
       page,
       totalPages: totalPagesAfterFilter, // Utiliser totalPagesAfterFilter
@@ -601,7 +613,7 @@ export class MarketplaceService {
         
         const ratingsData = ratings.status === 'fulfilled' ? ratings.value : [];
         const avgRating =
-          ratingsData.length > 0 ? ratingsData.reduce((sum, r) => sum + (r.overall || 0), 0) / ratingsData.length : 0;
+          ratingsData.length > 0 ? ratingsData.reduce((sum: number, r: any) => sum + (r.overall || 0), 0) / ratingsData.length : 0;
         
         const producerStats = producerStatsResult.status === 'fulfilled' 
           ? producerStatsResult.value 
@@ -646,10 +658,9 @@ export class MarketplaceService {
           photoUrl: photos[0],
           isNew: isNewProducer,
           stats: {
-            totalListings: totalSubjects,
+            totalRatings: totalSubjects,
             totalSales: producerStats.totalSales,
             averageRating: avgRating,
-            totalRatings: ratingsData.length,
             responseTime: producerStats.responseTime,
             completionRate: producerStats.completionRate,
           },
@@ -801,8 +812,8 @@ export class MarketplaceService {
   } | null> {
     try {
       const apiClient = (await import('../services/api/apiClient')).default;
-      const response = await apiClient.get(`/marketplace/listings/${listingId}/subjects`);
-      return response;
+      const response = await apiClient.get<any>(`/marketplace/listings/${listingId}/subjects`);
+      return response as any;
     } catch (error) {
       logger.error('[MarketplaceService] Erreur chargement sujets listing:', error);
       return null;
@@ -836,21 +847,21 @@ export class MarketplaceService {
       });
 
       const apiClient = (await import('../services/api/apiClient')).default;
-      const response = await apiClient.post('/marketplace/listings/details', {
+      const response = await apiClient.post<any[]>('/marketplace/listings/details', {
         listingIds,
       });
 
       // ✅ Log de diagnostic : voir ce qui est retourné
       logger.info('[MarketplaceService] getMultipleListingsWithSubjects réponse:', {
-        responseCount: response?.length || 0,
-        response: response?.map((r: any) => ({
+        responseCount: (response as any)?.length || 0,
+        response: (response as any[])?.map((r: any) => ({
           listingId: r.listing?.id,
           listingType: r.listing?.listingType,
           subjectsCount: r.subjects?.length || 0,
         })) || [],
       });
 
-      return response || [];
+      return (response as any) || [];
     } catch (error) {
       // ✅ Log détaillé de l'erreur
       const errorDetails = error instanceof Error 
@@ -1006,7 +1017,7 @@ export class MarketplaceService {
           'Vous ne pouvez pas acheter vos propres sujets, quel que soit votre rôle actif.'
         );
       }
-    } catch (error: unknown) {
+    } catch (error) {
       // Si l'erreur est déjà notre message personnalisé, la relancer
       if (isError(error) && error.message.includes('ne pouvez pas acheter')) {
         throw error;
@@ -1202,7 +1213,7 @@ export class MarketplaceService {
         formData.append('caption', caption);
       }
 
-      const response = await apiClient.post(
+      const response = await apiClient.post<any>(
         `/marketplace/listings/${listingId}/photos`,
         formData,
         {
@@ -1242,7 +1253,7 @@ export class MarketplaceService {
         } as any);
       });
 
-      const response = await apiClient.post(
+      const response = await apiClient.post<any>(
         `/marketplace/listings/${listingId}/photos/bulk`,
         formData,
         {
@@ -1265,7 +1276,7 @@ export class MarketplaceService {
   async deleteListingPhoto(listingId: string, photoIndex: number): Promise<any> {
     try {
       const apiClient = (await import('./api/apiClient')).default;
-      const response = await apiClient.delete(
+      const response = await apiClient.delete<any>(
         `/marketplace/listings/${listingId}/photos/${photoIndex}`
       );
       return response.data;

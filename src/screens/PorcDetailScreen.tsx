@@ -134,8 +134,8 @@ const PorcDetailScreen: React.FC<PorcDetailScreenProps> = ({ route, navigation }
       const nouvelleVaccination: Vaccination = {
         id: `vacc_${Date.now()}`,
         nom: vaccinationForm.nom,
-        date: new Date(vaccinationForm.date),
-        prochainRappel: vaccinationForm.prochainRappel ? new Date(vaccinationForm.prochainRappel) : undefined,
+        date: new Date(vaccinationForm.date) as any,
+        prochainRappel: vaccinationForm.prochainRappel ? new Date(vaccinationForm.prochainRappel) as any : undefined,
         veterinaire: vaccinationForm.veterinaire || undefined,
         notes: vaccinationForm.notes || undefined,
       };
@@ -162,8 +162,8 @@ const PorcDetailScreen: React.FC<PorcDetailScreenProps> = ({ route, navigation }
       const nouveauTraitement: Traitement = {
         id: `trait_${Date.now()}`,
         nom: traitementForm.nom,
-        dateDebut: new Date(traitementForm.dateDebut),
-        dateFin: traitementForm.dateFin ? new Date(traitementForm.dateFin) : undefined,
+        dateDebut: new Date(traitementForm.dateDebut) as any,
+        dateFin: traitementForm.dateFin ? new Date(traitementForm.dateFin) as any : undefined,
         medicament: traitementForm.medicament,
         posologie: traitementForm.posologie,
         veterinaire: traitementForm.veterinaire || undefined,
@@ -241,7 +241,7 @@ const PorcDetailScreen: React.FC<PorcDetailScreenProps> = ({ route, navigation }
           <View style={styles.infoItem}>
             <MaterialIcons name="cake" size={20} color="#FF9800" />
             <Text style={styles.infoLabel}>Date de naissance</Text>
-            <Text style={styles.infoValue}>{porc.dateNaissance.toLocaleDateString('fr-FR')}</Text>
+            <Text style={styles.infoValue}>{new Date(porc.dateNaissance).toLocaleDateString('fr-FR')}</Text>
           </View>
           
           <View style={styles.infoItem}>
@@ -257,7 +257,7 @@ const PorcDetailScreen: React.FC<PorcDetailScreenProps> = ({ route, navigation }
           </View>
           
           <View style={styles.infoItem}>
-            <MaterialIcons name={getStatutIcon(porc.statut)} size={20} color={getStatutColor(porc.statut)} />
+            <MaterialIcons name={getStatutIcon(porc.statut) as any} size={20} color={getStatutColor(porc.statut)} />
             <Text style={styles.infoLabel}>Statut</Text>
             <Text style={[styles.infoValue, { color: getStatutColor(porc.statut) }]}>
               {porc.statut.charAt(0).toUpperCase() + porc.statut.slice(1)}
@@ -300,12 +300,12 @@ const PorcDetailScreen: React.FC<PorcDetailScreenProps> = ({ route, navigation }
                 <MaterialIcons name="vaccines" size={20} color="#4CAF50" />
                 <Text style={styles.vaccinationName}>{vaccination.nom}</Text>
                 <Text style={styles.vaccinationDate}>
-                  {vaccination.date.toLocaleDateString('fr-FR')}
+                  {new Date(vaccination.date).toLocaleDateString('fr-FR')}
                 </Text>
               </View>
               {vaccination.prochainRappel && (
                 <Text style={styles.vaccinationRappel}>
-                  Prochain rappel: {vaccination.prochainRappel.toLocaleDateString('fr-FR')}
+                  Prochain rappel: {new Date(vaccination.prochainRappel).toLocaleDateString('fr-FR')}
                 </Text>
               )}
               {vaccination.veterinaire && (
@@ -340,8 +340,8 @@ const PorcDetailScreen: React.FC<PorcDetailScreenProps> = ({ route, navigation }
                 <MaterialIcons name="medication" size={20} color="#F44336" />
                 <Text style={styles.traitementName}>{traitement.nom}</Text>
                 <Text style={styles.traitementDate}>
-                  {traitement.dateDebut.toLocaleDateString('fr-FR')}
-                  {traitement.dateFin && ` - ${traitement.dateFin.toLocaleDateString('fr-FR')}`}
+                  {new Date(traitement.dateDebut).toLocaleDateString('fr-FR')}
+                  {traitement.dateFin && ` - ${new Date(traitement.dateFin).toLocaleDateString('fr-FR')}`}
                 </Text>
               </View>
               <Text style={styles.traitementMedicament}>Médicament: {traitement.medicament}</Text>

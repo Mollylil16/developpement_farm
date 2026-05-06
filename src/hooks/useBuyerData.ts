@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hook pour charger les données spécifiques à l'acheteur
  * Offres en cours, historique d'achats, nouvelles annonces
  */
@@ -84,7 +84,7 @@ export function useBuyerData() {
         loading: false,
         error: null,
       });
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur lors du chargement des données acheteur:', error);
       setData((prev) => ({
         ...prev,

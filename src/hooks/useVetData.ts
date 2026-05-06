@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hook pour charger les données spécifiques au vétérinaire
  * Consultations du jour, clients, alertes sanitaires
  */
@@ -41,6 +41,7 @@ export function useVetData(vetUserId?: string) {
   const [data, setData] = useState<VetData>({
     todayConsultations: [],
     upcomingConsultations: [],
+    totalConsultations: 0,
     clientFarms: [],
     healthAlerts: [],
     loading: true,
@@ -259,7 +260,7 @@ export function useVetData(vetUserId?: string) {
         loading: false,
         error: null,
       });
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur lors du chargement des données vétérinaire:', error);
       setData((prev) => ({
         ...prev,

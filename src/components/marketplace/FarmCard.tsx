@@ -96,7 +96,7 @@ ID Ferme: ${farm.farmId}`;
       if (result.action === Share.sharedAction) {
         logger.debug('Partage réussi');
       }
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur lors du partage:', error);
       Alert.alert('Erreur', 'Impossible de partager cette ferme');
     }
@@ -138,7 +138,7 @@ ID Ferme: ${farm.farmId}`;
       if (onFavoriteChange) {
         onFavoriteChange(farm.farmId, newIsFavorite);
       }
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur lors du toggle favori:', error);
       Alert.alert('Erreur', 'Impossible de sauvegarder cette ferme');
     } finally {
@@ -475,7 +475,7 @@ const styles = StyleSheet.create({
   },
   distanceText: {
     fontSize: 12,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   ratingRow: {
     flexDirection: 'row',

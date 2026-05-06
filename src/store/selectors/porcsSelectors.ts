@@ -21,7 +21,7 @@ export const selectPorcsError = createSelector(
 
 export const selectPorcsActifs = createSelector(
   [selectAllPorcs],
-  (porcs) => porcs.filter((p: Porc) => p.statut === 'actif')
+  (porcs) => porcs.filter((p: Porc) => (p.statut as string) !== 'mort')
 );
 
 export const selectPorcById = createSelector(

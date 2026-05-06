@@ -515,7 +515,7 @@ export class ChargeFixeRepository extends BaseRepository<ChargeFixe> {
     if (!charge) {
       throw new Error('Charge fixe introuvable');
     }
-    const newStatus = charge.statut === 'actif' ? 'inactif' : 'actif';
+    const newStatus: import('../../types/finance').StatutChargeFixe = charge.statut === 'actif' ? 'suspendu' : 'actif';
     return this.update(id, { statut: newStatus });
   }
 }

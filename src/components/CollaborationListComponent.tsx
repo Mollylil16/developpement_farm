@@ -31,6 +31,11 @@ import CollaborationFormModal from './CollaborationFormModal';
 import StatCard from './StatCard';
 import { useRole } from '../contexts/RoleContext';
 
+// Stubs for missing utilities
+const hapticInvitationAccepted = () => {};
+const hapticError = () => {};
+const Toast = { show: (_opts: any) => {} };
+
 function CollaborationListComponent() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();

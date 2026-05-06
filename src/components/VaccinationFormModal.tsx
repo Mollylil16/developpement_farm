@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Modal de formulaire pour créer/modifier une vaccination
  */
 
@@ -237,7 +237,7 @@ export default function VaccinationFormModal({
       }
 
       onClose();
-    } catch (err: unknown) {
+    } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err) || "Erreur lors de l'enregistrement";
       setError(errorMessage);
     } finally {
@@ -415,7 +415,7 @@ export default function VaccinationFormModal({
           {showDatePicker && datePickerField === 'vaccination' && (
             <DateTimePicker
               value={
-                formData.date_vaccination ? parseLocalDate(formData.date_vaccination) : new Date()
+                (formData.date_vaccination ? parseLocalDate(formData.date_vaccination) : null) ?? new Date()
               }
               mode="date"
               display="default"
@@ -450,7 +450,7 @@ export default function VaccinationFormModal({
           </TouchableOpacity>
           {showDatePicker && datePickerField === 'rappel' && (
             <DateTimePicker
-              value={formData.date_rappel ? parseLocalDate(formData.date_rappel) : new Date()}
+              value={(formData.date_rappel ? parseLocalDate(formData.date_rappel) : null) ?? new Date()}
               mode="date"
               display="default"
               onChange={handleDatePickerChange}

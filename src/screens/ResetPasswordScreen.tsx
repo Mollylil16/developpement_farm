@@ -82,11 +82,11 @@ const ResetPasswordScreen: React.FC = () => {
         [
           {
             text: 'Se connecter',
-            onPress: () => navigation.navigate(SCREENS.SIGN_IN as never, { phone: params.phone }),
+            onPress: () => navigation.navigate(SCREENS.SIGN_IN as any, { phone: params.phone }),
           },
         ]
       );
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur réinitialisation:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
 

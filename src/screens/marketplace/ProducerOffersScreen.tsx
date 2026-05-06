@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Écran "Mes offres" pour le producteur
  * Affiche toutes les offres reçues par le producteur
  */
@@ -72,7 +72,7 @@ export default function ProducerOffersScreen() {
             let subject: ProductionAnimal | undefined;
             if (firstSubjectId) {
               // ✅ Utiliser la route marketplace dédiée qui ne vérifie pas l'appartenance
-              const { AnimalRepository } = await import('../../../database/repositories');
+              const { AnimalRepository } = await import('../../database/repositories');
               const animalRepo = new AnimalRepository();
               subject = await animalRepo.findMarketplaceAnimal(firstSubjectId) as any || undefined;
             }
@@ -95,7 +95,7 @@ export default function ProducerOffersScreen() {
       );
 
       setOffers(enrichedOffers);
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur chargement offres:', error);
       Alert.alert('Erreur', 'Impossible de charger les offres');
     } finally {
@@ -145,7 +145,7 @@ export default function ProducerOffersScreen() {
       setResponseModalVisible(false);
       setSelectedOffer(null);
       loadOffers();
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Impossible de traiter l'offre";
       Alert.alert('Erreur', errorMessage);
     }
@@ -181,7 +181,8 @@ export default function ProducerOffersScreen() {
     }
   };
 
-  const renderOffer = ({ item }: { item: Offer & { listing?: unknown; subject?: unknown } }) => {
+  const renderOffer = ({ item: _offerItem }: { item: Offer & { listing?: unknown; subject?: unknown } }) => {
+    const item = _offerItem as any;
     const isPending = item.status === 'pending';
     const statusColor = getStatusColor(item.status);
     const statusLabel = getStatusLabel(item.status);
@@ -232,7 +233,7 @@ export default function ProducerOffersScreen() {
                 Prix initial:
               </Text>
               <Text style={[styles.originalPrice, { color: colors.textSecondary }]}>
-                {item.listing.calculatedPrice?.toLocaleString('fr-FR') || item.originalPrice.toLocaleString('fr-FR')} FCFA
+                {(item.listing as MarketplaceListing).calculatedPrice?.toLocaleString('fr-FR') || item.originalPrice.toLocaleString('fr-FR')} FCFA
               </Text>
             </View>
           )}

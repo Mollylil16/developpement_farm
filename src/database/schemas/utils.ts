@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Utilitaires pour la création de tables de manière sûre
  * Préserve les données existantes sauf si la table est corrompue
  */
@@ -29,7 +29,7 @@ export async function isTableValid(db: SQLite.SQLiteDatabase, tableName: string)
 
     // Si on arrive ici, la table existe et est valide
     return true;
-  } catch (error: unknown) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     // Si l'erreur contient "syntax error" ou "near", la table est probablement corrompue
     if (
@@ -71,7 +71,7 @@ export async function createTableSafely(
     );
     try {
       await db.execAsync(createIfNotExistsSQL);
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       // Si CREATE TABLE IF NOT EXISTS échoue, la table pourrait être corrompue
       if (

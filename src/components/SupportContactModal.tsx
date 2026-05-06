@@ -88,7 +88,7 @@ export default function SupportContactModal({ visible, onClose }: SupportContact
     try {
       // Simuler l'envoi du message
       // Dans une vraie application, cela enverrait le message à un serveur
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise<void>((resolve) => setTimeout(() => resolve(), 1000));
 
       // Ouvrir l'email avec le message pré-rempli
       await handleEmailContact();

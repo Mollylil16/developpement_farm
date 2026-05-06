@@ -103,7 +103,7 @@ export default function OfferResponseModal({
           );
           break;
       }
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
       Alert.alert('Erreur', errorMessage);
     } finally {
@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
   },
   infoValue: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   messageBox: {
     marginTop: MarketplaceTheme.spacing.sm,
@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
   },
   priceSuffix: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   helperText: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
@@ -584,7 +584,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   submitButton: {
     flex: 2,

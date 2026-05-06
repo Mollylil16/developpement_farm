@@ -138,7 +138,7 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
             navigation.navigate('Main', { screen: SCREENS.DASHBOARD_TECH });
             break;
         }
-      } catch (error: unknown) {
+      } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Impossible de changer de rôle';
         Alert.alert('Erreur', errorMessage);
       }
@@ -159,7 +159,7 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
           dispatch(updateUser(updatedUser));
           
           // Attendre un court délai pour que le context se mette à jour
-          await new Promise(resolve => setTimeout(resolve, 300));
+          await new Promise<void>(resolve => setTimeout(() => resolve(), 300));
           
           // Maintenant naviguer vers l'écran de création de projet
           setLoadingRole(null);
@@ -170,7 +170,7 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
           });
           onSuccess?.();
           return;
-        } catch (error: unknown) {
+        } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Impossible d\'ajouter le profil producteur';
           Alert.alert('Erreur', errorMessage);
           setLoadingRole(null);
@@ -205,7 +205,7 @@ const AddRoleModal: React.FC<AddRoleModalProps> = ({ visible, onClose, onSuccess
       }
 
       onSuccess?.();
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue';
       Alert.alert('Erreur', errorMessage);
       setLoadingRole(null);

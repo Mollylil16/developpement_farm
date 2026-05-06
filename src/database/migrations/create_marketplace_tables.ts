@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Migration : Création des tables Marketplace
  * Filière Porcine - Plateforme de vente
  */
@@ -349,7 +349,7 @@ export async function createMarketplaceTables(db: SQLiteDatabase): Promise<void>
         ADD COLUMN marketplace_status TEXT DEFAULT NULL;
       `);
       console.log('  ✅ Colonne marketplace_status ajoutée à production_animaux');
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '';
       if (errorMessage.includes('duplicate column name')) {
         console.log('  ℹ️  Colonne marketplace_status déjà présente');
@@ -364,7 +364,7 @@ export async function createMarketplaceTables(db: SQLiteDatabase): Promise<void>
         ADD COLUMN marketplace_listing_id TEXT DEFAULT NULL;
       `);
       console.log('  ✅ Colonne marketplace_listing_id ajoutée à production_animaux');
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '';
       if (errorMessage.includes('duplicate column name')) {
         console.log('  ℹ️  Colonne marketplace_listing_id déjà présente');

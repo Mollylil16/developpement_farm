@@ -19,33 +19,7 @@ export class PurchaseRequestRepository extends BaseRepository<PurchaseRequest> {
   /**
    * Créer une nouvelle demande d'achat
    */
-  async create(data: {
-    buyerId: string;
-    title: string;
-    race: string;
-    minWeight: number;
-    maxWeight: number;
-    ageCategory?: string;
-    minAgeMonths?: number;
-    maxAgeMonths?: number;
-    quantity: number;
-    deliveryLocation?: {
-      latitude?: number;
-      longitude?: number;
-      address?: string;
-      city?: string;
-      region?: string;
-      department?: string;
-      radiusKm?: number;
-    };
-    maxPricePerKg?: number;
-    maxTotalPrice?: number;
-    deliveryDate?: string;
-    deliveryPeriodStart?: string;
-    deliveryPeriodEnd?: string;
-    message?: string;
-    expiresAt?: string;
-  }): Promise<PurchaseRequest> {
+  async create(data: any): Promise<PurchaseRequest> {
     const requestData = {
       buyer_id: data.buyerId,
       title: data.title,
@@ -334,9 +308,9 @@ export class PurchaseRequestMatchRepository extends BaseRepository<PurchaseReque
   }
 
   /**
-   * Vérifier si un match existe déjà
+   * Vérifier si un match existe déjà (par paire request+listing)
    */
-  async exists(purchaseRequestId: string, listingId: string): Promise<boolean> {
+  async existsForPair(purchaseRequestId: string, listingId: string): Promise<boolean> {
     const params: Record<string, unknown> = {
       purchase_request_id: purchaseRequestId,
       listing_id: listingId,

@@ -17,10 +17,11 @@ jest.mock('../../services/chatAgent', () => ({
     generateProactiveMessage: jest.fn().mockReturnValue(''),
   })),
   VoiceService: jest.fn().mockImplementation(() => ({
-    isTextToSpeechAvailable: jest.fn().mockResolvedValue(false),
-    isSpeechToTextAvailable: jest.fn().mockResolvedValue(false),
-    requestPermissions: jest.fn().mockResolvedValue(true),
+    isAvailable: jest.fn().mockResolvedValue(false),
+    startListening: jest.fn().mockResolvedValue(undefined),
+    stopListening: jest.fn().mockResolvedValue(undefined),
     speak: jest.fn().mockResolvedValue(undefined),
+    destroy: jest.fn().mockResolvedValue(undefined),
   })),
 }));
 jest.mock('../../services/chatAgent/core/ConversationStorage', () => ({

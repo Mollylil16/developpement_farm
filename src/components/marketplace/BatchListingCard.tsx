@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   },
   batchBadgeText: {
     fontSize: MarketplaceTheme.typography.fontSizes.xs,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   pigCount: {
     fontSize: MarketplaceTheme.typography.fontSizes.lg,
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: MarketplaceTheme.typography.fontSizes.xs,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   divider: {
     height: 1,

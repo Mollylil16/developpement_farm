@@ -64,7 +64,7 @@ function ProductionEstimationsComponent() {
       await Promise.all(
         (batchData || []).map(async (batch) => {
           try {
-            const weighings = await apiClient.get(`/batch-weighings/batch/${batch.id}/history`);
+            const weighings = await apiClient.get<any[]>(`/batch-weighings/batch/${batch.id}/history`);
             weighingsMap.set(batch.id, weighings || []);
           } catch {
             weighingsMap.set(batch.id, []);
@@ -718,7 +718,7 @@ function ProductionEstimationsComponent() {
                   </Text>
                   {isBatchMode && 'batch' in estimationDate && (
                     <Text style={[styles.resultSubtitle, { color: colors.primary }]}>
-                      🏠 {estimationDate.batch.pen_name} - {estimationDate.totalCount} porc(s)
+                      🏠 {estimationDate.batch!.pen_name} - {estimationDate.totalCount} porc(s)
                     </Text>
                   )}
                   <View style={styles.resultContent}>

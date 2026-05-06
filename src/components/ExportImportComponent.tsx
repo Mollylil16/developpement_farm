@@ -47,7 +47,7 @@ export default function ExportImportComponent() {
     try {
       await exportAndShareJSON(projetActif.id);
       Alert.alert('Succès', 'Données exportées avec succès !');
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'export";
       Alert.alert('Erreur', errorMessage);
     } finally {
@@ -65,7 +65,7 @@ export default function ExportImportComponent() {
     try {
       await exportAndShareCSV(projetActif.id, module);
       Alert.alert('Succès', 'Données exportées en CSV avec succès !');
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'export CSV";
       Alert.alert('Erreur', errorMessage);
     } finally {

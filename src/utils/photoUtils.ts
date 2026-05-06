@@ -4,7 +4,7 @@
  */
 
 // Import standard d'expo-file-system
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { logger } from './logger';
 
 // Dossier de stockage des photos d'animaux

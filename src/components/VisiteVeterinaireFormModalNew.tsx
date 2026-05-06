@@ -1,4 +1,4 @@
-/**
+﻿/**
  * VisiteVeterinaireFormModalNew - Modal pour ajouter/modifier une visite vétérinaire
  */
 
@@ -281,7 +281,7 @@ export default function VisiteVeterinaireFormModalNew({
       }
 
       onClose();
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur enregistrement visite:', error);
       const errorMessage = error instanceof Error ? error.message : String(error) || 'Impossible d\'enregistrer la visite';
       Alert.alert('Erreur', `Impossible d'enregistrer la visite: ${errorMessage}`);

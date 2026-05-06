@@ -124,7 +124,7 @@ export default function DetteFormModal({
       }
       onSuccess();
       onClose();
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur lors de la sauvegarde de la dette:', error);
       Alert.alert('Erreur', 'Impossible de sauvegarder la dette. Veuillez réessayer.');
     } finally {

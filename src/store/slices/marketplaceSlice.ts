@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Redux Slice pour le Marketplace
  * Gère l'état global des listings, offers, transactions
  */
@@ -180,12 +180,12 @@ export const searchListings = createAsyncThunk(
         totalPages: response.totalPages,
         hasMore: response.hasMore,
       };
-    } catch (error: unknown) {
+    } catch (error) {
       // OPTIMISATION : En cas d'erreur réseau, essayer d'utiliser le cache comme fallback
       if (page === 1) {
         try {
-          const { getCachedListings } = await import('../../services/marketplaceCache');
-          const cachedListings = await getCachedListings(params.filters, params.sort, page);
+          const marketplaceCacheModule = await import('../../services/marketplaceCache');
+          const cachedListings = marketplaceCacheModule.default.getListings({ ...params.filters, sort: params.sort, page });
           
           if (cachedListings && cachedListings.length > 0) {
             if (__DEV__) {
@@ -245,7 +245,7 @@ export const createListing = createAsyncThunk(
       });
 
       return listing;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise en vente');
     }
   }
@@ -278,7 +278,7 @@ export const createOffer = createAsyncThunk(
       });
 
       return offer;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || "Erreur lors de la création de l'offre");
     }
   }
@@ -300,7 +300,7 @@ export const acceptOffer = createAsyncThunk(
       );
 
       return transaction;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || "Erreur lors de l'acceptation");
     }
   }
@@ -323,7 +323,7 @@ export const counterOffer = createAsyncThunk(
       });
 
       return counterOffer;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la contre-proposition');
     }
   }
@@ -342,7 +342,7 @@ export const rejectOffer = createAsyncThunk(
       await apiClient.patch(`/marketplace/offers/${data.offerId}/reject?role=${role}`);
 
       return data.offerId;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du rejet');
     }
   }
@@ -367,7 +367,7 @@ export const confirmDelivery = createAsyncThunk(
       );
 
       return { transactionId: data.transactionId, role: data.role };
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la confirmation');
     }
   }

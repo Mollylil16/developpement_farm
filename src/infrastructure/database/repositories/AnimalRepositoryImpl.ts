@@ -30,9 +30,13 @@ export class AnimalRepositoryImpl implements IAnimalRepository {
     return animaux.map((a) => this.mapToDomain(a));
   }
 
-  async findActifsByProjet(projetId: string): Promise<Animal[]> {
-    const animaux = await this.repository.findActifsByProjet(projetId);
+  async findActiveByProjet(projetId: string): Promise<Animal[]> {
+    const animaux = await this.repository.findActiveByProjet(projetId);
     return animaux.map((a) => this.mapToDomain(a));
+  }
+
+  async findActifsByProjet(projetId: string): Promise<Animal[]> {
+    return this.findActiveByProjet(projetId);
   }
 
   async create(
@@ -46,10 +50,10 @@ export class AnimalRepositoryImpl implements IAnimalRepository {
       date_naissance: animal.dateNaissance,
       poids_initial: animal.poidsInitial,
       date_entree: animal.dateEntree,
-      actif: animal.actif ? 1 : 0,
+      actif: (animal.actif ? 1 : 0) as any,
       statut: animal.statut,
       race: animal.race,
-      reproducteur: animal.reproducteur ? 1 : 0,
+      reproducteur: (animal.reproducteur ? 1 : 0) as any,
       pere_id: animal.pereId,
       mere_id: animal.mereId,
       notes: animal.notes,
@@ -65,10 +69,10 @@ export class AnimalRepositoryImpl implements IAnimalRepository {
       sexe: updates.sexe,
       date_naissance: updates.dateNaissance,
       poids_initial: updates.poidsInitial,
-      actif: updates.actif !== undefined ? (updates.actif ? 1 : 0) : undefined,
+      actif: updates.actif !== undefined ? (updates.actif ? 1 : 0) as any : undefined,
       statut: updates.statut,
       race: updates.race,
-      reproducteur: updates.reproducteur !== undefined ? (updates.reproducteur ? 1 : 0) : undefined,
+      reproducteur: updates.reproducteur !== undefined ? (updates.reproducteur ? 1 : 0) as any : undefined,
       pere_id: updates.pereId,
       mere_id: updates.mereId,
       notes: updates.notes,
@@ -82,14 +86,14 @@ export class AnimalRepositoryImpl implements IAnimalRepository {
   }
 
   async findReproducteursActifs(projetId: string): Promise<Animal[]> {
-    const animaux = await this.repository.findReproducteursActifs(projetId);
-    return animaux.map((a) => this.mapToDomain(a));
+    const animaux = await this.repository.findReproducteursByProjet(projetId);
+    return animaux.map((a: any) => this.mapToDomain(a));
   }
 
   /**
    * Mappe l'entité de la base de données vers l'entité du domaine
    */
-  private mapToDomain(dbAnimal: unknown): Animal {
+  private mapToDomain(dbAnimal: any): Animal {
     return {
       id: dbAnimal.id,
       code: dbAnimal.code,

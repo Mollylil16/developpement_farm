@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Migration 029: Mise à jour de la contrainte CHECK pour la catégorie dans depenses_ponctuelles
  *
  * Problème: La contrainte CHECK existante autorise des valeurs obsolètes:
@@ -33,7 +33,7 @@ export async function updateDepensesPonctuellesCategorieCheck(
     }
 
     // Sauvegarder les données existantes
-    const existingData = await db.getAllAsync<unknown>('SELECT * FROM depenses_ponctuelles');
+    const existingData = await db.getAllAsync<Record<string, unknown>>('SELECT * FROM depenses_ponctuelles');
 
     migrationLogger.log(`Sauvegarde de ${existingData.length} dépenses ponctuelles existantes`);
 
@@ -68,7 +68,8 @@ export async function updateDepensesPonctuellesCategorieCheck(
     let migratedCount = 0;
     let skippedCount = 0;
 
-    for (const row of existingData) {
+    for (const _row of existingData) {
+      const row = _row as any;
       let newCategorie = row.categorie;
 
       // Mapper les anciennes catégories vers les nouvelles
@@ -100,31 +101,29 @@ export async function updateDepensesPonctuellesCategorieCheck(
       }
 
       try {
-        await db.runAsync(
+        await (db as any).runAsync(
           `INSERT INTO depenses_ponctuelles_new (
             id, projet_id, montant, categorie, libelle_categorie, type_opex_capex,
             duree_amortissement_mois, date, commentaire, photos, date_creation, derniere_modification
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            row.id,
-            row.projet_id,
-            row.montant,
-            newCategorie,
-            row.libelle_categorie || null,
-            row.type_opex_capex || null,
-            row.duree_amortissement_mois || null,
-            row.date,
-            row.commentaire || null,
-            row.photos || null,
-            row.date_creation || new Date().toISOString(),
-            row.derniere_modification || new Date().toISOString(),
-          ]
+          row.id,
+          row.projet_id,
+          row.montant,
+          newCategorie,
+          row.libelle_categorie || null,
+          row.type_opex_capex || null,
+          row.duree_amortissement_mois || null,
+          row.date,
+          row.commentaire || null,
+          row.photos || null,
+          row.date_creation || new Date().toISOString(),
+          row.derniere_modification || new Date().toISOString()
         );
         migratedCount++;
-      } catch (error: unknown) {
+      } catch (error) {
         migrationLogger.error(
           `Erreur lors de la migration de l'enregistrement ${row.id}:`,
-          error.message
+          (error as Error).message
         );
         skippedCount++;
       }
@@ -139,8 +138,8 @@ export async function updateDepensesPonctuellesCategorieCheck(
     migrationLogger.success(
       `✅ Migration 029 terminée: ${migratedCount} enregistrements migrés, ${skippedCount} ignorés`
     );
-  } catch (error: unknown) {
-    migrationLogger.error('❌ Erreur lors de la migration 029:', error.message);
+  } catch (error) {
+    migrationLogger.error('❌ Erreur lors de la migration 029:', (error as Error).message);
     throw error;
   }
 }

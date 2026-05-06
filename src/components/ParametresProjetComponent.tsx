@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Composant gestion du projet dans les paramètres
  */
 
@@ -192,7 +192,7 @@ export default function ParametresProjetComponent() {
       ).unwrap();
       setIsEditing(false);
       Alert.alert('Succès', 'Projet modifié avec succès');
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la modification';
       Alert.alert('Erreur', errorMessage);
     }
@@ -228,7 +228,7 @@ export default function ParametresProjetComponent() {
                   navigation.navigate(SCREENS.CREATE_PROJECT);
                 }
               }
-            } catch (error: unknown) {
+            } catch (error) {
               const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la suppression';
               Alert.alert('Erreur', errorMessage);
             }

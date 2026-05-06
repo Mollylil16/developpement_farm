@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Migration 032: Ajout de categorie_poids aux animaux et nombre_croissance aux projets
  */
 
@@ -40,7 +40,7 @@ export async function addCategoriePoidsAndNombreCroissance(db: SQLiteDatabase): 
     }
 
     migrationLogger.success('Migration 032 terminée avec succès');
-  } catch (error: unknown) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     migrationLogger.error('❌ Erreur lors de la migration 032:', errorMessage);
     throw error;

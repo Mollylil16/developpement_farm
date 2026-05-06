@@ -10,14 +10,15 @@ import { MontantExtractor } from '../../core/extractors/MontantExtractor';
 import apiClient from '../../../api/apiClient';
 
 // Type pour l'état de vente
-type VenteState = 
+type VenteState =
   | 'initial'
   | 'demande_details'
-  | 'demande_loges' 
+  | 'demande_loges'
   | 'affichage_sujets'
   | 'selection_sujets'
   | 'demande_poids'
   | 'demande_prix'
+  | 'demande_montant'
   | 'confirmation';
 
 interface VenteContext {

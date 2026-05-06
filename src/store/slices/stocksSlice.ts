@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Slice Redux pour la gestion des stocks d'aliments
  * Utilise maintenant l'API backend au lieu de SQLite
  */
@@ -39,7 +39,7 @@ export const loadStocks = createAsyncThunk(
         params: { projet_id: projetId },
       });
       return stocks;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des stocks');
     }
   }
@@ -51,7 +51,7 @@ export const createStockAliment = createAsyncThunk(
     try {
       const stock = await apiClient.post<StockAliment>('/nutrition/stocks-aliments', input);
       return stock;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || "Erreur lors de la création de l'aliment");
     }
   }
@@ -70,7 +70,7 @@ export const updateStockAliment = createAsyncThunk(
         updates
       );
       return stock;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(
         getErrorMessage(error) || "Erreur lors de la mise à jour de l'aliment"
       );
@@ -84,7 +84,7 @@ export const deleteStockAliment = createAsyncThunk(
     try {
       await apiClient.delete(`/nutrition/stocks-aliments/${id}`);
       return id;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(
         getErrorMessage(error) || "Erreur lors de la suppression de l'aliment"
       );
@@ -102,7 +102,7 @@ export const createStockMouvement = createAsyncThunk(
         input
       );
       return result;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création du mouvement');
     }
   }
@@ -116,7 +116,7 @@ export const loadMouvementsParAliment = createAsyncThunk(
         params: { aliment_id: alimentId, ...(limit ? { limit } : {}) },
       });
       return { alimentId, mouvements };
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des mouvements');
     }
   }
@@ -130,7 +130,7 @@ export const loadStockStats = createAsyncThunk(
     try {
       const stats = await apiClient.get(`/nutrition/stocks-aliments/stats/${projetId}`);
       return stats;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(
         getErrorMessage(error) || 'Erreur lors du chargement des statistiques'
       );
@@ -144,7 +144,7 @@ export const loadValeurTotaleStock = createAsyncThunk(
     try {
       const result = await apiClient.get(`/nutrition/stocks-aliments/valeur-totale/${projetId}`);
       return result;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du calcul de la valeur');
     }
   }
@@ -159,7 +159,7 @@ export const loadStocksEnAlerte = createAsyncThunk(
         params: { projet_id: projetId },
       });
       return stocks.filter((s) => s.alerte_active);
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(
         getErrorMessage(error) || 'Erreur lors du chargement des stocks en alerte'
       );

@@ -133,7 +133,7 @@ const PhoneSignUpScreen: React.FC = () => {
 
       // Navigation vers sélection de profil
       navigation.navigate(SCREENS.PROFILE_SELECTION as any, { userId: user.id });
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur création compte:', error);
       const errorMessage = error instanceof Error ? error.message : 'Impossible de créer le compte';
       Alert.alert('Erreur', errorMessage);

@@ -107,7 +107,7 @@ export default function ChargeFixeFormModal({
         await dispatch(
           updateChargeFixe({
             id: chargeFixe.id,
-            updates: formData,
+            data: formData,
           })
         ).unwrap();
       } else {
@@ -115,11 +115,11 @@ export default function ChargeFixeFormModal({
           createChargeFixe({
             ...formData,
             projet_id: projetActif?.id,
-          })
+          } as any)
         ).unwrap();
       }
       onSuccess();
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur:', error);
     } finally {
       setLoading(false);

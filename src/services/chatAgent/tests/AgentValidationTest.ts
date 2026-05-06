@@ -152,7 +152,7 @@ export class AgentValidationTest {
             ? undefined
             : `Attendu: ${test.expectedAction}, Obtenu: ${action || 'aucun'}`,
         });
-      } catch (error: unknown) {
+      } catch (error) {
         results.push({
           testName: `Détection: "${test.message}"`,
           passed: false,
@@ -175,7 +175,7 @@ export class AgentValidationTest {
       // tolerance permet de définir des fonctions de comparaison personnalisées
       // qui utilisent actual et expected pour valider les paramètres extraits
       // Les paramètres sont préfixés avec _ car ils sont utilisés dans les implémentations, pas dans la signature
-      tolerance?: Record<string, (_actual: unknown, _expected: unknown) => boolean>;
+      tolerance?: Record<string, (_actual: any, _expected: any) => boolean>;
     }> = [
       // Montants variés
       {
@@ -239,7 +239,7 @@ export class AgentValidationTest {
         const response = await this.agentService.sendMessage(test.message);
         const executionTime = Date.now() - startTime;
 
-        const params =
+        const params: Record<string, any> =
           response.metadata?.pendingAction?.params || response.metadata?.actionResult || {};
 
         // Vérifier chaque paramètre attendu
@@ -247,7 +247,7 @@ export class AgentValidationTest {
         const errors: string[] = [];
 
         for (const [key, expectedValue] of Object.entries(test.expectedParams)) {
-          const actualValue = params[key];
+          const actualValue = (params as Record<string, any>)[key];
           const tolerance = test.tolerance?.[key];
 
           let matches = false;
@@ -271,11 +271,11 @@ export class AgentValidationTest {
           testName: `Extraction: "${test.message}"`,
           passed: allParamsMatch,
           confidence: allParamsMatch ? 0.95 : 0,
-          extractedParams: params,
+          extractedParams: params as Record<string, unknown>,
           executionTime,
           error: allParamsMatch ? undefined : errors.join('; '),
         });
-      } catch (error: unknown) {
+      } catch (error) {
         results.push({
           testName: `Extraction: "${test.message}"`,
           passed: false,
@@ -334,7 +334,7 @@ export class AgentValidationTest {
           executionTime,
           error: passed ? undefined : `Action incorrecte: ${action || 'aucun'}`,
         });
-      } catch (error: unknown) {
+      } catch (error) {
         results.push({
           testName: `Robustesse: "${test.message}"`,
           passed: false,
@@ -400,7 +400,7 @@ export class AgentValidationTest {
           executionTime,
           error: passed ? undefined : `Comportement inattendu pour: "${test.message}"`,
         });
-      } catch (error: unknown) {
+      } catch (error) {
         results.push({
           testName: `Cas limite: ${test.description}`,
           passed: !test.shouldPass, // Si erreur et ne devrait pas passer, c'est OK

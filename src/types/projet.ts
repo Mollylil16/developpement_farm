@@ -5,6 +5,7 @@
 export interface Projet {
   id: string;
   nom: string;
+  type?: string; // Type de projet (porc, volaille, etc.) - optionnel
   localisation: string;
   nombre_truies: number;
   nombre_verrats: number;

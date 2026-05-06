@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Repository pour gérer les tendances de prix hebdomadaires du porc poids vif
  */
 
@@ -77,7 +77,7 @@ export class WeeklyPorkPriceTrendRepository extends BaseRepository<WeeklyPorkPri
         order_direction: 'DESC',
       });
       return rows.map((r) => this.mapRow(r)).reverse();
-    } catch (error: unknown) {
+    } catch (error) {
       // Si l'endpoint n'existe pas (404), retourner un tableau vide silencieusement
       if (error instanceof APIError && error.status === 404) {
         // L'endpoint backend n'est pas encore implémenté, retourner vide
@@ -99,7 +99,7 @@ export class WeeklyPorkPriceTrendRepository extends BaseRepository<WeeklyPorkPri
     return this.executePost<WeeklyPorkPriceTrend>(`${this.apiBasePath}/upsert`, data);
   }
 
-  private mapRow(row: unknown): WeeklyPorkPriceTrend {
+  private mapRow(row: any): WeeklyPorkPriceTrend {
     return {
       id: row.id,
       year: row.year,

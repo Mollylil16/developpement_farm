@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: MarketplaceTheme.typography.fontSizes.xs,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   price: {
     fontSize: MarketplaceTheme.typography.fontSizes.xl,
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
   },
   infoValue: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   deliverySection: {
     marginTop: MarketplaceTheme.spacing.sm,
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
   },
   deliverySectionTitle: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
     marginBottom: MarketplaceTheme.spacing.xs,
   },
   confirmationRow: {
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   completedBanner: {
     flexDirection: 'row',
@@ -335,6 +335,6 @@ const styles = StyleSheet.create({
   },
   completedText: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
 });

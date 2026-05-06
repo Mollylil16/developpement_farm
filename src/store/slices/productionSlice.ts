@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Slice Redux pour la gestion du module Production
  * Utilise normalizr pour stocker les données de manière normalisée
  * Utilise maintenant l'API backend au lieu de SQLite
@@ -205,7 +205,7 @@ export const loadProductionAnimaux = createAsyncThunk(
       }
 
       return animaux;
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('[loadProductionAnimaux] Erreur:', error);
       
       // En cas d'erreur réseau, essayer de retourner le cache
@@ -228,7 +228,7 @@ export const createProductionAnimal = createAsyncThunk(
     try {
       const animal = await apiClient.post<ProductionAnimal>('/production/animaux', input);
       return animal;
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('[createProductionAnimal] Erreur:', error);
       return rejectWithValue(getProductionErrorMessage(error, "Erreur lors de la création de l'animal"));
     }
@@ -245,7 +245,7 @@ export const updateProductionAnimal = createAsyncThunk(
       // Le backend gère automatiquement la conversion null/undefined
       const animal = await apiClient.patch<ProductionAnimal>(`/production/animaux/${id}`, updates);
       return animal;
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('[updateProductionAnimal] Erreur:', error);
       return rejectWithValue(getProductionErrorMessage(error, "Erreur lors de la mise à jour de l'animal"));
     }
@@ -258,7 +258,7 @@ export const deleteProductionAnimal = createAsyncThunk(
     try {
       await apiClient.delete(`/production/animaux/${id}`);
       return id;
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('[deleteProductionAnimal] Erreur:', error);
       return rejectWithValue(getProductionErrorMessage(error, "Erreur lors de la suppression de l'animal"));
     }
@@ -272,7 +272,7 @@ export const createPesee = createAsyncThunk(
       // Le backend calcule automatiquement le GMQ
       const pesee = await apiClient.post<ProductionPesee>('/production/pesees', input);
       return pesee;
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('[createPesee] Erreur:', error);
       return rejectWithValue(getProductionErrorMessage(error, 'Erreur lors de la création de la pesée'));
     }
@@ -289,7 +289,7 @@ export const updatePesee = createAsyncThunk(
       // Le backend recalcule automatiquement le GMQ si nécessaire
       const pesee = await apiClient.patch<ProductionPesee>(`/production/pesees/${id}`, updates);
       return pesee;
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('[updatePesee] Erreur:', error);
       return rejectWithValue(
         getProductionErrorMessage(error, 'Erreur lors de la modification de la pesée')
@@ -306,7 +306,7 @@ export const deletePesee = createAsyncThunk(
         `/production/pesees/${id}`
       );
       return result;
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('[deletePesee] Erreur:', error);
       return rejectWithValue(getProductionErrorMessage(error, 'Erreur lors de la suppression de la pesée'));
     }
@@ -348,7 +348,7 @@ export const loadPeseesParAnimal = createAsyncThunk(
       }
 
       return { animalId, pesees };
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('[loadPeseesParAnimal] Erreur:', error);
       
       // En cas d'erreur réseau, essayer de retourner le cache
@@ -373,7 +373,7 @@ export const loadPeseesRecents = createAsyncThunk(
         params: { projet_id: projetId, limit },
       });
       return pesees;
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('[loadPeseesRecents] Erreur:', error);
       return rejectWithValue(
         getProductionErrorMessage(error, 'Erreur lors du chargement des pesées récentes')
@@ -391,7 +391,7 @@ export const calculateGMQ = createAsyncThunk(
         `/production/animaux/${animalId}/gmq`
       );
       return { animalId, gmq: result.gmq };
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('[calculateGMQ] Erreur:', error);
       return rejectWithValue(getProductionErrorMessage(error, 'Erreur lors du calcul du GMQ'));
     }
@@ -495,7 +495,7 @@ const productionSlice = createSlice({
         // Ajouter l'animal réel
         state.entities.animaux = mergeEntitiesWithCheck(
           state.entities.animaux,
-          normalized.entities.animaux
+          normalized.entities.animaux ?? {}
         );
         if (!state.ids.animaux.includes(animalId)) {
           state.ids.animaux = [animalId, ...state.ids.animaux];

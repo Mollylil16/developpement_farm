@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 📅 PLANIFICATEUR DE SAILLIES
  * Calendrier intelligent des saillies pour atteindre l'objectif
  */
@@ -105,7 +105,7 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
             try {
               await dispatch(genererPlanSaillies()).unwrap();
               // Succès : les saillies sont automatiquement mises à jour dans le state
-            } catch (error: unknown) {
+            } catch (error) {
               const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue lors de la génération du plan de saillies.';
               Alert.alert('Erreur lors de la génération', errorMessage);
             }
@@ -189,7 +189,7 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
                   `Rendez-vous dans le widget Planning pour voir les tâches.`,
                 [{ text: 'OK' }]
               );
-            } catch (error: unknown) {
+            } catch (error) {
               const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la validation du planning';
               Alert.alert('Erreur', errorMessage);
             }

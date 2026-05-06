@@ -63,7 +63,7 @@ function PurchaseRequestCard({
 
   return (
     <TouchableOpacity
-      style={[styles.card, cardStyle, { borderRadius }]}
+      style={[styles.card, cardStyle, { borderRadius: borderRadius.md }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -218,7 +218,7 @@ function PurchaseRequestCard({
               <Button
                 title="Supprimer"
                 onPress={onDelete}
-                variant="destructive"
+                variant={"destructive" as any}
                 style={styles.actionButton}
               />
             )}
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
   },
   criteriaValue: {
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontWeight: FONT_WEIGHTS.semiBold,
   },
   stats: {
     flexDirection: 'row',

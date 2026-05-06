@@ -27,7 +27,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAppSelector } from '../../store/hooks';
 import apiClient from '../../services/api/apiClient';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, COLORS } from '../../constants/theme';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -55,7 +55,7 @@ export default function ProfileQRCodeScreen() {
   const progressAnim = useRef(new Animated.Value(1)).current;
 
   // Timer pour le countdown
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const expirationTimeRef = useRef<number>(0);
 
   /**
@@ -68,7 +68,9 @@ export default function ProfileQRCodeScreen() {
       if (base64Match) {
         const base64Data = base64Match[1];
         // Décoder le base64 pour obtenir le JSON
-        const jsonData = Buffer.from(base64Data, 'base64').toString('utf8');
+        // Decode base64 without Buffer (not available in React Native)
+        const atobFn: (s: string) => string = (globalThis as any).atob || ((s: string) => s);
+        const jsonData = decodeURIComponent(atobFn(base64Data).split('').map((c: string) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
         const qrData = JSON.parse(jsonData);
         // Retourner le base64 original pour le QR code SVG
         return base64Data;

@@ -38,7 +38,7 @@ export const AnalyseFinanciereComponent: React.FC<AnalyseFinanciereProps> = ({ a
   // Données pour le graphique d'évolution mensuelle
   const chartData = {
     labels: analyse.evolutionMensuelle.map(item => 
-      item.date.toLocaleDateString('fr-FR', { month: 'short' })
+      new Date(item.date).toLocaleDateString('fr-FR', { month: 'short' })
     ),
     datasets: [
       {

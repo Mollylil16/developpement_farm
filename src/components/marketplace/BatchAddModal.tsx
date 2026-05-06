@@ -207,7 +207,7 @@ export default function BatchAddModal({
         
         // Les pesées seront mises à jour via useEffect après le chargement
       }
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur chargement sujets:', error);
       Alert.alert('Erreur', 'Impossible de charger les sujets disponibles');
     } finally {
@@ -510,7 +510,7 @@ export default function BatchAddModal({
                 },
               })
             ).unwrap();
-          } catch (error: unknown) {
+          } catch (error) {
             // Améliorer le message d'erreur avec les informations du porc
             const pigName = pig.name || pig.pig_code || pig.id?.slice(0, 8) || 'porc';
             const errorMsg = getErrorMessage(error);
@@ -593,7 +593,7 @@ export default function BatchAddModal({
                 },
               })
             ).unwrap();
-          } catch (error: unknown) {
+          } catch (error) {
             // Améliorer le message d'erreur avec les informations de l'animal
             const animalName = animal.nom || animal.code || 'sujet';
             const errorMsg = getErrorMessage(error);
@@ -620,7 +620,7 @@ export default function BatchAddModal({
           },
         },
       ]);
-    } catch (error: unknown) {
+    } catch (error) {
       Alert.alert('Erreur', getErrorMessage(error) || 'Impossible de mettre en vente');
     } finally {
       setLoading(false);
@@ -1022,7 +1022,7 @@ const styles = StyleSheet.create({
   },
   counterText: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   counterWeight: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
@@ -1053,7 +1053,7 @@ const styles = StyleSheet.create({
   },
   subjectCode: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   batchName: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
@@ -1089,7 +1089,7 @@ const styles = StyleSheet.create({
   priceInputField: {
     flex: 1,
     fontSize: MarketplaceTheme.typography.fontSizes.lg,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   priceUnit: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
@@ -1193,6 +1193,6 @@ const styles = StyleSheet.create({
   },
   modalButtonText: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
 });

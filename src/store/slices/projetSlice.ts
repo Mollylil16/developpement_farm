@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Slice Redux pour la gestion des projets
  * Utilise maintenant l'API backend au lieu de SQLite
  */
@@ -31,7 +31,7 @@ export const createProjet = createAsyncThunk(
       // On ne doit PAS l'envoyer dans le body
       const projet = await apiClient.post<Projet>('/projets', input);
       return projet;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la création du projet');
     }
   }
@@ -42,7 +42,7 @@ export const loadProjets = createAsyncThunk('projet/loadAll', async (_, { reject
     // Le backend filtre automatiquement par utilisateur connecté
     const projets = await apiClient.get<Projet[]>('/projets');
     return projets;
-  } catch (error: unknown) {
+  } catch (error) {
     return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement des projets');
   }
 });
@@ -54,7 +54,7 @@ export const loadProjetActif = createAsyncThunk(
       // Le backend retourne le projet actif de l'utilisateur connecté
       const projet = await apiClient.get<Projet | null>('/projets/actif');
       return projet;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du chargement du projet actif');
     }
   }
@@ -67,7 +67,7 @@ export const switchProjetActif = createAsyncThunk(
       // Le backend gère automatiquement l'archivage des autres projets et la vérification de propriété
       const nouveauProjet = await apiClient.patch<Projet>(`/projets/${projetId}/activer`, {});
       return nouveauProjet;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors du changement de projet');
     }
   }
@@ -80,7 +80,7 @@ export const updateProjet = createAsyncThunk(
       // Le backend vérifie automatiquement que le projet appartient à l'utilisateur connecté
       const projet = await apiClient.patch<Projet>(`/projets/${id}`, updates);
       return projet;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la mise à jour du projet');
     }
   }
@@ -93,7 +93,7 @@ export const deleteProjet = createAsyncThunk(
       // Le backend vérifie automatiquement que le projet appartient à l'utilisateur connecté
       await apiClient.delete(`/projets/${projetId}`);
       return projetId;
-    } catch (error: unknown) {
+    } catch (error) {
       return rejectWithValue(getErrorMessage(error) || 'Erreur lors de la suppression du projet');
     }
   }

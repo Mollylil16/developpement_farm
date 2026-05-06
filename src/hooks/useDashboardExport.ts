@@ -25,7 +25,7 @@ interface UseDashboardExportReturn {
   handleExportPDF: () => Promise<void>;
 }
 
-export function useDashboardExport(projetActif: unknown): UseDashboardExportReturn {
+export function useDashboardExport(projetActif: any): UseDashboardExportReturn {
   const [exportingPDF, setExportingPDF] = useState(false);
 
   // Récupérer toutes les données depuis le store
@@ -73,7 +73,7 @@ export function useDashboardExport(projetActif: unknown): UseDashboardExportRetu
         gmqValues.length > 0 ? gmqValues.reduce((sum, val) => sum + val, 0) / gmqValues.length : 0;
 
       // Calculer les stats de reproduction
-      const gestationsEnCours = gestations.filter((g) => !g.date_fin && !g.date_mise_bas_effective);
+      const gestationsEnCours = gestations.filter((g: any) => !(g as any).date_fin && !g.date_mise_bas_prevue);
       const sevragesTotalPorcelets = sevrages.reduce(
         (sum, s) => sum + (s.nombre_porcelets || 0),
         0
@@ -117,15 +117,15 @@ export function useDashboardExport(projetActif: unknown): UseDashboardExportRetu
           poids: p.poids_kg,
           gmq: p.gmq || null,
         })),
-        gestationsActives: gestationsEnCours.map((g) => ({
+        gestationsActives: gestationsEnCours.map((g: any) => ({
           truieCode: animaux.find((a) => a.id === g.truie_id)?.code || '',
-          dateSaillie: g.date_saillie,
+          dateSaillie: (g as any).date_saillie,
           dateMiseBasPrevue: g.date_mise_bas_prevue,
         })),
       };
 
       // Générer le PDF
-      await exportDashboardPDF(dashboardData);
+      await exportDashboardPDF(dashboardData as any);
 
       Alert.alert(
         'PDF généré avec succès',

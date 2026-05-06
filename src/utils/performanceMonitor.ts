@@ -35,14 +35,14 @@ class PerformanceMonitor {
       return fn();
     }
 
-    const startTime = performance.now();
+    const startTime = Date.now();
     try {
       const result = await fn();
-      const duration = performance.now() - startTime;
+      const duration = Date.now() - startTime;
       this.recordMetric(name, duration);
       return result;
     } catch (error) {
-      const duration = performance.now() - startTime;
+      const duration = Date.now() - startTime;
       this.recordMetric(`${name} (error)`, duration, { error: String(error) });
       throw error;
     }
@@ -171,10 +171,10 @@ export function usePerformanceMeasure(componentName: string) {
   const renderStartRef = React.useRef<number | null>(null);
 
   React.useEffect(() => {
-    renderStartRef.current = performance.now();
+    renderStartRef.current = Date.now();
     return () => {
       if (renderStartRef.current !== null) {
-        const duration = performance.now() - renderStartRef.current;
+        const duration = Date.now() - renderStartRef.current;
         performanceMonitor.recordMetric(`${componentName} render`, duration);
       }
     };

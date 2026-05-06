@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: MarketplaceTheme.typography.fontSizes.xs,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold as any,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold as any,
   },
   contactName: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
   },
   mapsButtonText: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold as any,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold as any,
   },
   pickupDate: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,

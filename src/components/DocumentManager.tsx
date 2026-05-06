@@ -54,7 +54,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
           nomFichier: asset.name || `document_${Date.now()}.pdf`,
           cheminFichier: asset.uri,
           tailleFichier: asset.size || 0,
-          dateAjout: new Date(),
+          dateAjout: new Date().toISOString(),
           description: `PDF: ${asset.name || 'Document'}`,
         };
         onDocumentsChange([...documents, newDocument]);
@@ -89,7 +89,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
           nomFichier: asset.fileName || `photo_${Date.now()}.jpg`,
           cheminFichier: asset.uri,
           tailleFichier: asset.fileSize || 0,
-          dateAjout: new Date(),
+          dateAjout: new Date().toISOString(),
           description: `Photo: ${asset.fileName || 'Facture'}`,
         };
         onDocumentsChange([...documents, newDocument]);
@@ -124,7 +124,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
           nomFichier: asset.fileName || `photo_${Date.now()}.jpg`,
           cheminFichier: asset.uri,
           tailleFichier: asset.fileSize || 0,
-          dateAjout: new Date(),
+          dateAjout: new Date().toISOString(),
           description: `Photo: ${asset.fileName || 'Facture'}`,
         };
         onDocumentsChange([...documents, newDocument]);
@@ -172,7 +172,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
             {document.nomFichier}
           </Text>
           <Text style={styles.documentDetails}>
-            {formatFileSize(document.tailleFichier)} • {document.dateAjout.toLocaleDateString('fr-FR')}
+            {formatFileSize(document.tailleFichier)} • {new Date(document.dateAjout).toLocaleDateString('fr-FR')}
           </Text>
         </View>
         <TouchableOpacity onPress={() => handleRemoveDocument(document.id)}>

@@ -67,7 +67,8 @@ export function useSanteLogic(initialTab?: OngletType): SanteLogicReturn {
 
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();
-  const loading = useAppSelector(selectSanteLoading);
+  const loadingState = useAppSelector(selectSanteLoading);
+  const loading = typeof loadingState === 'boolean' ? loadingState : Object.values(loadingState as Record<string, boolean>).some(Boolean);
   const alertes = useAppSelector(selectSanteAlertes);
   const nombreAlertesCritiques = useAppSelector(selectNombreAlertesCritiques);
   const nombreAlertesElevees = useAppSelector(selectNombreAlertesElevees);

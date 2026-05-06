@@ -89,7 +89,7 @@ export default function MortaliteDashboard({
     if (m.projet_id !== projetId) return false;
     if (!dateLimit) return true;
     try {
-      const dateMortalite = parseISO(m.date_mortalite);
+      const dateMortalite = parseISO(m.date_mortalite ?? m.date ?? '');
       return isAfter(dateMortalite, dateLimit);
     } catch {
       return true;
@@ -117,7 +117,7 @@ export default function MortaliteDashboard({
   const derniereMortalite = mortalitesFiltrees
     .sort((a, b) => {
       try {
-        return new Date(b.date_mortalite).getTime() - new Date(a.date_mortalite).getTime();
+        return new Date(b.date_mortalite ?? b.date ?? '').getTime() - new Date(a.date_mortalite ?? a.date ?? '').getTime();
       } catch {
         return 0;
       }
@@ -141,7 +141,7 @@ export default function MortaliteDashboard({
   const deuxSemainesAvant = subDays(new Date(), 14);
   const mortalitesSemaineCourante = mortalitesFiltrees.filter((m) => {
     try {
-      return isAfter(parseISO(m.date_mortalite), uneSemaineAvant);
+      return isAfter(parseISO(m.date_mortalite ?? m.date ?? ''), uneSemaineAvant);
     } catch {
       return false;
     }
@@ -149,7 +149,7 @@ export default function MortaliteDashboard({
 
   const mortalitesSemainePrecedente = mortalitesFiltrees.filter((m) => {
     try {
-      const date = parseISO(m.date_mortalite);
+      const date = parseISO(m.date_mortalite ?? m.date ?? '');
       return isAfter(date, deuxSemainesAvant) && !isAfter(date, uneSemaineAvant);
     } catch {
       return false;

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Migration 026: Correction de la contrainte CHECK dans la table vaccinations
  *
  * Problème: La contrainte CHECK (date_rappel IS NULL OR date_rappel >= date_vaccination)
@@ -77,7 +77,7 @@ export async function fixVaccinationsTableConstraint(db: SQLiteDatabase): Promis
       );
       return;
     }
-  } catch (error: unknown) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('❌ [Migration 026] Erreur:', errorMessage);
     // Ne pas faire échouer l'initialisation si la table n'existe pas encore

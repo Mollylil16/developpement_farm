@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Onglet "Demandes" du Marketplace
  * Affiche les demandes d'achat avec deux sections : "Envoyées" et "Reçues"
  * Supporte à la fois les acheteurs et les producteurs
@@ -58,7 +58,7 @@ function MarketplaceRequestsTab({
       setLoadingSent(true);
       const requests = await apiClient.get<PurchaseRequest[]>('/marketplace/purchase-requests/sent');
       setSentRequests(requests || []);
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur chargement demandes envoyées:', error);
       const errorMessage = error instanceof Error ? error.message : "Impossible de charger vos demandes envoyées";
       Alert.alert('Erreur', errorMessage);
@@ -74,7 +74,7 @@ function MarketplaceRequestsTab({
       setLoadingReceived(true);
       const requests = await apiClient.get<PurchaseRequest[]>('/marketplace/purchase-requests/received');
       setReceivedRequests(requests || []);
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur chargement demandes reçues:', error);
       const errorMessage = error instanceof Error ? error.message : "Impossible de charger les demandes reçues";
       Alert.alert('Erreur', errorMessage);
@@ -136,7 +136,7 @@ function MarketplaceRequestsTab({
                 if (activeSection === 'sent') {
                   await loadSentRequests();
                 }
-              } catch (error: unknown) {
+              } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : "Impossible de supprimer la demande";
                 Alert.alert('Erreur', errorMessage);
               }

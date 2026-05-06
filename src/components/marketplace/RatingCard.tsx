@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
   },
   buyerName: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   date: {
     fontSize: MarketplaceTheme.typography.fontSizes.xs,
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   },
   verifiedText: {
     fontSize: MarketplaceTheme.typography.fontSizes.xs,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   scoreSection: {
     flexDirection: 'row',
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   },
   scoreNumber: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
     marginTop: 2,
   },
   criteriaToggle: {
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   },
   criteriaToggleText: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   criteriaDetails: {
     padding: MarketplaceTheme.spacing.sm,

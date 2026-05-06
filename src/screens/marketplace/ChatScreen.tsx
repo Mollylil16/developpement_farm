@@ -55,7 +55,7 @@ export default function ChatScreen() {
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
     documents: {},
-  } : null;
+  } as any : null;
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
 
   const [inputText, setInputText] = useState('');
@@ -185,7 +185,7 @@ export default function ChatScreen() {
       {/* Input message */}
       <View style={[styles.inputContainer, { backgroundColor: colors.surface }]}>
         {/* Actions rapides (optionnel) */}
-        {sendPriceProposal && transaction && transaction.status === 'pending_delivery' && (
+        {sendPriceProposal != null && transaction && transaction.status === 'pending_delivery' && (
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => {
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   },
   contextValue: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   messagesList: {
     paddingVertical: MarketplaceTheme.spacing.sm,
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: MarketplaceTheme.typography.fontSizes.lg,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
     marginTop: MarketplaceTheme.spacing.md,
     textAlign: 'center',
   },

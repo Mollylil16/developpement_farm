@@ -121,21 +121,33 @@ export type OfferStatus =
 export interface Offer {
   id: string;
   listingId: string; // ID de l'annonce
-  subjectIds: string[]; // IDs des sujets s├®lectionn├®s
+  subjectIds: string[]; // IDs des sujets sélectionnés
   buyerId: string; // ID de l'acheteur
   producerId: string; // ID du producteur
-  proposedPrice: number; // Prix propos├®
+  sellerId?: string; // Alias for producerId (API compatibility)
+  proposedPrice: number; // Prix proposé
   originalPrice: number; // Prix initial
+  offeredAmount?: number; // Alias for proposedPrice (API compatibility)
+  offered_amount?: number; // snake_case alias
+  amount?: number; // Generic amount field
+  price?: number; // Generic price alias
+  pig_count?: number; // Number of pigs in the offer
   prixTotalFinal?: number; // Prix final négocié (après acceptation)
   message?: string; // Message optionnel
   status: OfferStatus;
   termsAccepted: boolean; // Acceptation conditions de vente
   termsAcceptedAt?: string; // Date d'acceptation (ISO)
-  createdAt: string; // Date de cr├®ation (ISO)
-  respondedAt?: string; // Date de r├®ponse (ISO)
+  createdAt: string; // Date de création (ISO)
+  created_at_iso?: string; // snake_case alias
+  respondedAt?: string; // Date de réponse (ISO)
   expiresAt: string; // Date d'expiration (ISO)
   dateRecuperationSouhaitee?: string; // Date de récupération souhaitée (ISO date string)
   counterOfferOf?: string; // ID de l'offre originale si c'est une contre-proposition
+  isCounterProposalReceived?: boolean; // True si l'acheteur a reçu une contre-proposition
+  seller_nom?: string; // Nom du vendeur
+  buyer_nom?: string; // Nom de l'acheteur
+  seller_prenom?: string; // Prénom du vendeur
+  buyer_prenom?: string; // Prénom de l'acheteur
 }
 
 /**
@@ -337,6 +349,7 @@ export interface ChatConversation {
   };
   status: ConversationStatus;
   createdAt: string;
+  updatedAt?: string;
 }
 
 /**
@@ -482,6 +495,14 @@ export interface FarmCard {
     availableRaces: string[];
   };
   lastUpdated: Date;
+  // Compatibility aliases
+  farmName?: string;
+  subjectCount?: number;
+  totalPrice?: number;
+  averageWeight?: number;
+  priceRange?: { min: number; max: number };
+  listings?: any[];
+  representativeListing?: any;
 }
 
 /**

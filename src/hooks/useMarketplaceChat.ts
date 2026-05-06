@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hook pour gérer le chat d'une transaction
  * Avec support temps réel (polling ou WebSocket)
  */
@@ -73,7 +73,7 @@ export function useMarketplaceChat(transactionId: string) {
       const sortedMessages: ChatMessage[] = [];
 
       setMessages(sortedMessages);
-    } catch (err: unknown) {
+    } catch (err) {
       logger.error('Erreur chargement messages:', err);
       const errorMessage = err instanceof Error ? err.message : String(err) || 'Impossible de charger les messages';
       setError(errorMessage);
@@ -112,7 +112,7 @@ export function useMarketplaceChat(transactionId: string) {
 
         // TODO: Envoyer le message au backend quand l'endpoint sera disponible
         // await apiClient.post('/marketplace/chat/messages', newMessage);
-      } catch (err: unknown) {
+      } catch (err) {
         logger.error('Erreur envoi message:', err);
         throw err;
       }
@@ -150,7 +150,7 @@ export function useMarketplaceChat(transactionId: string) {
 
         // TODO: Envoyer le message au backend quand l'endpoint sera disponible
         // await apiClient.post('/marketplace/chat/messages', newMessage);
-      } catch (err: unknown) {
+      } catch (err) {
         logger.error('Erreur envoi proposition:', err);
         throw err;
       }

@@ -362,7 +362,7 @@ function ProductionCheptelComponent() {
 
   const handleChangeStatutWithCallback = useCallback(
     (animal: ProductionAnimal, statut: string) => {
-      handleChangeStatut(animal, statut, (animal) => {
+      handleChangeStatut(animal, statut as any, (animal) => {
         setAnimalVendu(animal);
         setShowRevenuModal(true);
       });

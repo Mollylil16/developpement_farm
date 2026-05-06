@@ -112,7 +112,7 @@ class AiWeightService {
     version: string;
   }> {
     try {
-      const response = await apiClient.get(`${this.baseUrl}/health`);
+      const response = await apiClient.get<any>(`${this.baseUrl}/health`);
       return response.data;
     } catch (error: any) {
       logger.error('Erreur lors de la vérification de santé IA:', error);
@@ -127,7 +127,7 @@ class AiWeightService {
     request: PredictWeightRequest,
   ): Promise<WeightEstimationResponse> {
     try {
-      const response = await apiClient.post<WeightEstimationResponse>(
+      const response = await apiClient.post<{data: WeightEstimationResponse}>(
         `${this.baseUrl}/predict`,
         request,
       );
@@ -145,7 +145,7 @@ class AiWeightService {
     request: BatchPredictWeightRequest,
   ): Promise<BatchWeightEstimationResponse> {
     try {
-      const response = await apiClient.post<BatchWeightEstimationResponse>(
+      const response = await apiClient.post<{data: BatchWeightEstimationResponse}>(
         `${this.baseUrl}/batch-predict`,
         request,
       );
@@ -183,7 +183,7 @@ class AiWeightService {
         formData.append('return_annotated', request.return_annotated.toString());
       }
       
-      const response = await apiClient.post<VideoWeightEstimationResponse>(
+      const response = await apiClient.post<{data: VideoWeightEstimationResponse}>(
         `${this.baseUrl}/video-predict`,
         formData,
         {
@@ -212,7 +212,7 @@ class AiWeightService {
     };
   }> {
     try {
-      const response = await apiClient.get(`${this.baseUrl}/models`);
+      const response = await apiClient.get<any>(`${this.baseUrl}/models`);
       return response.data;
     } catch (error: any) {
       logger.error('Erreur lors de la récupération des modèles:', error);

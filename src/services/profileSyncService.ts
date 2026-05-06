@@ -3,7 +3,7 @@
  * Permet de synchroniser la photo de profil et les données utilisateur entre appareils
  */
 
-import { AppDispatch } from '../store/hooks';
+import type { AppDispatch } from '../store/store';
 import { loadUserFromStorageThunk, updateUser } from '../store/slices/authSlice';
 import apiClient, { APIError } from './api/apiClient';
 import { logger } from '../utils/logger';
@@ -23,7 +23,7 @@ interface ProfileSyncOptions {
 
 class ProfileSyncService {
   private checkInterval: number = 30000; // 30 secondes par défaut
-  private intervalId: NodeJS.Timeout | null = null;
+  private intervalId: ReturnType<typeof setTimeout> | null = null;
   private lastPhotoUri: string | null = null;
   private lastDataHash: string | null = null; // Hash des autres données utilisateur
   private lastCheckTimestamp: number = 0;

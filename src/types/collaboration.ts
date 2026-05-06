@@ -19,6 +19,7 @@ export interface Collaborateur {
   prenom: string;
   email: string;
   telephone?: string;
+  photo?: string; // URL ou base64 de la photo de profil
   role: RoleCollaborateur;
   statut: StatutCollaborateur;
   permissions: {

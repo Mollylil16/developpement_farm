@@ -210,7 +210,7 @@ export function useFormValidationSimple<T extends Record<string, any>>(schema: y
   const validateField = useCallback(
     async (fieldName: string, value: unknown, allValues: unknown) => {
       try {
-        const error = await validateYupField(schema, fieldName, value, allValues);
+        const error = await validateYupField(schema, fieldName, value, allValues as Partial<T>);
 
         setErrors((prev) => {
           const newErrors = { ...prev };
@@ -233,7 +233,7 @@ export function useFormValidationSimple<T extends Record<string, any>>(schema: y
 
   const validateAllFields = useCallback(
     async (values: unknown) => {
-      const { isValid, errors: validationErrors } = await validateWithSchema(schema, values);
+      const { isValid, errors: validationErrors } = await validateWithSchema(schema as any, values as any);
 
       setErrors(validationErrors);
 

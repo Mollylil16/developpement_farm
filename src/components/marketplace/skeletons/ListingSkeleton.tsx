@@ -54,7 +54,7 @@ const SkeletonBox: React.FC<SkeletonProps> = ({
     <Animated.View
       style={[
         {
-          width,
+          width: width as any,
           height,
           borderRadius,
           backgroundColor: MarketplaceTheme.colors.surfaceLight,

@@ -17,7 +17,7 @@ const logger = createLoggerWithPrefix('PollingTransport');
 
 export class PollingChatTransport implements IChatTransport {
   private _status: ConnectionStatus = 'disconnected';
-  private pollingInterval?: NodeJS.Timeout;
+  private pollingInterval?: ReturnType<typeof setTimeout>;
   // Plus besoin de repository, on utilise directement l'API
   private conversationId?: string;
   private lastMessageTimestamp: string = new Date(0).toISOString();
@@ -134,7 +134,7 @@ export class PollingChatTransport implements IChatTransport {
         this.callbacks.onMessage(message);
         this.lastMessageTimestamp = message.createdAt;
       }
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur récupération messages:', error);
       this.callbacks.onError(
         error instanceof Error ? error : new Error(String(error))

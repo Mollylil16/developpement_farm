@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Schéma de la table veterinarians
  * Gère les vétérinaires disponibles pour recherche
  */
@@ -39,7 +39,7 @@ export async function createVeterinariansTable(db: SQLite.SQLiteDatabase): Promi
       CREATE INDEX IF NOT EXISTS idx_vet_location ON veterinarians(latitude, longitude);
     `);
     schemaLogger.success('Index idx_vet_location créé pour veterinarians');
-  } catch (error: unknown) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     schemaLogger.warn("Erreur lors de la création de l'index idx_vet_location:", errorMessage);
   }

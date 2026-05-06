@@ -200,7 +200,7 @@ ${trends.slice(-4).map(t =>
         let animalCode = params.animalCode;
 
         if (params.animalCode) {
-          const animal = await this.findAnimalByCode(params.animalCode, context.projetId);
+          const animal = await this.findAnimalByCode(params.animalCode, context.projetId ?? '');
           if (animal) {
             animalId = animal.id;
             animalCode = animal.code;
@@ -323,7 +323,7 @@ Ou dis-moi simplement *"au prix du marché"* et je fixerai le prix à ${marketAv
 
       // Si pas de loge, chercher un animal individuel
       if (!isBatchListing && !animalId && params.animalCode) {
-        const animal = await this.findAnimalByCode(params.animalCode, context.projetId);
+        const animal = await this.findAnimalByCode(params.animalCode, context.projetId ?? '');
         if (animal) {
           animalId = animal.id;
           weight = weight || animal.weight || 0;

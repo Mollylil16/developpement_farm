@@ -1,4 +1,4 @@
-/**
+﻿/**
  * VaccinationsComponentAccordion - Version avec accordéon (sans modals)
  * Les formulaires se déplient directement dans les cartes
  */
@@ -192,8 +192,7 @@ function VaccinationsComponentAccordion({ refreshControl }: Props) {
                       statut: 'actif' as any,
                       date_creation: pig.created_at || new Date().toISOString(),
                       derniere_modification: pig.updated_at || new Date().toISOString(),
-                      batch_id: pig.batch_id,
-                    };
+                    } as any;
                     allBatchPigs.push(animal);
                   }
                 });
@@ -544,7 +543,7 @@ function VaccinationsComponentAccordion({ refreshControl }: Props) {
               if (projetActif?.id) {
                 dispatch(loadVaccinations(projetActif.id));
               }
-            } catch (error: unknown) {
+            } catch (error) {
               Alert.alert('Erreur', 'Impossible de supprimer la vaccination');
             }
           },
@@ -618,7 +617,7 @@ function VaccinationsComponentAccordion({ refreshControl }: Props) {
 
         // Réinitialiser et fermer
         reinitialiserFormulaire();
-        toggleSection(sectionOuverte);
+        toggleSection(sectionOuverte as TypeProphylaxie);
       } else {
         // Création d'une nouvelle vaccination
         const dateVaccination = getCurrentLocalDate();
@@ -657,9 +656,9 @@ function VaccinationsComponentAccordion({ refreshControl }: Props) {
 
         // Réinitialiser et fermer
         reinitialiserFormulaire();
-        toggleSection(sectionOuverte);
+        toggleSection(sectionOuverte as TypeProphylaxie);
       }
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('=== ERREUR ENREGISTREMENT ===');
       console.error('Type erreur:', typeof error);
       console.error('Erreur complète:', error);
@@ -1400,7 +1399,7 @@ function VaccinationsComponentAccordion({ refreshControl }: Props) {
 
   const calculerAnimauxCalendrier = useCallback(
     (type: TypeProphylaxie, animauxActifs: any[]): AnimalCalendrier[] => {
-      return animauxActifs
+      return (animauxActifs
         .map((animal) => {
           if (!animal.date_naissance) return null;
 
@@ -1451,7 +1450,7 @@ function VaccinationsComponentAccordion({ refreshControl }: Props) {
           if (!a.enRetard && b.enRetard) return 1;
           // Puis par âge décroissant
           return b.ageJours - a.ageJours;
-        });
+        })) as AnimalCalendrier[];
     },
     [vaccinations]
   );

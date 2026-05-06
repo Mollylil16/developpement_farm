@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Migration 030: Création de la table veterinarians
  *
  * Cette table permet de stocker les informations des vétérinaires
@@ -49,7 +49,7 @@ export async function createVeterinariansTableMigration(db: SQLite.SQLiteDatabas
     `);
 
     migrationLogger.success('✅ Migration 030 terminée: Table veterinarians créée');
-  } catch (error: unknown) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     migrationLogger.error('❌ Erreur lors de la migration 030:', errorMessage);
     throw error;

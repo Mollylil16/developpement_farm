@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Vue détaillée - Compte
  */
 
@@ -48,7 +48,7 @@ export default function SettingsAccountView({ onBack }: SettingsAccountViewProps
             try {
               await dispatch(deleteAccount()).unwrap();
               // La navigation sera gérée automatiquement par AppNavigator après suppression
-            } catch (error: unknown) {
+            } catch (error) {
               const errorMessage = error instanceof Error ? error.message : 'Échec de la suppression, réessayez.';
               Alert.alert('Erreur', errorMessage);
             }
@@ -189,7 +189,7 @@ export default function SettingsAccountView({ onBack }: SettingsAccountViewProps
                   onPress: async () => {
                     try {
                       Alert.alert('Information', 'Le cache a été vidé');
-                    } catch (error: unknown) {
+                    } catch (error) {
                       const errorMessage = error instanceof Error ? error.message : 'Erreur lors du vidage du cache';
                       Alert.alert('Erreur', errorMessage);
                     }
@@ -237,7 +237,7 @@ export default function SettingsAccountView({ onBack }: SettingsAccountViewProps
                         'Information',
                         "La réinitialisation complète de la base de données n'est pas encore implémentée. Pour réinitialiser, supprimez et réinstallez l'application."
                       );
-                    } catch (error: unknown) {
+                    } catch (error) {
                       const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la réinitialisation';
                       Alert.alert('Erreur', errorMessage);
                     }

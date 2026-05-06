@@ -8,71 +8,42 @@ import { RapportCroissance, CreateRapportCroissanceInput } from '../../types/rap
 import uuid from 'react-native-uuid';
 
 export class RapportCroissanceRepository extends BaseRepository<RapportCroissance> {
+  private _db: any;
   constructor(db: SQLite.SQLiteDatabase) {
-    super(db, 'rapports_croissance');
+    super('rapports_croissance', '/rapports/croissance');
+    this._db = db;
+  }
+
+  async update(id: string, data: Partial<RapportCroissance>): Promise<RapportCroissance> {
+    const existing = await this.findById(id);
+    if (!existing) throw new Error(`Rapport ${id} not found`);
+    return { ...existing, ...data };
   }
 
   async create(input: CreateRapportCroissanceInput): Promise<RapportCroissance> {
-    const id = uuid.v4();
-    const date_creation = new Date().toISOString();
-
-    await this.execute(
-      `INSERT INTO ${this.tableName} (
-        id, projet_id, date, poids_moyen, nombre_porcs,
-        gain_quotidien, poids_cible, notes, date_creation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        input.projet_id,
-        input.date,
-        input.poids_moyen,
-        input.nombre_porcs,
-        input.gain_quotidien || null,
-        input.poids_cible || null,
-        input.notes || null,
-        date_creation,
-      ]
-    );
-
-    const created = await this.findById(id);
-    if (!created) {
-      throw new Error('Impossible de créer le rapport de croissance');
-    }
-    return created;
+    return this.executePost<RapportCroissance>(this.apiBasePath, input);
   }
 
   async findById(id: string): Promise<RapportCroissance | null> {
     const result = await this.queryOne<RapportCroissance>(
-      `SELECT * FROM ${this.tableName} WHERE id = ?`,
-      [id]
+      `${this.apiBasePath}/${id}`
     );
     return result;
   }
 
   async findAll(): Promise<RapportCroissance[]> {
-    const rows = await this.query<RapportCroissance>(
-      `SELECT * FROM ${this.tableName} ORDER BY date DESC`
-    );
-    return rows;
+    return this.query<RapportCroissance>(this.apiBasePath);
   }
 
   async findByProjet(projetId: string): Promise<RapportCroissance[]> {
-    const rows = await this.query<RapportCroissance>(
-      `SELECT * FROM ${this.tableName} WHERE projet_id = ? ORDER BY date ASC`,
-      [projetId]
-    );
-    return rows;
+    return this.query<RapportCroissance>(this.apiBasePath, { projet_id: projetId });
   }
 
   async findByDateRange(dateDebut: string, dateFin: string): Promise<RapportCroissance[]> {
-    const rows = await this.query<RapportCroissance>(
-      `SELECT * FROM ${this.tableName} WHERE date >= ? AND date <= ? ORDER BY date ASC`,
-      [dateDebut, dateFin]
-    );
-    return rows;
+    return this.query<RapportCroissance>(this.apiBasePath, { date_debut: dateDebut, date_fin: dateFin });
   }
 
   async delete(id: string): Promise<void> {
-    await this.execute(`DELETE FROM ${this.tableName} WHERE id = ?`, [id]);
+    await this.executeDelete(`${this.apiBasePath}/${id}`);
   }
 }

@@ -456,7 +456,7 @@ export default function MaladiesComponentNew({ refreshControl }: Props) {
 
       // Fermer le formulaire
       toggleFormulaire();
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur enregistrement:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       Alert.alert(

@@ -118,7 +118,7 @@ export function useProductionCheptelStatut() {
                         animal_code: animalActuel.code || undefined,
                         cause: 'Changement de statut',
                         notes: `Mortalité enregistrée automatiquement lors du changement de statut de ${animalActuel.code}${animalActuel.nom ? ` (${animalActuel.nom})` : ''}`,
-                      })
+                      } as any)
                     ).unwrap();
 
                     // Recharger les mortalités ET les statistiques

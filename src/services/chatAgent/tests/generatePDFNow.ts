@@ -30,7 +30,7 @@ export async function generatePDFNow(
     Alert.alert('✅ Succès', 'Rapport PDF généré ! Vous pouvez maintenant le partager.', [
       { text: 'OK' },
     ]);
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('Erreur génération PDF:', error);
     Alert.alert('❌ Erreur', `Impossible de générer le PDF:\n${error.message}`, [{ text: 'OK' }]);
     throw error;

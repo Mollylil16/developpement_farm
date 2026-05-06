@@ -47,7 +47,7 @@ function FinanceDettesComponent() {
         params: { projet_id: projetActif.id },
       });
       setDettes(data);
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur lors du chargement des dettes:', error);
       Alert.alert('Erreur', 'Impossible de charger les dettes. Veuillez réessayer.');
     } finally {
@@ -83,7 +83,7 @@ function FinanceDettesComponent() {
           try {
             await apiClient.delete(`/finance/dettes/${id}`);
             await loadDettes();
-          } catch (error: unknown) {
+          } catch (error) {
             logger.error('Erreur lors de la suppression de la dette:', error);
             Alert.alert('Erreur', 'Impossible de supprimer la dette. Veuillez réessayer.');
           }

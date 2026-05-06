@@ -28,7 +28,6 @@ import { useAppSelector } from '../../store/hooks';
 import { VoiceService } from '../../services/chatAgent';
 import ProfilePhoto from '../ProfilePhoto';
 import { VoiceInputButton } from '../chat/VoiceInputButton';
-import { VoiceServiceV2 } from '../../services/chatAgent/VoiceServiceV2';
 import { logger } from '../../utils/logger';
 import TypingIndicator from './TypingIndicator';
 
@@ -47,7 +46,6 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
     sendMessage,
     toggleVoice,
     clearConversation,
-    voiceService,
   } = useChatAgent();
 
   const { user } = useAppSelector((state) => state.auth ?? { user: null });
@@ -56,26 +54,19 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
   const [isListening, setIsListening] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const voiceServiceRef = useRef<VoiceService | null>(null);
-  const voiceServiceV2Ref = useRef<VoiceServiceV2 | null>(null);
-  const lastReadMessageIdRef = useRef<string | null>(null); // Suivre le dernier message lu
-  
-  // Initialiser VoiceServiceV2
+  const lastReadMessageIdRef = useRef<string | null>(null);
+
+  // Initialiser le service vocal
   useEffect(() => {
-    voiceServiceV2Ref.current = new VoiceServiceV2();
+    voiceServiceRef.current = new VoiceService();
     return () => {
-      voiceServiceV2Ref.current?.destroy().catch((error) => logger.error('[ChatAgentScreen] Destroy error:', error));
+      voiceServiceRef.current?.destroy().catch((error) => logger.error('[ChatAgentScreen] Destroy error:', error));
     };
   }, []);
 
   // Générer les initiales de l'utilisateur
   const userInitials = user?.prenom?.[0] || user?.nom?.[0] || 'U';
 
-  // Stocker la référence du service vocal
-  useEffect(() => {
-    if (voiceService) {
-      voiceServiceRef.current = voiceService;
-    }
-  }, [voiceService]);
 
   // Auto-scroll au dernier message et faire parler Kouakou si nécessaire
   useEffect(() => {
@@ -85,7 +76,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
       }, 100);
       
       // Faire parler Kouakou si la voix est activée et qu'on vient de recevoir une nouvelle réponse
-      if (voiceEnabled && voiceServiceV2Ref.current) {
+      if (voiceEnabled && voiceServiceRef.current) {
         const lastMessage = messages[messages.length - 1];
         
         // Ne lire que si c'est un nouveau message assistant (pas déjà lu)
@@ -98,14 +89,14 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
           lastReadMessageIdRef.current = lastMessage.id;
           
           // Arrêter toute lecture en cours avant de lire le nouveau message
-          voiceServiceV2Ref.current.stopSpeaking().catch((error) => {
+          voiceServiceRef.current.stopSpeaking().catch((error) => {
             logger.warn('[ChatAgentScreen] Erreur arrêt lecture:', error);
           });
           
           // Attendre un peu pour que l'utilisateur voie le message
           setTimeout(() => {
-            if (voiceServiceV2Ref.current && lastReadMessageIdRef.current === lastMessage.id) {
-              voiceServiceV2Ref.current.speak(lastMessage.content);
+            if (voiceServiceRef.current && lastReadMessageIdRef.current === lastMessage.id) {
+              voiceServiceRef.current.speak(lastMessage.content);
             }
           }, 800);
         }
@@ -139,7 +130,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
         style: 'destructive',
         onPress: () => {
           // Arrêter toute lecture en cours
-          voiceServiceV2Ref.current?.stopSpeaking().catch((error) => {
+          voiceServiceRef.current?.stopSpeaking().catch((error) => {
             logger.warn('[ChatAgentScreen] Erreur arrêt lecture lors effacement:', error);
           });
           // Réinitialiser le ref du dernier message lu
@@ -160,58 +151,42 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
     if (isListening) {
       // Arrêter l'écoute
       try {
-        setIsListening(false); // Mettre à jour l'état immédiatement pour éviter les doubles clics
-        const transcript = await voiceServiceRef.current.stopListening();
-        if (transcript && transcript.trim()) {
-          setInputText(transcript.trim());
-        }
-      } catch (error: unknown) {
+        setIsListening(false);
+        await voiceServiceRef.current.stopListening();
+      } catch (error) {
         logger.error('Erreur arrêt écoute:', error);
         setIsListening(false);
       }
     } else {
       // Démarrer l'écoute
       try {
-        // S'assurer que la reconnaissance vocale est activée
-        if (voiceServiceRef.current) {
-          voiceServiceRef.current.setSpeechToTextEnabled(true);
-        }
-
-        // Mettre à jour l'état avant l'appel asynchrone pour un feedback immédiat
         setIsListening(true);
 
-        // Utiliser un timeout pour éviter que l'opération bloque trop longtemps
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(
-            () =>
-              reject(new Error('Timeout: La reconnaissance vocale prend trop de temps à démarrer')),
-            5000
-          );
-        });
-
-        await Promise.race([
-          voiceServiceRef.current.startListening((transcript: string) => {
-            // Mise à jour en temps réel du texte transcrit (déjà optimisé dans VoiceService)
+        await voiceServiceRef.current.startListening({
+          onResult: (transcript: string) => {
             if (transcript && transcript.trim()) {
-              setInputText(transcript);
+              setInputText(transcript.trim());
             }
-          }),
-          timeoutPromise,
-        ]);
-      } catch (error: unknown) {
+          },
+          onError: (message: string) => {
+            logger.error('Erreur reconnaissance vocale:', message);
+            setIsListening(false);
+            Alert.alert('Erreur vocale', message);
+          },
+          onEnd: () => {
+            setIsListening(false);
+          },
+        });
+      } catch (error) {
         logger.error('Erreur démarrage écoute:', error);
         setIsListening(false);
 
-        // Message d'erreur plus informatif
         let errorMessage =
           (error instanceof Error ? error.message : String(error)) || 'Impossible de démarrer la reconnaissance vocale.';
-        if (errorMessage.includes('Timeout')) {
-          errorMessage =
-            'La reconnaissance vocale prend trop de temps. Essayez de nouveau ou utilisez la saisie texte.';
-        } else if (errorMessage.includes('Permission')) {
+        if (errorMessage.includes('Permission')) {
           errorMessage =
             "Permission microphone requise. Activez-la dans les paramètres de l'application.";
-        } else if (errorMessage.includes("n'est pas disponible")) {
+        } else if (errorMessage.includes("n'est pas disponible") || errorMessage.includes('indisponible')) {
           errorMessage =
             "La reconnaissance vocale n'est pas disponible sur cette plateforme. Utilisez la saisie texte.";
         }
@@ -524,7 +499,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
 
         <View style={styles.inputContainer}>
           {/* Bouton vocal amélioré */}
-          {voiceEnabled && voiceServiceV2Ref.current ? (
+          {voiceEnabled && voiceServiceRef.current ? (
             <VoiceInputButton
               onTranscription={(text) => {
                 setInputText(text);
@@ -535,7 +510,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
                 Alert.alert('Erreur vocale', message);
               }}
               disabled={sending || !isInitialized}
-              voiceService={voiceServiceV2Ref.current}
+              voiceService={voiceServiceRef.current}
             />
           ) : (
             <TouchableOpacity

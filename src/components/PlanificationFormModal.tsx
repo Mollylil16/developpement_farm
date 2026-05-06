@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Composant formulaire modal pour planification
  */
 
@@ -170,14 +170,14 @@ export default function PlanificationFormModal({
         await dispatch(
           updatePlanification({
             id: planification.id,
-            updates: formData,
+            data: formData,
           })
         ).unwrap();
       } else {
         await dispatch(createPlanification(formData)).unwrap();
       }
       onSuccess();
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'enregistrement";
       Alert.alert('Erreur', errorMessage);
     } finally {
@@ -379,7 +379,7 @@ export default function PlanificationFormModal({
                       dispatch(
                         updatePlanification({
                           id: planification.id,
-                          updates: { statut },
+                          data: { statut },
                         })
                       );
                     }

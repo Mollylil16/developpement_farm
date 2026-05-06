@@ -131,7 +131,7 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
           })
         );
       }
-    } catch (error: unknown) {
+    } catch (error) {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InvitationsModal.tsx:103',message:'Erreur acceptation invitation',data:{invitationId:invitation.id,errorType:error?.constructor?.name,errorMessage:error instanceof Error ? error.message : String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
       // #endregion
@@ -214,7 +214,7 @@ export default function InvitationsModal({ visible, onClose }: InvitationsModalP
                   loadInvitationsEnAttente({ userId: user.id, email: user.email || undefined })
                 );
               }
-            } catch (error: unknown) {
+            } catch (error) {
               // #region agent log
               fetch('http://127.0.0.1:7242/ingest/26f636b2-fbd4-4331-9689-5c4fcd5e31de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'InvitationsModal.tsx:136',message:'Erreur rejet invitation',data:{invitationId:invitation.id,errorType:error?.constructor?.name,errorMessage:error instanceof Error ? error.message : String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
               // #endregion

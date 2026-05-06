@@ -289,7 +289,7 @@ export default function OfferModal({
         'Votre offre a été envoyée au producteur. Vous serez notifié de sa réponse.',
         [{ text: 'OK', onPress: onClose }]
       );
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Impossible d'envoyer l'offre";
       Alert.alert('Erreur', errorMessage);
     } finally {
@@ -694,7 +694,7 @@ const styles = StyleSheet.create({
   },
   comparisonValue: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   divider: {
     height: 1,
@@ -785,7 +785,7 @@ const styles = StyleSheet.create({
   },
   confirmDateText: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   footer: {
     flexDirection: 'row',
@@ -808,7 +808,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   submitButton: {
     flex: 2,

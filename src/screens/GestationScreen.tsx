@@ -254,7 +254,7 @@ const CreateBatchGestationModal: React.FC<CreateBatchGestationModalProps> = ({
               ]}
               onPress={() => setShowDatePicker(true)}
             >
-              <Text style={[styles.dateText, { color: colors.text }]}>
+              <Text style={[{ fontSize: 14 }, { color: colors.text }]}>
                 {format(matingDate, 'dd MMMM yyyy', { locale: fr })}
               </Text>
               <Ionicons name="calendar" size={20} color={colors.primary} />
@@ -336,7 +336,7 @@ export default function GestationScreen() {
 
     setLoading(true);
     try {
-      const data = await apiClient.get(`/batch-gestations/batch/${batch.id}`);
+      const data = await apiClient.get<any[]>(`/batch-gestations/batch/${batch.id}`);
       setGestations(data || []);
     } catch (error: any) {
       console.error('Erreur chargement gestations batch:', error);

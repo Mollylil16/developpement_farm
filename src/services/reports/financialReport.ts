@@ -110,11 +110,11 @@ export async function generateFinancialReportPDF(
 
     // Générer le PDF en utilisant le service existant
     await exportBilanCompletPDF({
+      ...bilanData,
       projet: {
         id: projet.id,
         nom: projet.nom,
-      },
-      ...bilanData,
+      } as any,
     });
   } catch (error: any) {
     logger.error('Erreur lors de la génération du rapport financier PDF:', error);
@@ -145,10 +145,10 @@ export async function generateFinancialReportExcel(
 
     // Générer l'Excel en utilisant le service existant
     await exportBilanCompletExcel({
+      ...bilanData,
       projet: {
         nom: projet.nom,
-      },
-      ...bilanData,
+      } as any,
     });
   } catch (error: any) {
     logger.error('Erreur lors de la génération du rapport financier Excel:', error);

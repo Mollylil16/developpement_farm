@@ -64,7 +64,7 @@ export default function OptimizedImage({
       <Image
         source={imageSource}
         style={[style, isLoading && styles.hidden]}
-        contentFit={contentFit || resizeMode}
+        contentFit={(contentFit || resizeMode) as any}
         transition={transition}
         cachePolicy={cachePolicy}
         priority={priority}

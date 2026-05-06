@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
     flex: 1,
   },
   badge: {
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: MarketplaceTheme.typography.fontSizes.xs,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   sectionText: {
     fontSize: MarketplaceTheme.typography.fontSizes.sm,

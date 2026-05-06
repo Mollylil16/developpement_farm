@@ -64,7 +64,7 @@ const ParametresScreen: React.FC = () => {
     subtitle?: string;
   }) => (
     <TouchableOpacity style={[styles.parametreCard, { borderLeftColor: color }]} onPress={onPress}>
-      <MaterialIcons name={icon} size={24} color={color} />
+      <MaterialIcons name={icon as any} size={24} color={color} />
       <View style={styles.parametreContent}>
         <Text style={styles.parametreTitle}>{title}</Text>
         <Text style={styles.parametreValue}>{value}</Text>

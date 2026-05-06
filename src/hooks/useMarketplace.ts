@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hook personnalisé pour le Marketplace
  * Gère l'état et les opérations marketplace
  */
@@ -54,7 +54,7 @@ export function useMarketplace() {
         setCurrentPage(result.page);
         setHasMore(result.hasMore);
         setTotalResults(result.total);
-      } catch (err: unknown) {
+      } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Erreur lors de la recherche';
         setError(errorMessage);
         logger.error('Error searching listings:', err);
@@ -113,14 +113,14 @@ export function useOffers(userId: string, role: 'buyer' | 'producer') {
       setLoading(true);
       setError(null);
 
-      const service = getMarketplaceService();
+      const service = marketplaceService;
 
       // Accéder aux repositories via le service (on ajoutera des méthodes publiques si nécessaire)
       // Pour l'instant, simulons avec un tableau vide
       // TODO: Ajouter des méthodes publiques dans MarketplaceService
 
       setOffers([]);
-    } catch (err: unknown) {
+    } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur lors du chargement des offres';
       setError(errorMessage);
       logger.error('Error loading offers:', err);
@@ -154,11 +154,11 @@ export function useTransactions(userId: string, role: 'buyer' | 'producer') {
       setLoading(true);
       setError(null);
 
-      const service = getMarketplaceService();
+      const service = marketplaceService;
 
       // TODO: Ajouter méthode getTransactions dans MarketplaceService
       setTransactions([]);
-    } catch (err: unknown) {
+    } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur lors du chargement des transactions';
       setError(errorMessage);
       logger.error('Error loading transactions:', err);
@@ -197,11 +197,11 @@ export function useListing(listingId: string | null) {
       setLoading(true);
       setError(null);
 
-      const service = getMarketplaceService();
+      const service = marketplaceService;
 
       const result = await service.getListingDetails(listingId);
       setListing(result);
-    } catch (err: unknown) {
+    } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Erreur lors du chargement de l'annonce";
       setError(errorMessage);
       logger.error('Error loading listing:', err);

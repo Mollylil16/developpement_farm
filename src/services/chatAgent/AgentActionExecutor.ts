@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Gestionnaire d'actions pour l'agent conversationnel
  * Orchestrateur léger qui délègue aux modules spécialisés par domaine
  * 
@@ -294,7 +294,7 @@ export class AgentActionExecutor {
             message: 'Je ne comprends pas cette action.',
           };
       }
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error("Erreur lors de l'exécution de l'action:", error);
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
       return {

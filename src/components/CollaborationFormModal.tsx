@@ -119,7 +119,7 @@ export default function CollaborationFormModal({
     }
 
     // Validation avec Yup
-    const { isValid, errors: validationErrors } = await validateCollaborateur(formData);
+    const { isValid, errors: validationErrors } = await validateCollaborateur(formData as any);
     if (!isValid) {
       const firstError = Object.values(validationErrors)[0];
       Alert.alert(
@@ -135,20 +135,21 @@ export default function CollaborationFormModal({
         // Exclure projet_id des updates car il ne peut pas être modifié
         const { projet_id, ...updates } = formData;
         // ✅ Ne pas envoyer l'email s'il est vide ou invalide
-        if (!updates.email || updates.email.trim() === '') {
-          delete updates.email;
+        const updatesAny: any = updates;
+        if (!updatesAny.email || updatesAny.email.trim() === '') {
+          delete updatesAny.email;
         }
         await dispatch(
           updateCollaborateur({
             id: collaborateur.id,
-            updates,
+            data: updatesAny,
           })
         ).unwrap();
       } else {
-        await dispatch(createCollaborateur(formData)).unwrap();
+        await dispatch(createCollaborateur(formData as any)).unwrap();
       }
       onSuccess();
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error) || "Erreur lors de l'enregistrement";
       Alert.alert('Erreur', errorMessage);

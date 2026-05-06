@@ -87,7 +87,7 @@ export default function MapLocationPickerModal({
           "Impossible d'obtenir votre localisation. Veuillez vérifier les permissions de localisation."
         );
       }
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur lors de la récupération de la localisation:', error);
       Alert.alert('Erreur', "Impossible d'obtenir votre localisation.");
     } finally {

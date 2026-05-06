@@ -43,7 +43,7 @@ export default function PermissionDeniedScreen({
       <View style={styles.content}>
         {/* Icône caméra barrée */}
         <View style={[styles.iconContainer, { backgroundColor: colors.error + '20' }]}>
-          <Ionicons name="camera-off" size={64} color={colors.error} />
+          <Ionicons name={"camera-off" as any} size={64} color={colors.error} />
         </View>
 
         {/* Titre */}

@@ -1,6 +1,10 @@
 import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
-import { Gestation, Sevrage } from '../../types';
+import type { Gestation, Sevrage, CreateSevrageInput } from '../../types/reproduction';
 import { DatabaseService } from '../../services/database';
+import apiClient from '../../services/api/apiClient';
+import { createLoggerWithPrefix } from '../../utils/logger';
+
+const logger = createLoggerWithPrefix('ReproductionSlice');
 
 interface ReproductionState {
   gestations: Gestation[];
@@ -25,6 +29,47 @@ export const loadGestations = createAsyncThunk(
       return gestations;
     } catch (error) {
       return rejectWithValue('Erreur lors du chargement des gestations');
+    }
+  }
+);
+
+export const loadSevrages = createAsyncThunk(
+  'reproduction/loadSevrages',
+  async (projetId: string, { rejectWithValue }) => {
+    try {
+      const sevrages = await apiClient.get<Sevrage[]>('/reproduction/sevrages', {
+        params: { projet_id: projetId },
+      });
+      return sevrages;
+    } catch (error) {
+      logger.error('[loadSevrages]', error);
+      return rejectWithValue('Erreur lors du chargement des sevrages');
+    }
+  }
+);
+
+export const createSevrage = createAsyncThunk(
+  'reproduction/createSevrage',
+  async (input: CreateSevrageInput, { rejectWithValue }) => {
+    try {
+      const sevrage = await apiClient.post<Sevrage>('/reproduction/sevrages', input);
+      return sevrage;
+    } catch (error) {
+      logger.error('[createSevrage]', error);
+      return rejectWithValue('Erreur lors de la création du sevrage');
+    }
+  }
+);
+
+export const deleteSevrage = createAsyncThunk(
+  'reproduction/deleteSevrage',
+  async (id: string, { rejectWithValue }) => {
+    try {
+      await apiClient.delete(`/reproduction/sevrages/${id}`);
+      return id;
+    } catch (error) {
+      logger.error('[deleteSevrage]', error);
+      return rejectWithValue('Erreur lors de la suppression du sevrage');
     }
   }
 );
@@ -90,6 +135,36 @@ const reproductionSlice = createSlice({
         state.error = action.payload as string;
       })
       
+      // Load Sevrages
+      .addCase(loadSevrages.pending, (state) => {
+        state.loading = true;
+        state.error = undefined;
+      })
+      .addCase(loadSevrages.fulfilled, (state, action) => {
+        state.loading = false;
+        state.sevrages = action.payload;
+      })
+      .addCase(loadSevrages.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // Create Sevrage
+      .addCase(createSevrage.fulfilled, (state, action) => {
+        state.sevrages.push(action.payload);
+      })
+      .addCase(createSevrage.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
+
+      // Delete Sevrage
+      .addCase(deleteSevrage.fulfilled, (state, action) => {
+        state.sevrages = state.sevrages.filter(s => s.id !== action.payload);
+      })
+      .addCase(deleteSevrage.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
+
       // Save Gestation
       .addCase(saveGestation.pending, (state) => {
         state.loading = true;

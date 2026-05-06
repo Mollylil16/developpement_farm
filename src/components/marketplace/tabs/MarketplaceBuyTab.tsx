@@ -31,7 +31,7 @@ interface MarketplaceBuyTabProps {
   onFavoriteChange: (farmId: string, isFavorite: boolean) => void;
 }
 
-export default function MarketplaceBuyTab({
+function MarketplaceBuyTab({
   farmCards,
   listings,
   listingsLoading,

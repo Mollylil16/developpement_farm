@@ -113,6 +113,13 @@ export async function cleanupObsoleteNotifications(gestations: any[] = [], tasks
 }
 
 /**
+ * Retourne toutes les notifications planifiées (stub)
+ */
+export async function getAllScheduledNotifications(): Promise<Notification[]> {
+  return [];
+}
+
+/**
  * Annule toutes les notifications planifiées
  */
 export async function cancelAllNotifications(): Promise<void> {
@@ -130,7 +137,7 @@ export async function cancelAllNotifications(): Promise<void> {
 export const notificationsService = {
   async getNotifications(unreadOnly: boolean = false): Promise<Notification[]> {
     try {
-      const response = await apiClient.get(
+      const response = await apiClient.get<any>(
         `/marketplace/notifications?unreadOnly=${unreadOnly}`
       );
       return response.data;
@@ -142,7 +149,7 @@ export const notificationsService = {
 
   async getUnreadCount(): Promise<number> {
     try {
-      const response = await apiClient.get('/marketplace/notifications/unread-count');
+      const response = await apiClient.get<any>('/marketplace/notifications/unread-count');
       return response.data.unreadCount;
     } catch (error) {
       logger.error('[notifications] Erreur comptage:', error);

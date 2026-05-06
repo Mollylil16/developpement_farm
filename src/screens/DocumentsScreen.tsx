@@ -39,7 +39,7 @@ export default function DocumentsScreen() {
     try {
       // TODO: Implémenter le chargement des documents depuis la base de données
       // Pour l'instant, on simule un chargement
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise<void>((resolve) => setTimeout(() => resolve(), 500));
       setDocuments([]);
     } catch (error) {
       console.error('Erreur chargement documents:', error);

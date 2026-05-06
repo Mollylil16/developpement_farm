@@ -2,7 +2,7 @@
  * Actions liées aux mortalités
  */
 
-import { AgentActionResult, AgentContext } from '../../../types/chatAgent';
+import { AgentActionResult, AgentContext } from '../../../../types/chatAgent';
 import { format, subDays } from 'date-fns';
 import apiClient from '../../../api/apiClient';
 
@@ -10,7 +10,7 @@ export class MortaliteActions {
   /**
    * Récupère les mortalités
    */
-  static async getMortalites(params: unknown, context: AgentContext): Promise<AgentActionResult> {
+  static async getMortalites(params: any, context: AgentContext): Promise<AgentActionResult> {
     const paramsTyped = params as Record<string, unknown>;
     const joursRecents = (paramsTyped.jours && typeof paramsTyped.jours === 'number' ? paramsTyped.jours : undefined) || 90;
 
@@ -71,7 +71,7 @@ export class MortaliteActions {
    * Calcule le taux de mortalité
    */
   static async getTauxMortalite(
-    params: unknown,
+    params: any,
     context: AgentContext
   ): Promise<AgentActionResult> {
     const paramsTyped = params as Record<string, unknown>;
@@ -156,7 +156,7 @@ export class MortaliteActions {
    * Analyse les causes de mortalité
    */
   static async analyzeCausesMortalite(
-    params: unknown,
+    params: any,
     context: AgentContext
   ): Promise<AgentActionResult> {
     // Récupérer les mortalités
@@ -204,7 +204,7 @@ export class MortaliteActions {
       >
     );
 
-    const totalMortalites = Object.values(causes).reduce((sum, c) => sum + c.nombre, 0);
+    const totalMortalites = (Object.values(causes) as Array<{ nombre: number; pourcentage: number; exemples: Array<{ date: string; notes: string }> }>).reduce((sum, c) => sum + c.nombre, 0);
 
     // Calculer les pourcentages
     Object.keys(causes).forEach((cause) => {
@@ -212,7 +212,7 @@ export class MortaliteActions {
     });
 
     // Trier par nombre décroissant
-    const causesTriees = Object.entries(causes).sort((a, b) => b[1].nombre - a[1].nombre);
+    const causesTriees = (Object.entries(causes) as Array<[string, { nombre: number; pourcentage: number; exemples: Array<{ date: string; notes: string }> }]>).sort((a, b) => b[1].nombre - a[1].nombre);
 
     let message = `Analyse des causes de mortalité :\n`;
     message += `• Total : ${totalMortalites} porc(s)\n\n`;

@@ -53,9 +53,9 @@ class RequestQueue {
       );
       
       if (insertIndex === -1) {
-        this.queue.push(request);
+        this.queue.push(request as unknown as QueuedRequest<unknown>);
       } else {
-        this.queue.splice(insertIndex, 0, request);
+        this.queue.splice(insertIndex, 0, request as unknown as QueuedRequest<unknown>);
       }
       
       this.processQueue();

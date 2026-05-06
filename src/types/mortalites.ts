@@ -9,6 +9,7 @@ export interface Mortalite {
   projet_id: string;
   nombre_porcs: number; // Nombre de porcs morts
   date: string; // Date ISO
+  date_mortalite?: string; // Alias for compatibility
   cause?: string; // Cause de la mortalité (maladie, accident, etc.)
   categorie: CategorieMortalite;
   animal_code?: string; // Code du sujet mort (optionnel, pour les animaux enregistrés)

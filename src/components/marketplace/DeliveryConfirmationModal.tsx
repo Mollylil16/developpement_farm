@@ -89,7 +89,7 @@ export default function DeliveryConfirmationModal({
                   [{ text: 'OK', onPress: onClose }]
                 );
               }
-            } catch (error: unknown) {
+            } catch (error) {
               const errorMessage = error instanceof Error ? error.message : 'Impossible de confirmer la livraison';
               Alert.alert('Erreur', errorMessage);
             } finally {
@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
   },
   infoValue: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   sectionTitle: {
     fontSize: MarketplaceTheme.typography.fontSizes.lg,
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   infoBox: {
     flexDirection: 'row',
@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   confirmButton: {
     flex: 2,

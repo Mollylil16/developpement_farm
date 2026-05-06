@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Hook pour récupérer l'évolution du poids
  * Fonctionne pour les modes individuel et bande
  */
@@ -70,7 +70,7 @@ export function usePoidsEvolution({
       const response = await apiClient.post<PoidsEvolution>('/production/pesees/evolution', body);
 
       setData(response);
-    } catch (err: unknown) {
+    } catch (err) {
       logger.error('[usePoidsEvolution] Erreur lors du chargement de l\'évolution:', err);
       setError(getErrorMessage(err));
       setData(null);

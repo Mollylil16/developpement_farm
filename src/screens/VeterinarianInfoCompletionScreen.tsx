@@ -153,7 +153,7 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
                   type: result.assets[0].type || 'image/jpeg',
                 });
               }
-            } catch (error: unknown) {
+            } catch (error) {
               console.error('Erreur sélection image:', error);
               const errorMessage = error instanceof Error ? error.message : '';
               Alert.alert('Erreur', "Impossible de sélectionner l'image. " + errorMessage);
@@ -169,24 +169,25 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
                 copyToCacheDirectory: true,
               });
 
+              const permRes = permissionResult as any;
               if (
-                permissionResult.type === 'success' &&
-                'uri' in permissionResult &&
-                permissionResult.uri
+                permRes.type === 'success' &&
+                'uri' in permRes &&
+                permRes.uri
               ) {
                 setProfessionalProof({
-                  uri: permissionResult.uri,
-                  name: 'name' in permissionResult ? permissionResult.name : 'professional_proof.pdf',
+                  uri: permRes.uri as string,
+                  name: 'name' in permRes ? permRes.name as string : 'professional_proof.pdf',
                   type:
-                    'mimeType' in permissionResult
-                      ? permissionResult.mimeType
+                    'mimeType' in permRes
+                      ? permRes.mimeType as string
                       : 'application/pdf',
                 });
-              } else if (permissionResult.type === 'cancel') {
+              } else if (permRes.type === 'cancel') {
                 // L'utilisateur a annulé, ne rien faire
                 return;
               }
-            } catch (error: unknown) {
+            } catch (error) {
               console.error('Erreur sélection document PDF:', error);
               const errorMessage =
                 error instanceof Error
@@ -201,7 +202,7 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
           style: 'cancel',
         },
       ]);
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur pickProfessionalProof:', error);
       Alert.alert(
         'Erreur',
@@ -260,9 +261,8 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
           phone: !isEmail ? identifier : undefined,
           firstName: '', // Sera complété plus tard
           lastName: '', // Sera complété plus tard
-          password: '', // Pas de mot de passe pour l'instant
           profileType: profileType || 'veterinarian',
-        });
+        } as any);
         finalUserId = newUser.id;
         // Mettre à jour l'utilisateur dans le store Redux
         dispatch(updateUser(newUser));
@@ -353,7 +353,7 @@ const VeterinarianInfoCompletionScreen: React.FC = () => {
         screen: SCREENS.DASHBOARD_VET,
         params: { showPendingValidation: true },
       });
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
       Alert.alert('Erreur', `Erreur lors de la soumission: ${errorMessage}`);
     }

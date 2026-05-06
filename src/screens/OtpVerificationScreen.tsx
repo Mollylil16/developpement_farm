@@ -51,7 +51,7 @@ export default function OtpVerificationScreen() {
       Alert.alert('Erreur', "Identifiant manquant. Retournez à l'écran précédent.");
       return;
     }
-    await dispatch(requestOtp({ identifier })).unwrap();
+    await dispatch(requestOtp(identifier)).unwrap();
     Alert.alert('Code envoyé', 'Un nouveau code a été envoyé.');
   };
 
@@ -65,7 +65,7 @@ export default function OtpVerificationScreen() {
       return;
     }
 
-    const u = await dispatch(verifyOtp({ identifier, code: code.trim() })).unwrap();
+    const u = await dispatch(verifyOtp({ identifier, otp: code.trim() })).unwrap();
 
     // Si onboarding non terminé (nouvel utilisateur), aller au choix de profil.
     // Sinon, AppNavigator redirigera automatiquement vers Main/CreateProject.

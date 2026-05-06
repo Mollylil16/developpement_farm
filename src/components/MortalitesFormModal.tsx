@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Composant formulaire modal pour mortalité
  */
 
@@ -258,14 +258,14 @@ export default function MortalitesFormModal({
         await dispatch(
           updateMortalite({
             id: mortalite.id,
-            updates: finalFormData,
+            data: finalFormData,
           })
         ).unwrap();
       } else {
-        await dispatch(createMortalite(finalFormData)).unwrap();
+        await dispatch(createMortalite(finalFormData as any)).unwrap();
       }
       onSuccess();
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'enregistrement";
       Alert.alert('Erreur', errorMessage);
     } finally {

@@ -5,7 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { TouchableOpacity, View, Text, StyleSheet, Animated } from 'react-native';
-import { VoiceServiceV2 } from '../../services/chatAgent/VoiceServiceV2';
+import { VoiceService } from '../../services/chatAgent';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '../../constants/theme';
 import { logger } from '../../utils/logger';
@@ -14,7 +14,7 @@ interface VoiceInputButtonProps {
   onTranscription: (text: string) => void;
   onError?: (message: string) => void;
   disabled?: boolean;
-  voiceService?: VoiceServiceV2;
+  voiceService?: VoiceService;
 }
 
 export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
@@ -26,7 +26,7 @@ export const VoiceInputButton: React.FC<VoiceInputButtonProps> = ({
   const [isListening, setIsListening] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef<Animated.CompositeAnimation | null>(null);
-  const service = voiceService || require('../../services/chatAgent/VoiceServiceV2').voiceServiceV2;
+  const service = voiceService || require('../../services/chatAgent').voiceService;
 
   // Nettoyer l'animation au démontage
   useEffect(() => {

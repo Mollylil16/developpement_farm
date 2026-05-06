@@ -135,11 +135,11 @@ const BuyerInfoCompletionScreen: React.FC = () => {
             lastName: '', // Sera complété plus tard
             password: '', // Pas de mot de passe pour l'instant
             profileType: profileType || 'buyer',
-          });
+          } as any);
           finalUserId = newUser.id;
           // Mettre à jour l'utilisateur dans le store Redux
           dispatch(updateUser(newUser));
-        } catch (error: unknown) {
+        } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error) || 'Impossible de créer le compte';
           Alert.alert('Erreur', errorMessage);
           return;
@@ -222,7 +222,7 @@ const BuyerInfoCompletionScreen: React.FC = () => {
       } else {
         (navigation as any).navigate('Main', { screen: SCREENS.DASHBOARD_BUYER });
       }
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
       Alert.alert('Erreur', `Erreur lors de la création du profil: ${errorMessage}`);
     }

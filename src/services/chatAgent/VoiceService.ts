@@ -1,546 +1,366 @@
 /**
  * Service de reconnaissance vocale (Speech-to-Text) et synthèse vocale (Text-to-Speech)
- * Supporte les accents ivoiriens
+ * Utilise @react-native-voice/voice pour STT et expo-speech pour TTS
+ * Supporte les accents ivoiriens et optimisé pour l'usage en zone rurale
  */
 
-import { VoiceConfig } from '../../types/chatAgent';
 import { Platform } from 'react-native';
-// Lazy imports pour éviter les erreurs si les modules ne sont pas disponibles dans Expo Go
-let Audio: typeof import('expo-av').Audio | null = null;
-let FileSystem: typeof import('expo-file-system') | null = null;
-import { SpeechTranscriptionService, TranscriptionProvider } from './SpeechTranscriptionService';
 import { logger } from '../../utils/logger';
-// import * as Speech from 'expo-speech'; // TODO: Installer expo-speech si nécessaire pour TTS
 
-// Charger les modules Expo de manière lazy
-async function loadExpoModules() {
-  if (!Audio) {
-    try {
-      Audio = (await import('expo-av')).Audio;
-    } catch (error) {
-      logger.warn('[VoiceService] expo-av non disponible:', error);
+// Lazy imports pour éviter les erreurs si les modules ne sont pas disponibles dans Expo Go
+let Voice: typeof import('@react-native-voice/voice').default | null = null;
+let Speech: typeof import('expo-speech') | null = null;
+let Haptics: typeof import('expo-haptics') | null = null;
+
+async function isExpoGo(): Promise<boolean> {
+  try {
+    const Constants = await import('expo-constants');
+    // appOwnership === 'expo' dans Expo Go, 'standalone' ou 'guest' en dev build / standalone.
+    return (Constants as any)?.default?.appOwnership === 'expo';
+  } catch {
+    return false;
+  }
+}
+
+async function loadVoiceModules() {
+  const expoGo = await isExpoGo();
+
+  if (!Voice) {
+    if (expoGo) {
+      // IMPORTANT: ne pas tenter d'importer @react-native-voice/voice dans Expo Go (redbox Invariant Violation)
+      logger.warn('[VoiceService] Expo Go détecté: @react-native-voice/voice désactivé (dev build requis)');
+    } else {
+      try {
+        Voice = (await import('@react-native-voice/voice')).default;
+      } catch (error) {
+        logger.warn('[VoiceService] @react-native-voice/voice non disponible:', error);
+      }
     }
   }
-  if (!FileSystem) {
+  if (!Speech) {
     try {
-      FileSystem = await import('expo-file-system');
+      Speech = await import('expo-speech');
     } catch (error) {
-      logger.warn('[VoiceService] expo-file-system non disponible:', error);
+      logger.warn('[VoiceService] expo-speech non disponible:', error);
+    }
+  }
+  if (!Haptics) {
+    try {
+      Haptics = await import('expo-haptics');
+    } catch (error) {
+      logger.warn('[VoiceService] expo-haptics non disponible:', error);
     }
   }
 }
 
-// Note: Pour la reconnaissance vocale, on utilise expo-av pour l'enregistrement
-// et une API de transcription pour convertir en texte
-
-// Déclaration de type pour l'API Web Speech Recognition
-interface SpeechRecognition extends EventTarget {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  start(): void;
-  stop(): void;
-  abort(): void;
-  // Les paramètres ev sont utilisés dans les implémentations
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  onstart: ((ev: Event) => unknown) | null;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  onresult: ((ev: SpeechRecognitionEvent) => unknown) | null;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  onerror: ((ev: SpeechRecognitionErrorEvent) => unknown) | null;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  onend: ((ev: Event) => unknown) | null;
-}
-
-interface SpeechRecognitionEvent extends Event {
-  resultIndex: number;
-  results: SpeechRecognitionResultList;
-}
-
-interface SpeechRecognitionErrorEvent extends Event {
-  error: string;
-}
-
-interface SpeechRecognitionResultList {
-  length: number;
-  // Les paramètres index sont utilisés dans les implémentations
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  item(index: number): SpeechRecognitionResult;
-  [index: number]: SpeechRecognitionResult;
-}
-
-interface SpeechRecognitionResult {
-  length: number;
-  // Les paramètres index sont utilisés dans les implémentations
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  item(index: number): SpeechRecognitionAlternative;
-  [index: number]: SpeechRecognitionAlternative;
-  isFinal: boolean;
-}
-
-interface SpeechRecognitionAlternative {
-  transcript: string;
-  confidence: number;
-}
-
-declare global {
-  interface Window {
-    SpeechRecognition?: {
-      new (): SpeechRecognition;
-    };
-    webkitSpeechRecognition?: {
-      new (): SpeechRecognition;
-    };
-  }
-}
-
-// Fonction helper pour obtenir window de manière sûre
-function getWindow(): Window | undefined {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const global = globalThis as any;
-  if (typeof global !== 'undefined' && typeof global.window !== 'undefined') {
-    return global.window as Window;
-  }
-  return undefined;
+export interface VoiceServiceCallbacks {
+  onResult?: (text: string) => void;
+  onError?: (message: string) => void;
+  onStart?: () => void;
+  onEnd?: () => void;
 }
 
 export class VoiceService {
-  private config: VoiceConfig;
-  private isListening: boolean = false;
-  private recording: any | null = null; // Audio.Recording mais chargé lazy
-  // Le paramètre text est utilisé dans les implémentations du callback
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private onTranscriptCallback: ((text: string) => void) | null = null;
-  private transcriptionService: SpeechTranscriptionService | null = null;
-  private webRecognition: SpeechRecognition | null = null;
+  private isListening = false;
+  private callbacks: VoiceServiceCallbacks = {};
+  private listenersSetup = false;
 
-  constructor(config: VoiceConfig) {
-    this.config = {
-      ...config,
-      language: config.language || 'fr-CI',
-      enableSpeechToText: config.enableSpeechToText ?? true, // Activé par défaut
-      enableTextToSpeech: config.enableTextToSpeech ?? true,
-      speechRate: config.speechRate || 1.0,
-      pitch: config.pitch || 1.0,
+  constructor() {
+    // Ne pas initialiser les listeners ici - ils seront initialisés lors de la première utilisation
+  }
+
+  private async setupListeners(): Promise<void> {
+    if (this.listenersSetup) return;
+    
+    await loadVoiceModules();
+    if (!Voice) {
+      logger.warn('[VoiceService] Voice module non disponible, listeners non configurés');
+      return;
+    }
+
+    Voice.onSpeechStart = () => {
+      logger.debug('[VoiceService] Speech start');
+      if (Haptics) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+      this.callbacks.onStart?.();
     };
 
-    // Initialiser le service de transcription si une clé API est fournie
-    if (
-      config.transcriptionApiKey &&
-      config.transcriptionProvider &&
-      config.transcriptionProvider !== 'none'
-    ) {
-      try {
-        this.transcriptionService = new SpeechTranscriptionService({
-          provider: config.transcriptionProvider as TranscriptionProvider,
-          apiKey: config.transcriptionApiKey,
-          language: config.language === 'fr-CI' ? 'fr' : config.language,
-          timeout: 30000,
-        });
-        logger.debug(
-          '[VoiceService] Service de transcription initialisé:',
-          config.transcriptionProvider
-        );
-      } catch (error) {
-        logger.error('[VoiceService] Erreur initialisation transcription:', error);
-      }
-    }
-  }
-
-  /**
-   * Active ou désactive la reconnaissance vocale
-   */
-  setSpeechToTextEnabled(enabled: boolean): void {
-    this.config.enableSpeechToText = enabled;
-  }
-
-  /**
-   * Convertit le texte en parole (Text-to-Speech)
-   * @param text - Texte à convertir en parole
-   */
-  async speak(text: string): Promise<void> {
-    if (!this.config.enableTextToSpeech) {
-      logger.warn('[VoiceService] Text-to-Speech désactivé, texte ignoré:', text.substring(0, 50));
-      return;
-    }
-
-    // Utiliser text pour la synthèse vocale
-    if (!text || text.trim().length === 0) {
-      logger.warn('[VoiceService] Texte vide, impossible de parler');
-      return;
-    }
-
-    try {
-      // TODO: Implémenter avec expo-speech une fois installé
-      // await Speech.speak(text, {
-      //   language: this.config.language === 'fr-CI' ? 'fr-FR' : this.config.language,
-      //   pitch: this.config.pitch || 1.0,
-      //   rate: this.config.speechRate || 1.0,
-      // });
-      logger.debug('[VoiceService] Text-to-Speech (non implémenté):', text);
-    } catch (error) {
-      logger.error('Erreur lors de la synthèse vocale:', error);
-    }
-  }
-
-  /**
-   * Arrête la synthèse vocale en cours
-   */
-  stopSpeaking(): void {
-    // TODO: Implémenter avec expo-speech
-    // Speech.stop();
-    logger.debug('[VoiceService] Stop speaking (non implémenté)');
-  }
-
-  /**
-   * Vérifie si la synthèse vocale est en cours
-   */
-  async isSpeaking(): Promise<boolean> {
-    // TODO: Implémenter avec expo-speech
-    // return Speech.isSpeakingAsync();
-    return false;
-  }
-
-  /**
-   * Démarre la reconnaissance vocale (Speech-to-Text)
-   * Utilise l'API Web Speech Recognition si disponible, sinon utilise expo-av pour l'enregistrement
-   */
-  // Le paramètre text est utilisé dans les implémentations du callback
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async startListening(onTranscript?: (text: string) => void): Promise<void> {
-    if (!this.config.enableSpeechToText) {
-      throw new Error("La reconnaissance vocale n'est pas activée");
-    }
-
-    if (this.isListening) {
-      throw new Error("L'écoute est déjà en cours");
-    }
-
-    this.onTranscriptCallback = onTranscript || null;
-
-    // Vérifier si on est sur web et si l'API Speech Recognition est disponible
-    if (Platform.OS === 'web') {
-      const globalWindow = getWindow();
-      if (
-        globalWindow &&
-        ('webkitSpeechRecognition' in globalWindow || 'SpeechRecognition' in globalWindow)
-      ) {
-        return this.startWebSpeechRecognition();
-      } else {
-        throw new Error(
-          'Reconnaissance vocale non disponible sur ce navigateur. Utilisez Chrome ou Edge.'
-        );
-      }
-    }
-
-    // Pour mobile, utiliser expo-av pour l'enregistrement
-    // Note: La transcription nécessite une API externe (Google Speech-to-Text, etc.)
-    return this.startMobileRecording();
-  }
-
-  /**
-   * Utilise l'API Web Speech Recognition (navigateur)
-   */
-  private async startWebSpeechRecognition(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const globalWindow = getWindow();
-      if (!globalWindow) {
-        reject(new Error('Reconnaissance vocale non disponible sur ce navigateur'));
-        return;
-      }
-
-      const SpeechRecognition =
-        globalWindow.SpeechRecognition || globalWindow.webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        reject(new Error('Reconnaissance vocale non disponible sur ce navigateur'));
-        return;
-      }
-
-      const recognition = new SpeechRecognition();
-      recognition.lang = this.config.language === 'fr-CI' ? 'fr-FR' : this.config.language;
-      recognition.continuous = true;
-      recognition.interimResults = true;
-
-      // Stocker la référence pour pouvoir l'arrêter plus tard
-      this.webRecognition = recognition;
-
-      recognition.onstart = () => {
-        this.isListening = true;
-        resolve();
-      };
-
-      recognition.onresult = (event: SpeechRecognitionEvent) => {
-        let transcript = '';
-        // Utiliser resultIndex et results pour extraire le texte
-        const startIndex = event.resultIndex;
-        for (let i = startIndex; i < event.results.length; i++) {
-          const result = event.results[i];
-          // Utiliser index 0 pour obtenir la meilleure alternative
-          if (result[0]) {
-            transcript += result[0].transcript;
-          }
-        }
-
-        // Éviter les mises à jour trop fréquentes (debounce)
-        if (this.onTranscriptCallback && transcript.trim()) {
-          // Utiliser requestAnimationFrame pour éviter de bloquer l'UI
-          requestAnimationFrame(() => {
-            if (this.onTranscriptCallback) {
-              this.onTranscriptCallback(transcript);
-            }
-          });
-        }
-      };
-
-      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        this.isListening = false;
-        // Utiliser event.error pour obtenir le message d'erreur
-        const errorMessage = event.error || 'Erreur inconnue';
-        reject(new Error(`Erreur de reconnaissance vocale: ${errorMessage}`));
-      };
-
-      recognition.onend = () => {
-        this.isListening = false;
-        this.webRecognition = null;
-      };
-
-      recognition.start();
-    });
-  }
-
-  /**
-   * Utilise expo-av pour l'enregistrement audio (mobile)
-   * Note: Pour la transcription, il faudrait utiliser une API externe
-   * Pour l'instant, on simule une transcription simple
-   */
-  private async startMobileRecording(): Promise<void> {
-    try {
-      // Charger les modules Expo de manière lazy
-      await loadExpoModules();
-      
-      if (!Audio) {
-        throw new Error(
-          'expo-av n\'est pas disponible. Veuillez créer un build de développement.'
-        );
-      }
-
-      // Demander les permissions
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') {
-        throw new Error(
-          "Permission microphone refusée. Activez-la dans les paramètres de l'application."
-        );
-      }
-
-      // Configurer le mode audio
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      // Créer un nouvel enregistrement avec des options optimisées
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.LOW_QUALITY_PCM // Plus léger que HIGH_QUALITY
-      );
-
-      this.recording = recording;
-      this.isListening = true;
-
-      // Utiliser FileSystem pour préparer le répertoire de sauvegarde des enregistrements
-      if (FileSystem && FileSystem.documentDirectory) {
-        const recordingDir = `${FileSystem.documentDirectory}recordings/`;
-        
-        try {
-          // Essayer de créer le répertoire (si il n'existe pas, il sera créé; si il existe, rien ne se passe)
-          await FileSystem.makeDirectoryAsync(recordingDir, { intermediates: true });
-        } catch (error: any) {
-          // Si le répertoire existe déjà, ignorer l'erreur
-          if (!error.message?.includes('already exists')) {
-            logger.warn('[VoiceService] Impossible de créer le répertoire recordings:', error);
-          }
-        }
-      }
-
-      // Note: Sur mobile, la transcription nécessite une API externe
-      // Pour l'instant, on informe l'utilisateur qu'il doit utiliser le texte
-      logger.debug(
-        '[VoiceService] Enregistrement démarré. La transcription nécessite une API externe.'
-      );
-    } catch (error: unknown) {
+    Voice.onSpeechEnd = () => {
+      logger.debug('[VoiceService] Speech end');
       this.isListening = false;
-      this.recording = null;
+      this.callbacks.onEnd?.();
+    };
+
+    Voice.onSpeechResults = (e: any) => {
+      logger.debug('[VoiceService] Speech results:', e.value);
+      const text = e.value?.[0];
+      if (text && this.callbacks.onResult) {
+        this.callbacks.onResult(text.trim());
+      }
+    };
+
+    Voice.onSpeechPartialResults = (e: any) => {
+      // Transcription partielle (temps réel) - optionnel
+      const text = e.value?.[0];
+      if (text && this.callbacks.onResult) {
+        // Peut être utilisé pour afficher la transcription en temps réel
+        // Pour l'instant, on utilise seulement les résultats finaux
+      }
+    };
+
+    Voice.onSpeechError = (e: any) => {
+      logger.error('[VoiceService] Speech error:', e);
+      let message = "Je n'ai pas bien entendu. Réessaie, mon frère.";
+
+      if (e.error?.message) {
+        const errorMsg = e.error.message.toLowerCase();
+
+        if (errorMsg.includes('network') || errorMsg.includes('internet')) {
+          message =
+            "Pas de connexion internet pour la reconnaissance vocale. Tape ton message ou réessaie plus tard.";
+        } else if (errorMsg.includes('no match') || errorMsg.includes('not recognized')) {
+          message = "Je n'ai rien entendu. Parle plus fort ou rapproche le téléphone.";
+        } else if (errorMsg.includes('permission') || errorMsg.includes('authorization')) {
+          message =
+            "Permission microphone requise. Activez-la dans les paramètres de l'application.";
+        } else if (errorMsg.includes('timeout')) {
+          message = "Temps d'écoute dépassé. Réessaie.";
+        }
+      }
+
+      this.isListening = false;
+      this.callbacks.onError?.(message);
+    };
+    
+    this.listenersSetup = true;
+  }
+
+  /**
+   * Démarre la reconnaissance vocale
+   */
+  async startListening(callbacks: VoiceServiceCallbacks): Promise<void> {
+    if (this.isListening) {
+      logger.warn('[VoiceService] Already listening');
+      return;
+    }
+
+    this.callbacks = callbacks;
+
+    // Configurer les listeners lors de la première utilisation
+    await this.setupListeners();
+
+    if (!Voice) {
+throw new Error("Reconnaissance vocale indisponible dans Expo Go. Crée un build de développement (dev build) pour activer le micro.");
+    }
+
+    try {
+      // Vérifier si la reconnaissance vocale est disponible
+      const isAvailable = await Voice.isAvailable();
+      if (!isAvailable) {
+        throw new Error("La reconnaissance vocale n'est pas disponible sur cet appareil.");
+      }
+
+      // Définir la langue : priorité au français ivoirien, fallback français standard
+      // Note: iOS utilise 'fr-CI' si disponible, sinon 'fr-FR'
+      // Android utilise 'fr-FR' (le format fr-CI n'est pas toujours supporté)
+      const locale = Platform.OS === 'ios' ? 'fr-CI' : 'fr-FR';
+
+      await Voice.start(locale);
+      this.isListening = true;
+      logger.debug('[VoiceService] Listening started with locale:', locale);
+    } catch (error) {
+      logger.error('[VoiceService] Error starting listening:', error);
+      this.isListening = false;
+
+      let errorMessage = 'Impossible de démarrer le microphone.';
+      if (error instanceof Error) {
+        if (error.message.includes('permission') || error.message.includes('Permission')) {
+          errorMessage = 'Vérifie les autorisations du microphone dans les réglages.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
+      this.callbacks.onError?.(errorMessage);
       throw error;
     }
   }
 
   /**
-   * Arrête la reconnaissance vocale et retourne le texte transcrit
+   * Arrête la reconnaissance vocale
    */
-  async stopListening(): Promise<string> {
+  async stopListening(): Promise<void> {
     if (!this.isListening) {
-      return '';
+      return;
     }
 
-    this.isListening = false;
-
-    // Si on utilise l'API Web, arrêter explicitement
-    if (Platform.OS === 'web') {
-      if (this.webRecognition) {
-        try {
-          this.webRecognition.stop();
-        } catch (error) {
-          logger.error("Erreur lors de l'arrêt de la reconnaissance web:", error);
-        }
-        this.webRecognition = null;
-      }
-      return '';
+    await loadVoiceModules();
+    if (!Voice) {
+      logger.warn('[VoiceService] Voice module non disponible');
+      this.isListening = false;
+      return;
     }
 
-    // Pour mobile, arrêter l'enregistrement et transcrire
-    if (this.recording) {
-      try {
-        await this.recording.stopAndUnloadAsync();
-        const uri = this.recording.getURI();
-        this.recording = null;
-
-        if (!uri) {
-          return '';
-        }
-
-        // Si un service de transcription est configuré, l'utiliser
-        if (this.transcriptionService) {
-          try {
-            logger.debug('[VoiceService] Début transcription...');
-            const result = await this.transcriptionService.transcribe(uri);
-            logger.debug('[VoiceService] Transcription réussie:', result.text);
-            return result.text || '';
-          } catch (error: unknown) {
-            logger.error('[VoiceService] Erreur transcription:', error);
-            // Ne pas bloquer l'utilisateur, retourner une chaîne vide
-            return '';
-          }
-        }
-
-        // Si pas de service de transcription, informer l'utilisateur
-        logger.debug(
-          '[VoiceService] Enregistrement arrêté. Aucun service de transcription configuré.'
-        );
-        return ''; // Retourner une chaîne vide
-      } catch (error) {
-        logger.error("Erreur lors de l'arrêt de l'enregistrement:", error);
-        this.recording = null;
-        return '';
-      }
+    try {
+      await Voice.stop();
+      this.isListening = false;
+      logger.debug('[VoiceService] Listening stopped');
+    } catch (error) {
+      logger.error('[VoiceService] Error stopping listening:', error);
+      this.isListening = false;
     }
-
-    return '';
   }
 
   /**
-   * Vérifie les permissions pour la reconnaissance vocale
+   * Annule la reconnaissance vocale
    */
-  async checkPermissions(): Promise<boolean> {
-    // TODO: Vérifier les permissions selon la plateforme
-    if (Platform.OS === 'ios') {
-      // Vérifier les permissions iOS
-      return true;
-    } else if (Platform.OS === 'android') {
-      // Vérifier les permissions Android
-      return true;
+  async cancelListening(): Promise<void> {
+    if (!this.isListening) {
+      return;
     }
-    return false;
+
+    await loadVoiceModules();
+    if (!Voice) {
+      logger.warn('[VoiceService] Voice module non disponible');
+      this.isListening = false;
+      return;
+    }
+
+    try {
+      await Voice.cancel();
+      this.isListening = false;
+      logger.debug('[VoiceService] Listening cancelled');
+    } catch (error) {
+      logger.error('[VoiceService] Error cancelling listening:', error);
+      this.isListening = false;
+    }
   }
 
   /**
-   * Demande les permissions pour la reconnaissance vocale
+   * Fait parler Kouakou (Text-to-Speech)
    */
+  async speak(text: string, onDone?: () => void): Promise<void> {
+    if (!text || text.trim().length === 0) {
+      logger.warn('[VoiceService] Empty text, cannot speak');
+      return;
+    }
+
+    try {
+      // Nettoyer le texte (enlever les émojis, formatage spécial, etc.)
+      const cleanText = this.cleanTextForSpeech(text);
+
+      await loadVoiceModules();
+      if (!Speech) {
+        logger.warn('[VoiceService] Speech module non disponible');
+        return;
+      }
+
+      Speech.speak(cleanText, {
+        language: 'fr-FR',
+        pitch: 1.0,
+        rate: 0.9, // Légèrement plus lent pour une meilleure compréhension
+        onDone: () => {
+          logger.debug('[VoiceService] Speech finished');
+          onDone?.();
+        },
+        onStopped: () => {
+          logger.debug('[VoiceService] Speech stopped');
+        },
+        onError: (error) => {
+          logger.error('[VoiceService] Speech error:', error);
+        },
+      });
+    } catch (error) {
+      logger.error('[VoiceService] Error speaking:', error);
+    }
+  }
+
   /**
-   * Vérifie si la synthèse vocale (Text-to-Speech) est disponible
+   * Arrête la synthèse vocale
    */
-  async isTextToSpeechAvailable(): Promise<boolean> {
-    if (!this.config.enableTextToSpeech) {
+  async stopSpeaking(): Promise<void> {
+    await loadVoiceModules();
+    if (!Speech) {
+      logger.warn('[VoiceService] Speech module non disponible');
+      return;
+    }
+
+    try {
+      Speech.stop();
+      logger.debug('[VoiceService] Speech stopped');
+    } catch (error) {
+      logger.error('[VoiceService] Error stopping speech:', error);
+    }
+  }
+
+  /**
+   * Vérifie si la reconnaissance vocale est disponible
+   */
+  async isAvailable(): Promise<boolean> {
+    await loadVoiceModules();
+    if (!Voice) {
       return false;
     }
 
     try {
-      // Vérifier si on est sur web
-      if (Platform.OS === 'web') {
-        // Sur le web, vérifier si l'API SpeechSynthesis est disponible
-        const globalWindow = getWindow();
-        return globalWindow !== undefined && 'speechSynthesis' in globalWindow;
-      }
-
-      // Sur mobile, vérifier si expo-speech est disponible (TODO: une fois installé)
-      // Pour l'instant, considérer comme non disponible si pas implémenté
-      return false;
-    } catch (error) {
-      logger.warn('[VoiceService] Erreur lors de la vérification de disponibilité TTS:', error);
+      return !!(await Voice.isAvailable());
+    } catch {
       return false;
     }
   }
 
   /**
-   * Vérifie si la reconnaissance vocale (Speech-to-Text) est disponible
+   * Vérifie si on est en train d'écouter
    */
-  async isSpeechToTextAvailable(): Promise<boolean> {
-    if (!this.config.enableSpeechToText) {
-      return false;
-    }
-
-    try {
-      // Vérifier si on est sur web
-      if (Platform.OS === 'web') {
-        const globalWindow = getWindow();
-        return (
-          globalWindow !== undefined &&
-          ('webkitSpeechRecognition' in globalWindow || 'SpeechRecognition' in globalWindow)
-        );
-      }
-
-      // Sur mobile, vérifier les permissions audio
-      await loadExpoModules();
-      if (!Audio) {
-        return false;
-      }
-
-      const { status } = await Audio.getPermissionsAsync();
-      return status === 'granted';
-    } catch (error) {
-      logger.warn('[VoiceService] Erreur lors de la vérification de disponibilité STT:', error);
-      return false;
-    }
+  getIsListening(): boolean {
+    return this.isListening;
   }
 
-  async requestPermissions(): Promise<boolean> {
+  /**
+   * Nettoie le texte pour la synthèse vocale
+   * Enlève les émojis, les caractères spéciaux, etc.
+   */
+  private cleanTextForSpeech(text: string): string {
+    return (
+      text
+        // Enlever les émojis
+        .replace(/[\u{1F600}-\u{1F64F}]/gu, '')
+        .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
+        .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
+        .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '')
+        .replace(/[\u{2600}-\u{26FF}]/gu, '')
+        .replace(/[\u{2700}-\u{27BF}]/gu, '')
+        // Enlever les balises HTML/Markdown
+        .replace(/<[^>]*>/g, '')
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/\*(.*?)\*/g, '$1')
+        // Nettoyer les espaces multiples
+        .replace(/\s+/g, ' ')
+        .trim()
+    );
+  }
+
+  /**
+   * Nettoie les ressources (appelé lors du démontage)
+   */
+  async destroy(): Promise<void> {
     try {
-      // Vérifier d'abord la disponibilité
-      const isSTTAvailable = await this.isSpeechToTextAvailable();
-      const isTTSAvailable = await this.isTextToSpeechAvailable();
-
-      if (!isSTTAvailable && !isTTSAvailable) {
-        logger.warn('[VoiceService] Aucune fonctionnalité vocale disponible');
-        return false;
+      if (this.isListening) {
+        await this.cancelListening();
       }
-
-      // Demander les permissions pour Speech-to-Text si nécessaire
-      if (this.config.enableSpeechToText && Platform.OS !== 'web') {
-        await loadExpoModules();
-        if (!Audio) {
-          logger.warn('[VoiceService] expo-av non disponible pour les permissions');
-          return false;
-        }
-
-        const { status } = await Audio.requestPermissionsAsync();
-        if (status !== 'granted') {
-          logger.warn('[VoiceService] Permissions audio refusées');
-          return false;
-        }
+      await loadVoiceModules();
+      if (Voice) {
+        await Voice.destroy();
       }
-
-      return true;
+      this.callbacks = {};
+      logger.debug('[VoiceService] Destroyed');
     } catch (error) {
-      logger.error('[VoiceService] Erreur lors de la demande de permissions:', error);
-      return false;
+      logger.error('[VoiceService] Error destroying:', error);
     }
   }
 }
+
+// Export une instance singleton pour faciliter l'utilisation
+export const voiceService = new VoiceService();
+

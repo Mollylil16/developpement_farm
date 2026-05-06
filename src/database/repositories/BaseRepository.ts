@@ -15,8 +15,21 @@ export abstract class BaseRepository<T> {
   protected apiBasePath: string;
 
   constructor(tableName: string, apiBasePath: string) {
-    this.tableName = tableName;
-    this.apiBasePath = apiBasePath;
+    this.tableName = typeof tableName === 'string' ? tableName : 'unknown';
+    this.apiBasePath = typeof apiBasePath === 'string' ? apiBasePath : '';
+  }
+
+  /**
+   * Legacy SQLite execute method - kept for backward compatibility
+   * @deprecated Use query/queryOne/executePost/executePatch/executeDelete instead
+   */
+  protected async execute(sql: string, params?: any[]): Promise<any> {
+    // This is a legacy method stub for repositories that haven't been migrated to the API-based approach
+    const db = (this as any)._db || (this as any).db;
+    if (db && typeof db.runAsync === 'function') {
+      return db.runAsync(sql, params || []);
+    }
+    throw new Error(`[${this.tableName}] execute() is not supported in API-based repositories`);
   }
 
   /**
@@ -233,8 +246,16 @@ export abstract class BaseRepository<T> {
   }
 
   /**
-   * Méthodes abstraites à implémenter par les repositories enfants
+   * Default create implementation (subclasses may override)
    */
-  abstract create(data: Partial<T>): Promise<T>;
-  abstract update(id: string, data: Partial<T>): Promise<T>;
+  async create(data: Partial<T>): Promise<T> {
+    return apiClient.post<T>(this.apiBasePath, data);
+  }
+
+  /**
+   * Default update implementation (subclasses may override)
+   */
+  async update(id: string, data: Partial<T>): Promise<T> {
+    return apiClient.patch<T>(`${this.apiBasePath}/${id}`, data);
+  }
 }

@@ -73,7 +73,7 @@ export default function ManualQRInput({
       await onValidate(cleaned);
       // Réinitialiser le champ après validation réussie
       setQrCode('');
-    } catch (err: unknown) {
+    } catch (err) {
       setError(err.message || 'Une erreur est survenue lors de la validation du code');
     }
   };

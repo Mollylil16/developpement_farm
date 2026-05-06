@@ -188,7 +188,7 @@ const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = ({ route
       <Section title="Informations Générales">
         <View style={styles.infoGrid}>
           <View style={styles.infoItem}>
-            <MaterialIcons name={getTypeIcon(transaction.type)} size={20} color={getTypeColor(transaction.type)} />
+            <MaterialIcons name={getTypeIcon(transaction.type) as any} size={20} color={getTypeColor(transaction.type)} />
             <Text style={styles.infoLabel}>Type</Text>
             <Text style={[styles.infoValue, { color: getTypeColor(transaction.type) }]}>
               {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
@@ -205,7 +205,7 @@ const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = ({ route
             <MaterialIcons name="event" size={20} color="#2196F3" />
             <Text style={styles.infoLabel}>Date</Text>
             <Text style={styles.infoValue}>
-              {transaction.date.toLocaleDateString('fr-FR')}
+              {new Date(transaction.date).toLocaleDateString('fr-FR')}
             </Text>
           </View>
           
@@ -250,7 +250,7 @@ const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = ({ route
                       {document.nomFichier}
                     </Text>
                     <Text style={styles.documentDetails}>
-                      {formatFileSize(document.tailleFichier)} • {document.dateAjout.toLocaleDateString('fr-FR')}
+                      {formatFileSize(document.tailleFichier)} • {new Date(document.dateAjout).toLocaleDateString('fr-FR')}
                     </Text>
                   </View>
                 </View>

@@ -16,7 +16,7 @@ export interface FewShotExample {
  * Exemples few-shot par intent clé
  * 10 exemples pour chaque intent principal
  */
-export const FEW_SHOT_EXAMPLES: Record<AgentActionType, FewShotExample[]> = {
+export const FEW_SHOT_EXAMPLES: Partial<Record<AgentActionType, FewShotExample[]>> = {
   // ========== CREATE_REVENU (10 exemples) ==========
   create_revenu: [
     { message: "j'ai vendu 5 porcs à 800000", action: 'create_revenu', confidence: 0.98, explanation: "Verbe 'vendu' + quantité + montant" },

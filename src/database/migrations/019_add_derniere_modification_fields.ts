@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Migration 19 : Ajouter derniere_modification à plusieurs tables
  * Permet de tracker les modifications pour revenus, depenses_ponctuelles et marketplace_listings
  *
@@ -23,7 +23,7 @@ export async function addDerniereModificationFields(db: SQLiteDatabase): Promise
       `);
       console.log('✅ Migration: Colonne derniere_modification ajoutée à revenus');
     }
-  } catch (error: unknown) {
+  } catch (error) {
     console.warn(
       "⚠️  Erreur lors de l'ajout de derniere_modification dans revenus:",
       getErrorMessage(error)
@@ -46,7 +46,7 @@ export async function addDerniereModificationFields(db: SQLiteDatabase): Promise
       `);
       console.log('✅ Migration: Colonne derniere_modification ajoutée à depenses_ponctuelles');
     }
-  } catch (error: unknown) {
+  } catch (error) {
     console.warn(
       "⚠️  Erreur lors de l'ajout de derniere_modification dans depenses_ponctuelles:",
       getErrorMessage(error)
@@ -83,7 +83,7 @@ export async function addDerniereModificationFields(db: SQLiteDatabase): Promise
         console.log('✅ Migration: Colonne derniere_modification ajoutée à marketplace_listings');
       }
     }
-  } catch (error: unknown) {
+  } catch (error) {
     console.warn(
       "⚠️  Erreur lors de l'ajout de derniere_modification dans marketplace_listings:",
       getErrorMessage(error)

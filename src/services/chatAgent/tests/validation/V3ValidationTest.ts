@@ -266,7 +266,7 @@ export async function runV3Validation(): Promise<string> {
     console.log(`  ${status} ${result.responseTime}ms\n`);
     
     // Petite pause entre les tests pour éviter la surcharge
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise<void>(resolve => setTimeout(() => resolve(), 100));
   }
   
   // Générer le rapport
@@ -276,7 +276,9 @@ export async function runV3Validation(): Promise<string> {
 }
 
 // Si exécuté directement
-if (require.main === module) {
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+if ((require as any).main === module) {
   runV3Validation()
     .then(report => {
       console.log(report);

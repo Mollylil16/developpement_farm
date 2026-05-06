@@ -2,7 +2,7 @@
  * Actions liées aux stocks d'aliments
  */
 
-import { AgentActionResult, AgentContext } from '../../../types/chatAgent';
+import { AgentActionResult, AgentContext } from '../../../../types/chatAgent';
 import { parseMontant } from '../../../../utils/formatters';
 import { FORMULES_RECOMMANDEES } from '../../../../types/nutrition';
 import type { TypePorc } from '../../../../types/nutrition';

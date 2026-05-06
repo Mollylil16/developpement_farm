@@ -13,7 +13,7 @@ import { BaseRepository } from './BaseRepository';
 import { User, AuthProvider } from '../../types/auth';
 import { UserRoles, RoleType } from '../../types/roles';
 import apiClient from '../../services/api/apiClient';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { API_CONFIG } from '../../config/api.config';
 
 export class UserRepository extends BaseRepository<User> {
@@ -470,8 +470,8 @@ export class UserRepository extends BaseRepository<User> {
       await apiClient.delete(`/users/${userId}/photo`, {
         timeout: 10000,
         retry: {
-          attempts: 2,
-          delay: 1000,
+          maxRetries: 2,
+          retryDelay: 1000,
         },
       });
     } catch (error) {

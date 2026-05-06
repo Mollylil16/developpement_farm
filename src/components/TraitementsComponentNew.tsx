@@ -1,4 +1,4 @@
-/**
+﻿/**
  * TraitementsComponentNew - Refonte complète
  * Section A: Inventaire des produits (vaccins + médicaments)
  * Section B: Suivi des sujets malades avec statuts
@@ -296,7 +296,7 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
                       categorie: categorie as 'truie' | 'verrat' | 'porcelet' | 'autre',
                       animal_code: animal.code || undefined,
                       notes: `Décès suite à: ${maladie.nom_maladie}. Symptômes: ${maladie.symptomes || 'N/A'}`,
-                    })
+                    } as any)
                   ).unwrap();
 
                   // 3. Mettre à jour la maladie comme terminée
@@ -315,7 +315,7 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
                     'Décès enregistré',
                     `${animal.nom || "L'animal"} a été retiré du cheptel actif.\n\nLe cas de maladie et la cause du décès ont été archivés.`
                   );
-                } catch (error: unknown) {
+                } catch (error) {
                   console.error('Erreur changement statut mort:', error);
                   const errorMessage = error instanceof Error ? error.message : String(error) || 'Impossible d\'enregistrer le décès';
                   Alert.alert('Erreur', `Impossible d'enregistrer le décès: ${errorMessage}`);
@@ -337,7 +337,7 @@ export default function TraitementsComponentNew({ refreshControl }: TraitementsC
           ).unwrap();
 
           Alert.alert('Succès', `✅ ${animal?.nom || "L'animal"} a été marqué comme guéri !`);
-        } catch (error: unknown) {
+        } catch (error) {
           console.error('Erreur changement statut guéri:', error);
           const errorMessage = error instanceof Error ? error.message : String(error) || 'Impossible de marquer comme guéri';
           Alert.alert('Erreur', `Impossible de marquer comme guéri: ${errorMessage}`);

@@ -160,8 +160,8 @@ export class VaccinationRepository extends BaseRepository<Vaccination> {
       const vaccinations = await this.findByProjet(projetId);
       const total = vaccinations.length;
       const effectuees = vaccinations.filter(v => v.statut === 'effectue').length;
-      const enAttente = vaccinations.filter(v => v.statut === 'planifiee').length;
-      const enRetard = vaccinations.filter(v => v.statut === 'planifiee' && v.date_vaccination < new Date().toISOString()).length;
+      const enAttente = vaccinations.filter(v => v.statut === 'planifie').length;
+      const enRetard = vaccinations.filter(v => v.statut === 'planifie' && v.date_vaccination < new Date().toISOString()).length;
       const coutTotal = vaccinations.reduce((sum, v) => sum + (v.cout || 0), 0);
       const tauxCouverture = total > 0 ? (effectuees / total) * 100 : 0;
 
@@ -278,7 +278,7 @@ export class VaccinationRepository extends BaseRepository<Vaccination> {
     return this.create({
       projet_id: originale.projet_id,
       animal_ids: typeof originale.animal_ids === 'string' ? JSON.parse(originale.animal_ids) : originale.animal_ids,
-      vaccin: originale.vaccin || originale.type_vaccin,
+      vaccin: (originale.vaccin || originale.type_vaccin) as any,
       nom_vaccin: originale.nom_vaccin,
       date_vaccination: new Date().toISOString(),
       veterinaire: originale.veterinaire || originale.veterinaire_id,

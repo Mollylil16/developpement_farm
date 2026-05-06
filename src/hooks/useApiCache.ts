@@ -117,7 +117,7 @@ export function useApiCache<T>(
   load: () => Promise<T>;
   clearCache: () => void;
 } {
-  const projetIdRef = useRef<string | undefined>();
+  const projetIdRef = useRef<string | undefined>(undefined);
 
   const load = useCallback(async (): Promise<T> => {
     const ttl = config?.ttl || DEFAULT_TTL;
@@ -177,9 +177,9 @@ export function useFocusedApiLoad<T>(
   const React = require('react');
   const { useFocusEffect } = require('@react-navigation/native');
   
-  const [data, setData] = React.useState<T | null>(null);
+  const [data, setData] = React.useState(null as T | null);
   const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<Error | null>(null);
+  const [error, setError] = React.useState(null as Error | null);
   const { load, clearCache } = useApiCache(loadFn, cacheKey, config);
 
   useFocusEffect(

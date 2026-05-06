@@ -198,16 +198,16 @@ export class ClarificationService {
         case 'animal_code':
           if (extractionContext.lastAnimal) {
             suggestions.animal_code = extractionContext.lastAnimal;
-          } else if (extractionContext.recentEntities?.animaux?.length > 0) {
-            suggestions.animal_code = extractionContext.recentEntities.animaux[0];
+          } else if ((extractionContext.recentEntities?.animaux?.length ?? 0) > 0) {
+            suggestions.animal_code = extractionContext.recentEntities!.animaux![0];
           }
           break;
 
         case 'acheteur':
           if (extractionContext.lastAcheteur) {
             suggestions.acheteur = extractionContext.lastAcheteur;
-          } else if (extractionContext.recentEntities?.acheteurs?.length > 0) {
-            suggestions.acheteur = extractionContext.recentEntities.acheteurs[0];
+          } else if ((extractionContext.recentEntities?.acheteurs?.length ?? 0) > 0) {
+            suggestions.acheteur = extractionContext.recentEntities!.acheteurs![0];
           }
           break;
 
@@ -220,8 +220,8 @@ export class ClarificationService {
         case 'categorie':
           if (extractionContext.lastCategorie) {
             suggestions.categorie = extractionContext.lastCategorie;
-          } else if (extractionContext.recentEntities?.categories?.length > 0) {
-            suggestions.categorie = extractionContext.recentEntities.categories[0];
+          } else if ((extractionContext.recentEntities?.categories?.length ?? 0) > 0) {
+            suggestions.categorie = extractionContext.recentEntities!.categories![0];
           }
           break;
 

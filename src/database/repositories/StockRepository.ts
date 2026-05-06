@@ -9,7 +9,7 @@
  */
 
 import { BaseRepository } from './BaseRepository';
-import { StockAliment, MouvementStock, CreateStockAlimentInput } from '../../types/nutrition';
+import { StockAliment, StockMouvement as MouvementStock, CreateStockAlimentInput } from '../../types/nutrition';
 
 export class StockRepository extends BaseRepository<StockAliment> {
   constructor() {
@@ -66,7 +66,7 @@ export class StockRepository extends BaseRepository<StockAliment> {
   /**
    * Mapper une ligne de la base de données vers StockAliment
    */
-  private mapRowToStockAliment(row: unknown): StockAliment {
+  private mapRowToStockAliment(row: any): StockAliment {
     // S'assurer que quantite_actuelle est toujours un nombre
     const quantiteActuelle =
       typeof row.quantite_actuelle === 'number'

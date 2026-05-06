@@ -191,7 +191,7 @@ export default function DepenseFormModal({
         await dispatch(
           updateDepensePonctuelle({
             id: depense.id,
-            updates: {
+            data: {
               montant: formData.montant,
               categorie: formData.categorie,
               libelle_categorie: formData.libelle_categorie,
@@ -208,7 +208,7 @@ export default function DepenseFormModal({
         }
 
         await dispatch(
-          createDepensePonctuelle({ ...formData, projet_id: projetActif.id })
+          createDepensePonctuelle({ ...formData, projet_id: projetActif.id } as any)
         ).unwrap();
       }
 
@@ -217,7 +217,7 @@ export default function DepenseFormModal({
       setTimeout(() => {
         onSuccess();
       }, 300); // Délai pour animation de fermeture
-    } catch (error: unknown) {
+    } catch (error) {
       // Afficher le message d'erreur correct
       const errorMessage = error instanceof Error ? error.message : (typeof error === 'string' ? error : "Erreur lors de l'enregistrement");
       Alert.alert('Erreur', errorMessage);

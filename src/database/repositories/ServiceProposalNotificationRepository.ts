@@ -118,13 +118,13 @@ export class ServiceProposalNotificationRepository extends BaseRepository<Servic
    * Supprimer toutes les notifications lues d'un utilisateur
    */
   async deleteReadByUserId(userId: string): Promise<void> {
-    await this.executeDelete(`${this.apiBasePath}/read`, { user_id: userId });
+    await this.executeDelete(`${this.apiBasePath}/read?user_id=${userId}`);
   }
 
   /**
    * Mapper une ligne de la base de données vers un objet Notification
    */
-  private mapRowToNotification(row: unknown): ServiceProposalNotification {
+  private mapRowToNotification(row: any): ServiceProposalNotification {
     return {
       id: row.id,
       userId: row.user_id,

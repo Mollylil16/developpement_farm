@@ -182,7 +182,7 @@ const VetProposeFarmsScreen: React.FC = () => {
 
       // Recharger la liste
       loadNearbyFarms();
-    } catch (error: unknown) {
+    } catch (error) {
       Alert.alert('Erreur', (error instanceof Error ? error.message : String(error)) || "Impossible d'envoyer la proposition");
     }
   };

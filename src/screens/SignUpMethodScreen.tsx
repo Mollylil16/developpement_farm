@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Écran de sélection de la méthode d'inscription
  * Permet de choisir entre téléphone, Google ou Apple
  */
@@ -39,7 +39,7 @@ const SignUpMethodScreen: React.FC = () => {
 
         if (isNewUser || hasIncompleteName) {
           // Naviguer vers UserInfo pour compléter les informations
-          navigation.navigate(SCREENS.USER_INFO as never, {
+          navigation.navigate(SCREENS.USER_INFO as any, {
             email: result.email,
             provider: 'google',
             providerId: result.id,
@@ -50,7 +50,7 @@ const SignUpMethodScreen: React.FC = () => {
           // La navigation sera gérée par AppNavigator
         }
       }
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur Google OAuth:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
       
@@ -85,7 +85,7 @@ const SignUpMethodScreen: React.FC = () => {
 
         if (isNewUser || hasIncompleteName) {
           // Naviguer vers UserInfo pour compléter les informations
-          navigation.navigate(SCREENS.USER_INFO as never, {
+          navigation.navigate(SCREENS.USER_INFO as any, {
             email: result.email,
             provider: 'apple',
             providerId: result.id,
@@ -96,7 +96,7 @@ const SignUpMethodScreen: React.FC = () => {
           // La navigation sera gérée par AppNavigator
         }
       }
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur Apple OAuth:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
       

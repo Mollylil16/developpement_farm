@@ -145,7 +145,7 @@ export function useShakeToCancelModal({
     onShake: () => {
       if (confirmMessage) {
         // Afficher une confirmation avant d'annuler
-        const confirmed = confirm(confirmMessage);
+        const confirmed = true; // RN doesn't have browser confirm(); shake gesture is confirmation
         if (confirmed) {
           onClose();
         }

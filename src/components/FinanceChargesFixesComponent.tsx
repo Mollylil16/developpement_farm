@@ -90,7 +90,7 @@ function FinanceChargesFixesComponent() {
     dispatch(
       updateChargeFixe({
         id: charge.id,
-        updates: { statut: charge.statut === 'actif' ? 'suspendu' : 'actif' },
+        data: { statut: charge.statut === 'actif' ? 'suspendu' : 'actif' },
       })
     );
   };

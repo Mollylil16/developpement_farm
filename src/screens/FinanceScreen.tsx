@@ -159,7 +159,7 @@ const FinanceScreen: React.FC = () => {
       id: Date.now().toString(),
       type: transactionForm.type as any,
       montant: parseFloat(transactionForm.montant),
-      date: new Date(),
+      date: new Date().toISOString(),
       description: transactionForm.description,
       categorie: transactionForm.categorie,
       porcId: transactionForm.porcId || undefined,
@@ -207,7 +207,7 @@ const FinanceScreen: React.FC = () => {
         </Text>
       </View>
       <Text style={styles.transactionDescription}>{transaction.description}</Text>
-      <Text style={styles.transactionDate}>{transaction.date.toLocaleDateString()}</Text>
+      <Text style={styles.transactionDate}>{new Date(transaction.date).toLocaleDateString()}</Text>
       {transaction.categorie && (
         <Text style={styles.transactionCategory}>Catégorie: {transaction.categorie}</Text>
       )}

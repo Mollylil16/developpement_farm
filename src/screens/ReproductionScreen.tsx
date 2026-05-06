@@ -20,7 +20,8 @@ import { ValidationFormulaires } from '../utils/validation';
 import { CalculsAgricoles, UtilitairesDate } from '../utils/calculs';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
-import { Gestation, Sevrage, Porc } from '../types';
+import type { Gestation, Sevrage } from '../types/reproduction';
+import type { Porc } from '../types';
 
 const ReproductionScreen: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -94,14 +95,16 @@ const ReproductionScreen: React.FC = () => {
     }
 
     try {
-      const sevrageData: Sevrage = {
+      const sevrageData = {
         id: ValidationFormulaires.genererId(),
-        porceletId: sevrageForm.porceletId,
-        dateSevrage: new Date(),
-        poidsSevrage: parseFloat(sevrageForm.poidsSevrage),
-        alimentation: sevrageForm.alimentation,
+        projet_id: '',
+        gestation_id: '',
+        date_sevrage: new Date().toISOString(),
+        nombre_porcelets_sevres: 1,
+        poids_moyen_sevrage: parseFloat(sevrageForm.poidsSevrage),
         notes: sevrageForm.notes,
-      };
+        date_creation: new Date().toISOString(),
+      } as Sevrage;
 
       dispatch(addSevrage(sevrageData));
       
@@ -123,13 +126,13 @@ const ReproductionScreen: React.FC = () => {
   const gestationsEnCours = gestations.filter(g => g.statut === 'en_cours').length;
   const gestationsTerminees = gestations.filter(g => g.statut === 'terminee').length;
   const totalPorceletsSevres = sevrages.length;
-  const moyennePorceletsParGestation = gestations.length > 0 
-    ? gestations.reduce((sum, g) => sum + g.nombrePorceletsPrevu, 0) / gestations.length 
+  const moyennePorceletsParGestation = gestations.length > 0
+    ? gestations.reduce((sum, g) => sum + (g.nombre_porcelets_prevu ?? 0), 0) / gestations.length
     : 0;
 
   const GestationCard = ({ gestation }: { gestation: Gestation }) => {
-    const truie = porcs.find(p => p.id === gestation.truieId);
-    const joursRestants = Math.ceil((gestation.dateMiseBasPrevue.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+    const truie = porcs.find(p => p.id === gestation.truie_id);
+    const joursRestants = Math.ceil((new Date(gestation.date_mise_bas_prevue).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
     
     return (
       <View style={styles.card}>
@@ -147,10 +150,10 @@ const ReproductionScreen: React.FC = () => {
           </View>
         </View>
         <Text style={styles.cardSubtitle}>
-          {gestation.nombrePorceletsPrevu} porcelets prévus
+          {gestation.nombre_porcelets_prevu} porcelets prévus
         </Text>
         <Text style={styles.cardDate}>
-          Mise bas prévue : {gestation.dateMiseBasPrevue.toLocaleDateString()}
+          Mise bas prévue : {new Date(gestation.date_mise_bas_prevue).toLocaleDateString()}
         </Text>
         {gestation.notes && (
           <Text style={styles.cardNotes}>{gestation.notes}</Text>
@@ -160,24 +163,22 @@ const ReproductionScreen: React.FC = () => {
   };
 
   const SevrageCard = ({ sevrage }: { sevrage: Sevrage }) => {
-    const porcelet = porcs.find(p => p.id === sevrage.porceletId);
-    
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>
-            {porcelet?.numeroIdentification || 'Porcelet inconnu'}
+            Sevrage
           </Text>
           <Text style={styles.cardDate}>
-            {sevrage.dateSevrage.toLocaleDateString()}
+            {new Date(sevrage.date_sevrage).toLocaleDateString()}
           </Text>
         </View>
         <Text style={styles.cardSubtitle}>
-          Poids : {sevrage.poidsSevrage} kg
+          Porcelets sevrés : {sevrage.nombre_porcelets_sevres}
         </Text>
-        {sevrage.alimentation && (
+        {sevrage.poids_moyen_sevrage && (
           <Text style={styles.cardSubtitle}>
-            Alimentation : {sevrage.alimentation}
+            Poids moyen : {sevrage.poids_moyen_sevrage} kg
           </Text>
         )}
         {sevrage.notes && (
@@ -316,7 +317,7 @@ const ReproductionScreen: React.FC = () => {
               markedDates={{
                 [selectedDate]: { selected: true, selectedColor: '#FF9800' },
                 ...gestations.reduce((acc, g) => {
-                  const dateKey = g.dateMiseBasPrevue.toISOString().split('T')[0];
+                  const dateKey = (g.date_mise_bas_prevue as string).split('T')[0];
                   acc[dateKey] = { marked: true, dotColor: '#FF9800' };
                   return acc;
                 }, {} as any)
@@ -344,7 +345,7 @@ const ReproductionScreen: React.FC = () => {
           value={gestationForm.truieId}
           options={truies.map(t => ({
             value: t.id,
-            label: `${t.numeroIdentification} - ${t.race}`
+            label: `${(t as any).numeroIdentification ?? t.id} - ${(t as any).race ?? ''}`
           }))}
           onSelect={(value) => setGestationForm({...gestationForm, truieId: value})}
           required

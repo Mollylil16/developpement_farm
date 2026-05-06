@@ -190,7 +190,7 @@ export default function SaleScreen() {
 
     setLoading(true);
     try {
-      const data = await apiClient.get(`/batch-sales/batch/${batch.id}/history`);
+      const data = await apiClient.get<any[]>(`/batch-sales/batch/${batch.id}/history`);
       setSales(data || []);
     } catch (error: any) {
       console.error('Erreur chargement ventes batch:', error);

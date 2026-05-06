@@ -49,7 +49,7 @@ export function useMemoizedApiCall<T>(
   
   const mountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Vérifier si le cache est valide
   const isCacheValid = useCallback((entry: CacheEntry<T> | undefined): boolean => {

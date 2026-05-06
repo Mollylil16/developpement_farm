@@ -257,7 +257,7 @@ export default function CreatePurchaseRequestModal({
           await apiClient.patch(`/marketplace/purchase-requests/${editRequest.id}`, updates);
 
           Alert.alert('Succès', "Votre demande d'achat a été modifiée.");
-        } catch (error: unknown) {
+        } catch (error) {
           logger.error('Erreur lors de la modification:', error);
           const errorMessage = error instanceof Error ? error.message : "Impossible de modifier la demande d'achat";
           Alert.alert('Erreur', errorMessage);
@@ -307,7 +307,7 @@ export default function CreatePurchaseRequestModal({
 
       onSuccess();
       handleClose();
-    } catch (error: unknown) {
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Impossible de créer la demande d'achat";
       Alert.alert('Erreur', errorMessage);
     } finally {
@@ -337,7 +337,7 @@ export default function CreatePurchaseRequestModal({
     try {
       await getCurrentLocation();
       Alert.alert('Succès', 'Localisation obtenue');
-    } catch (error: unknown) {
+    } catch (error) {
       Alert.alert('Erreur', "Impossible d'obtenir la localisation");
     }
   };

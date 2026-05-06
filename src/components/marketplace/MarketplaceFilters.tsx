@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
     marginBottom: MarketplaceTheme.spacing.sm,
   },
   rangeInputs: {
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   },
   resetButtonText: {
     fontSize: MarketplaceTheme.typography.fontSizes.md,
-    fontWeight: MarketplaceTheme.typography.fontWeights.semibold,
+    fontWeight: MarketplaceTheme.typography.fontWeights.semiBold,
   },
   applyButton: {
     flex: 2,

@@ -350,11 +350,11 @@ export function useFarmGrouping() {
           },
           listings: data.listings,
           representativeListing: firstListing,
-        });
+        } as any);
       }
       
       // Trier par nombre de sujets décroissant
-      farms.sort((a, b) => b.subjectCount - a.subjectCount);
+      farms.sort((a, b) => (b.subjectCount ?? 0) - (a.subjectCount ?? 0));
       
       return farms;
     } catch (error) {

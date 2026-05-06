@@ -3,7 +3,7 @@
  * Format compatible Excel avec plusieurs feuilles
  */
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
 import { format, parseISO } from 'date-fns';
@@ -203,7 +203,7 @@ export async function exportBilanCompletExcel(data: BilanCompletData): Promise<v
       dialogTitle: `Exporter ${fileName}`,
       UTI: 'public.comma-separated-values-text',
     });
-  } catch (error: unknown) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
     Alert.alert('Erreur', `Impossible d'exporter le bilan : ${errorMessage}`);
     throw error;

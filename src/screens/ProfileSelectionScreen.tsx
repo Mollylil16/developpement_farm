@@ -114,7 +114,7 @@ const ProfileSelectionScreen: React.FC = () => {
           });
           break;
       }
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur création profil:', error);
       
       // Extraire le message d'erreur de manière plus détaillée

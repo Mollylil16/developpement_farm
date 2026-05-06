@@ -24,7 +24,7 @@ export class RationRepository extends BaseRepository<Ration> {
   /**
    * Créer une nouvelle ration avec ses ingrédients
    */
-  async create(input: CreateRationInput): Promise<Ration> {
+  async create(input: any): Promise<Ration> {
     return this.executePost<Ration>(this.apiBasePath, input);
   }
 

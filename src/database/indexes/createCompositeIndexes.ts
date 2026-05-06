@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Création des index composites pour optimiser les requêtes fréquentes
  *
  * Les index composites sont essentiels pour les requêtes avec plusieurs conditions WHERE
@@ -294,7 +294,7 @@ async function createCompositeIndex(
 
     console.log(`✅ Index composite ${index.name} créé: ${index.description}`);
     return true;
-  } catch (error: unknown) {
+  } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`❌ Erreur lors de la création de l'index ${index.name}:`, errorMessage);
     return false;

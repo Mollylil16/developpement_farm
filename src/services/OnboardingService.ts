@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Service pour gérer l'onboarding des utilisateurs
  * Création de profils, upload de documents, validation
  */
@@ -308,7 +308,7 @@ class OnboardingService {
         throw new Error('Impossible de récupérer l\'utilisateur mis à jour');
       }
       return updatedUser;
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error(`[OnboardingService] Erreur lors de la création du profil ${profileType}:`, error);
       if (error instanceof Error) {
         throw error;

@@ -69,7 +69,7 @@ export function useMarketplaceData(options: MarketplaceDataOptions = {}) {
     received: null,
     sent: null,
   });
-  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortController = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
 

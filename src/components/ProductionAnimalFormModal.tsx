@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Modal pour créer ou modifier un animal en production
  */
 
@@ -70,7 +70,7 @@ export default function ProductionAnimalFormModal({
     origine: '',
     sexe: 'indetermine',
     date_naissance: '',
-    poids_initial: null,
+    poids_initial: undefined,
     date_entree: '',
     statut: 'actif',
     race: '',
@@ -243,7 +243,7 @@ export default function ProductionAnimalFormModal({
         origine: animal.origine || '',
         sexe: animal.sexe,
         date_naissance: animal.date_naissance || '',
-        poids_initial: animal.poids_initial || null,
+        poids_initial: animal.poids_initial ?? undefined,
         date_entree: animal.date_entree || '',
         statut: animal.statut || 'actif',
         race: animal.race || '',
@@ -262,7 +262,7 @@ export default function ProductionAnimalFormModal({
         origine: '',
         sexe: 'indetermine',
         date_naissance: '',
-        poids_initial: null,
+        poids_initial: undefined,
         date_entree: '',
         statut: 'actif',
         race: '',
@@ -329,7 +329,7 @@ export default function ProductionAnimalFormModal({
       setTimeout(() => {
         onSuccess();
       }, 100);
-    } catch (error: unknown) {
+    } catch (error) {
       Alert.alert('Erreur', error?.message || error || "Erreur lors de l'enregistrement.");
     } finally {
       setLoading(false);
@@ -536,7 +536,7 @@ export default function ProductionAnimalFormModal({
             label="Poids à l'arrivée (kg)"
             value={formData.poids_initial?.toString() || ''}
             onChangeText={(text) =>
-              setFormData({ ...formData, poids_initial: text ? parseFloat(text) : null })
+              setFormData({ ...formData, poids_initial: text ? parseFloat(text) : undefined })
             }
             keyboardType="numeric"
             placeholder="Ex: 25.5"

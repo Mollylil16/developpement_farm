@@ -236,7 +236,7 @@ export default function BudgetisationAlimentComponent() {
           await dispatch(createRationBudget(input)).unwrap();
 
           Alert.alert('✅ Succès', 'Ration modifiée avec succès');
-        } catch (error: unknown) {
+        } catch (error) {
           logger.error('Erreur lors de la modification de la ration:', error);
           const errorMessage = error instanceof Error ? error.message : 'Impossible de modifier la ration';
           Alert.alert('Erreur', errorMessage);
@@ -257,7 +257,7 @@ export default function BudgetisationAlimentComponent() {
       // Réinitialiser le formulaire et fermer le modal
       resetForm();
       setShowModal(false);
-    } catch (error: unknown) {
+    } catch (error) {
       logger.error('Erreur lors de la création/modification de la ration:', error);
       const errorMessage = error instanceof Error 
         ? error.message 
@@ -344,7 +344,7 @@ export default function BudgetisationAlimentComponent() {
 
       Alert.alert('✅ Succès', 'Ingrédients de la ration modifiés avec succès');
       setRationAModifier(null);
-    } catch (error: unknown) {
+    } catch (error) {
       Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de modifier les ingrédients');
     }
   };
@@ -403,7 +403,7 @@ export default function BudgetisationAlimentComponent() {
               await dispatch(createRationBudget(input)).unwrap();
 
               Alert.alert('✅ Succès', 'Ration recalculée avec les prix actuels');
-            } catch (error: unknown) {
+            } catch (error) {
               Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de recalculer la ration');
             }
           },
@@ -425,7 +425,7 @@ export default function BudgetisationAlimentComponent() {
             try {
               await dispatch(deleteRationBudget(ration.id)).unwrap();
               Alert.alert('✅ Succès', 'Ration supprimée');
-            } catch (error: unknown) {
+            } catch (error) {
               Alert.alert('Erreur', error instanceof Error ? error.message : 'Impossible de supprimer la ration');
             }
           },

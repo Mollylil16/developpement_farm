@@ -64,7 +64,7 @@ export default function ProjectSelectorCollaborateur({
             userId: currentUser.id,
             email: currentUser.email,
             telephone: currentUser.telephone,
-          })
+          } as any)
         ).unwrap();
 
         // Essayer de restaurer le dernier projet sélectionné
@@ -296,7 +296,7 @@ export default function ProjectSelectorCollaborateur({
             </View>
           ) : projetsAccessibles.length > 0 ? (
             <FlatList
-              data={projetsAccessibles}
+              data={projetsAccessibles as any[]}
               keyExtractor={(item) => item.id}
               renderItem={renderProjectItem}
               contentContainerStyle={styles.projectList}

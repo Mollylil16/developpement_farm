@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Formulaire modal pour la création / modification d'un aliment stocké
  */
 
@@ -236,7 +236,7 @@ export default function StockAlimentFormModal({
           })
         ).unwrap();
       }
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Erreur lors de la sauvegarde du stock:', error);
       const errorMessage = error instanceof Error ? error.message : String(error) || 'Une erreur est survenue lors de la sauvegarde';
       Alert.alert('Erreur', errorMessage);

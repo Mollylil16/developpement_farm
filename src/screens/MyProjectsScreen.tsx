@@ -49,11 +49,7 @@ export default function MyProjectsScreen() {
   useEffect(() => {
     if (currentUser?.id && (activeRole === 'veterinarian' || activeRole === 'technician')) {
       dispatch(
-        loadCollaborationsActives({
-          userId: currentUser.id,
-          email: currentUser.email,
-          telephone: currentUser.telephone,
-        })
+        loadCollaborationsActives(currentUser.id)
       );
     }
   }, [currentUser?.id, activeRole, dispatch]);
@@ -63,11 +59,7 @@ export default function MyProjectsScreen() {
     setRefreshing(true);
     try {
       await dispatch(
-        loadCollaborationsActives({
-          userId: currentUser.id,
-          email: currentUser.email,
-          telephone: currentUser.telephone,
-        })
+        loadCollaborationsActives(currentUser.id)
       ).unwrap();
     } catch (error) {
       console.error('Erreur lors du rafraîchissement:', error);
@@ -104,7 +96,7 @@ export default function MyProjectsScreen() {
         ).unwrap();
 
         // Naviguer vers l'écran de détail du projet
-        navigation.navigate(SCREENS.VET_PROJECT_DETAIL as never, { projetId: projet.id } as never);
+        (navigation as any).navigate(SCREENS.VET_PROJECT_DETAIL, { projetId: projet.id });
       } catch (error) {
         console.error('Erreur lors de la sélection du projet:', error);
       }
@@ -115,7 +107,7 @@ export default function MyProjectsScreen() {
   // Rendu d'un projet dans la liste
   const renderProject = ({ item }: { item: Projet }) => {
     const collab = getCollaborationForProject(item.id);
-    const permissions = collab?.permissions || {};
+    const permissions = (collab?.permissions || {}) as Record<string, boolean>;
 
     return (
       <TouchableOpacity
@@ -211,7 +203,7 @@ export default function MyProjectsScreen() {
         </View>
       ) : (
         <FlatList
-          data={projetsAccessibles}
+          data={projetsAccessibles as any as Projet[]}
           keyExtractor={(item) => item.id}
           renderItem={renderProject}
           contentContainerStyle={styles.listContent}

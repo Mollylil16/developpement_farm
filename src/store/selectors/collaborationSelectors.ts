@@ -37,7 +37,7 @@ export const selectCollaborationLoading = (state: RootState): boolean => {
  * Sélectionner l'erreur
  */
 export const selectCollaborationError = (state: RootState): string | null => {
-  return state.collaboration.error;
+  return state.collaboration.error ?? null;
 };
 
 /**
