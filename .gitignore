@@ -123,3 +123,13 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
+
+# Local backup/env artifacts
+.env.bak*
+backend/.env.bak*
+*.backup
+
+# Local runtime/generated files
+backend/uploads/
+*.keystore
+nul
