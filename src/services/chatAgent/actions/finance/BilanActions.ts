@@ -2,7 +2,7 @@
  * Actions liées au bilan financier complet
  */
 
-import { AgentActionResult, AgentContext } from '../../../types/chatAgent';
+import { AgentActionResult, AgentContext } from '../../../../types/chatAgent';
 import { format, parseISO, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import apiClient from '../../../api/apiClient';

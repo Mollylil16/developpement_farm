@@ -30,7 +30,7 @@ const GestationDetailScreen: React.FC<GestationDetailScreenProps> = ({ route, na
   const { porcs } = useSelector((state: RootState) => state.porcs);
   
   const { gestationId } = route.params;
-  const gestation = gestations.find(g => g.id === gestationId);
+  const gestation = gestations.find((g: any) => g.id === gestationId);
   const truie = porcs.find(p => p.id === gestation?.truieId);
 
   const [showEditModal, setShowEditModal] = useState(false);

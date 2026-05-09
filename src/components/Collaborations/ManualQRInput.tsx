@@ -74,7 +74,7 @@ export default function ManualQRInput({
       // Réinitialiser le champ après validation réussie
       setQrCode('');
     } catch (err: unknown) {
-      setError(err.message || 'Une erreur est survenue lors de la validation du code');
+      setError((error as any).message || 'Une erreur est survenue lors de la validation du code');
     }
   };
 

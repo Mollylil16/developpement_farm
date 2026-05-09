@@ -14,6 +14,7 @@ interface ThemeContextType {
   isDark: boolean;
   colors: typeof LIGHT_COLORS;
   setMode: (mode: ThemeMode) => Promise<void>;
+  toggleTheme?: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);

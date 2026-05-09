@@ -47,7 +47,7 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
     voiceService,
   } = useChatAgent();
 
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => (state as any).auth);
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [isListening, setIsListening] = useState(false);

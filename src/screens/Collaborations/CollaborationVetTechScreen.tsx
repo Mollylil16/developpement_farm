@@ -48,7 +48,7 @@ export default function CollaborationVetTechScreen() {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
   const { colors } = useTheme();
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => (state as any).auth);
   const { activeRole } = useRole();
 
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
@@ -257,8 +257,8 @@ export default function CollaborationVetTechScreen() {
       const base64Data = qrCodeData.split(',')[1];
       const filename = FileSystem.cacheDirectory + `qr-code-${Date.now()}.png`;
 
-      await FileSystem.writeAsStringAsync(filename, base64Data, {
-        encoding: FileSystem.EncodingType.Base64,
+      await (FileSystem as any).writeAsStringAsync(filename, base64Data, {
+        encoding: (FileSystem as any).EncodingType.Base64,
       });
 
       // Vérifier si le partage est disponible

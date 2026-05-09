@@ -54,7 +54,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
           nomFichier: asset.name || `document_${Date.now()}.pdf`,
           cheminFichier: asset.uri,
           tailleFichier: asset.size || 0,
-          dateAjout: new Date(),
+          dateAjout: new Date() as any,
           description: `PDF: ${asset.name || 'Document'}`,
         };
         onDocumentsChange([...documents, newDocument]);

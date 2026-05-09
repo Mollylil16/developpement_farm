@@ -66,7 +66,7 @@ const App: React.FC = () => {
                       iconName = 'help';
                   }
 
-                  return <MaterialIcons name={iconName} size={size} color={color} />;
+                  return <MaterialIcons name={iconName as any} size={size} color={color} />;
                 },
                 tabBarActiveTintColor: '#2E7D32',
                 tabBarInactiveTintColor: 'gray',

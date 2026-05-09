@@ -52,8 +52,8 @@ export default function FarmDetailsModal({
   onMakeOffer,
 }: FarmDetailsModalProps) {
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
-  const { user } = useAppSelector((state) => state.auth);
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { user } = useAppSelector((state) => (state as any).auth);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   
   // Vérifier si l'utilisateur est le producteur de cette ferme
   // Le farmId correspond à l'ID du projet, donc si farm.farmId === projetActif.id, c'est sa ferme
@@ -76,7 +76,7 @@ export default function FarmDetailsModal({
     try {
       setLoading(true);
       const db = await getDatabase();
-      const listingRepo = new MarketplaceListingRepository(db);
+      const listingRepo = new MarketplaceListingRepository();
 
       // Récupérer tous les listings de la ferme
       const farmListings = await listingRepo.findByFarmId(farm.farmId);
@@ -85,9 +85,9 @@ export default function FarmDetailsModal({
       const availableListings = farmListings.filter(l => l.status === 'available');
 
       // Enrichir avec les données des animaux
-      const animalRepo = new AnimalRepository(db);
-      const peseeRepo = new PeseeRepository(db);
-      const vaccinationRepo = new VaccinationRepository(db);
+      const animalRepo = new AnimalRepository();
+      const peseeRepo = new PeseeRepository();
+      const vaccinationRepo = new VaccinationRepository();
       
       const enrichedListings = await Promise.all(
         availableListings.map(async (listing) => {
@@ -154,10 +154,10 @@ export default function FarmDetailsModal({
 
     try {
       const db = await getDatabase();
-      const vaccinationRepo = new VaccinationRepository(db);
-      const maladieRepo = new MaladieRepository(db);
-      const traitementRepo = new TraitementRepository(db);
-      const visiteRepo = new VisiteVeterinaireRepository(db);
+      const vaccinationRepo = new VaccinationRepository();
+      const maladieRepo = new MaladieRepository();
+      const traitementRepo = new TraitementRepository();
+      const visiteRepo = new VisiteVeterinaireRepository();
 
       const [vaccinations, maladies, traitements, visites] = await Promise.all([
         vaccinationRepo.findByAnimal(subjectId),
@@ -315,7 +315,7 @@ export default function FarmDetailsModal({
             try {
               setLoading(true);
               const db = await getDatabase();
-              const listingRepo = new MarketplaceListingRepository(db);
+              const listingRepo = new MarketplaceListingRepository();
 
               // Mettre à jour le statut de chaque listing à 'removed'
               const updatePromises = Array.from(selectedIds).map(listingId =>

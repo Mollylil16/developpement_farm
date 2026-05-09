@@ -201,7 +201,7 @@ export class DatabaseService {
     const pagination = limit != null ? ` LIMIT ${limit} OFFSET ${offset ?? 0}` : '';
     const results = this.db.getAllSync(`SELECT * FROM porcs ORDER BY createdAt DESC${pagination}`);
 
-    return results.map(row => ({
+    return results.map((row: any) => ({
       ...row,
       dateNaissance: new Date(row.dateNaissance),
       createdAt: new Date(row.createdAt),
@@ -244,7 +244,7 @@ export class DatabaseService {
     const pagination = limit != null ? ` LIMIT ${limit} OFFSET ${offset ?? 0}` : '';
     const results = this.db.getAllSync(`SELECT * FROM gestations ORDER BY createdAt DESC${pagination}`);
 
-    return results.map(row => ({
+    return results.map((row: any) => ({
       ...row,
       dateSautage: new Date(row.dateSautage),
       dateMiseBasPrevue: new Date(row.dateMiseBasPrevue),
@@ -286,7 +286,7 @@ export class DatabaseService {
     const pagination = limit != null ? ` LIMIT ${limit} OFFSET ${offset ?? 0}` : '';
     const results = this.db.getAllSync(`SELECT * FROM transactions ORDER BY date DESC${pagination}`);
 
-    return results.map(row => ({
+    return results.map((row: any) => ({
       ...row,
       date: new Date(row.date),
       createdAt: new Date(row.createdAt),
@@ -345,7 +345,7 @@ export class DatabaseService {
         mortalite.id,
         mortalite.porcId,
         mortalite.porcNumeroIdentification,
-        mortalite.dateDeces.toISOString(),
+        (mortalite.dateDeces as any).toISOString(),
         mortalite.causeDeces,
         mortalite.causeDetaillee || null,
         mortalite.poidsAuDeces,
@@ -371,7 +371,7 @@ export class DatabaseService {
       const query = 'SELECT * FROM mortalites ORDER BY dateDeces DESC';
       const results = instance.db.getAllSync(query);
       
-      return results.map(row => ({
+      return results.map((row: any) => ({
         id: row.id,
         porcId: row.porcId,
         porcNumeroIdentification: row.porcNumeroIdentification,
@@ -384,7 +384,7 @@ export class DatabaseService {
         notes: row.notes,
         photos: row.photos ? JSON.parse(row.photos) : undefined,
         rapportVeterinaire: row.rapportVeterinaire,
-      }));
+      })) as any[];
     } catch (error) {
       console.error('Erreur lors du chargement des mortalités:', error);
       throw error;
@@ -421,3 +421,6 @@ export class DatabaseService {
     }
   }
 }
+
+// Compatibility export for components expecting getDatabase
+export const getDatabase: any = () => DatabaseService.getInstance();

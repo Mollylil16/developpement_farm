@@ -76,7 +76,7 @@ export default function GestationFormModal({
 }: GestationFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   const animaux: ProductionAnimal[] = useAppSelector(selectAllAnimaux);
   const mortalites: Mortalite[] = useAppSelector(selectAllMortalites);
   const { canCreate, canUpdate } = useActionPermissions();
@@ -299,14 +299,14 @@ export default function GestationFormModal({
 
   useEffect(() => {
     if (gestation && isEditing) {
-      const truieNumero = parseInt(gestation.truie_id.replace('truie_', ''));
+      const truieNumero = parseInt((gestation.truie_id || '').replace('truie_', ''));
       setFormData({
         projet_id: gestation.projet_id,
         truie_id: gestation.truie_id,
         truie_nom: gestation.truie_nom || '',
         verrat_id: gestation.verrat_id || '',
         verrat_nom: gestation.verrat_nom || '',
-        date_sautage: gestation.date_sautage.split('T')[0],
+        date_sautage: (gestation.date_sautage || '').split('T')[0],
         nombre_porcelets_prevu: gestation.nombre_porcelets_prevu,
         notes: gestation.notes || '',
       });

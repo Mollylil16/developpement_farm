@@ -41,7 +41,7 @@ export default function InvitationsListSection({ onShowAll }: InvitationsListSec
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { invitationsEnAttente = [] } = useAppSelector((state) => state.collaboration ?? { invitationsEnAttente: [] });
-  const { user } = useAppSelector((state) => state.auth ?? { user: null });
+  const { user } = useAppSelector((state) => (state as any).auth ?? { user: null });
   const [projetNoms, setProjetNoms] = React.useState<Record<string, string>>({});
   const [processingInvitation, setProcessingInvitation] = useState<string | null>(null);
 
@@ -130,7 +130,7 @@ export default function InvitationsListSection({ onShowAll }: InvitationsListSec
       }
     } catch (error: unknown) {
       hapticError();
-      const errorMessage = error?.message || 'Erreur lors de l\'acceptation de l\'invitation';
+      const errorMessage = (error as any)?.message || 'Erreur lors de l\'acceptation de l\'invitation';
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -180,7 +180,7 @@ export default function InvitationsListSection({ onShowAll }: InvitationsListSec
               }
             } catch (error: unknown) {
               hapticError();
-              const errorMessage = error?.message || 'Erreur lors du rejet de l\'invitation';
+              const errorMessage = (error as any)?.message || 'Erreur lors du rejet de l\'invitation';
               Toast.show({
                 type: 'error',
                 text1: 'Erreur',

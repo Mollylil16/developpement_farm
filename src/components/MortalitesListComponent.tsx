@@ -329,7 +329,7 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
 
     const last6Months = statistiques.mortalites_par_mois.slice(-6);
     return {
-      labels: last6Months.map((m) => {
+      labels: last6Months.map((m: any) => {
         const [year, month] = m.mois.split('-');
         const monthNames = [
           'Jan',
@@ -349,7 +349,7 @@ export default function MortalitesListComponent({ refreshControl }: Props) {
       }),
       datasets: [
         {
-          data: last6Months.map((m) => m.nombre),
+          data: last6Months.map((m: any) => m.nombre),
         },
       ],
     };

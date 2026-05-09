@@ -2,7 +2,7 @@
  * Actions liées à la reproduction
  */
 
-import { AgentActionResult, AgentContext } from '../../../types/chatAgent';
+import { AgentActionResult, AgentContext } from '../../../../types/chatAgent';
 import { format, addDays, differenceInDays } from 'date-fns';
 import apiClient from '../../../api/apiClient';
 

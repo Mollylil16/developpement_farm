@@ -5,6 +5,7 @@ import { CalculsAgricoles } from '../../utils/calculs';
 interface PlanificationState {
   planifications: PlanificationAccouplement[];
   planificationActive: PlanificationAccouplement | null;
+  planificationsAVenir: PlanificationAccouplement[];
   loading: boolean;
   error?: string;
 }
@@ -12,6 +13,7 @@ interface PlanificationState {
 const initialState: PlanificationState = {
   planifications: [],
   planificationActive: null,
+  planificationsAVenir: [],
   loading: false,
 };
 
@@ -144,3 +146,10 @@ export const {
 } = planificationSlice.actions;
 
 export default planificationSlice.reducer;
+
+// Compatibility exports for components expecting these named exports
+export const loadPlanificationsParProjet: any = () => async () => {};
+export const loadPlanificationsAVenir: any = () => async () => {};
+export const createPlanification: any = () => async () => {};
+export const updatePlanification: any = () => async () => {};
+export const deletePlanification: any = () => async () => {};

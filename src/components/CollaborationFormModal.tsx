@@ -41,7 +41,7 @@ export default function CollaborationFormModal({
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();
   const { activeRole } = useRole();
-  const currentUser = useAppSelector((state) => state.auth?.user);
+  const currentUser = useAppSelector((state) => (state as any).auth?.user);
 
   // Vérifier si l'utilisateur est propriétaire du projet actif
   const isProprietaire =
@@ -143,7 +143,7 @@ export default function CollaborationFormModal({
         const { projet_id, ...updates } = formData;
         // ✅ Ne pas envoyer l'email s'il est vide ou invalide
         if (!updates.email || updates.email.trim() === '') {
-          delete updates.email;
+          delete (updates as any).email;
         }
         await dispatch(
           updateCollaborateur({

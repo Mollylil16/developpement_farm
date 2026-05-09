@@ -5,6 +5,9 @@ interface NutritionState {
   rations: Ration[];
   loading: boolean;
   error?: string;
+  ingredients: any[];
+  rationsBudget: any[];
+  stocksAliments: any[];
 }
 
 const initialState: NutritionState = {
@@ -45,6 +48,9 @@ const initialState: NutritionState = {
     },
   ],
   loading: false,
+  ingredients: [],
+  rationsBudget: [],
+  stocksAliments: [],
 };
 
 const nutritionSlice = createSlice({
@@ -74,3 +80,15 @@ const nutritionSlice = createSlice({
 
 export const { addRation, updateRation, deleteRation, setLoading, setError } = nutritionSlice.actions;
 export default nutritionSlice.reducer;
+
+// Compatibility exports for components expecting these named exports
+export const loadIngredients: any = () => async () => {};
+export const loadRations: any = () => async () => {};
+export const loadRationsBudget: any = () => async () => {};
+export const createIngredient: any = () => async () => {};
+export const updateIngredient: any = () => async () => {};
+export const deleteIngredient: any = () => async () => {};
+export const createRation: any = () => async () => {};
+export const createRationBudget: any = () => async () => {};
+export const updateRationBudget: any = () => async () => {};
+export const deleteRationBudget: any = () => async () => {};

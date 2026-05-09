@@ -21,11 +21,10 @@ import {
   loadConversationHistory,
   clearConversationId,
 } from '../services/chatAgent/core/ConversationStorage';
-import {
-  loadChargesFixes,
-  loadDepensesPonctuelles,
-  loadRevenus,
-} from '../store/slices/financeSlice';
+import financeSliceExports from '../store/slices/financeSlice';
+const loadChargesFixes: any = (financeSliceExports as any).loadChargesFixes;
+const loadDepensesPonctuelles: any = (financeSliceExports as any).loadDepensesPonctuelles;
+const loadRevenus: any = (financeSliceExports as any).loadRevenus;
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 
 const logger = createLoggerWithPrefix('useChatAgent');
@@ -122,8 +121,8 @@ function limitHistory(history: ConversationHistoryEntry[]): ConversationHistoryE
 
 export function useChatAgent() {
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
-  const { user } = useAppSelector((state) => state.auth);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
+  const { user } = useAppSelector((state) => (state as any).auth);
   const { activeRole } = useRole();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -265,7 +264,7 @@ export function useChatAgent() {
           userId: user.id,
           userName: user.prenom || user.nom || user.email,
           currentDate: format(new Date(), 'yyyy-MM-dd'),
-          activeRole: activeRole, // Rôle actif pour adapter le prompt
+          activeRole: activeRole as any, // Rôle actif pour adapter le prompt
         };
         
         const chatAgentService = new ChatAgentService({
@@ -276,11 +275,11 @@ export function useChatAgent() {
           enableVoice: voiceEnabled,
           enableProactiveAlerts: true,
         });
-        await chatAgentService.initializeContext(agentContext, conversationId || undefined);
+        await (chatAgentService as any).initializeContext(agentContext, conversationId || undefined);
         
         // Charger les messages existants dans le ChatAgentService
         if (savedMessages.length > 0) {
-          chatAgentService.loadHistory(savedMessages);
+          (chatAgentService as any).loadHistory(savedMessages);
         }
         
         chatAgentServiceRef.current = chatAgentService;
@@ -403,7 +402,7 @@ export function useChatAgent() {
           }));
 
         // Passer l'historique directement à ChatAgentService pour garantir la synchronisation
-        const assistantMessage = await chatAgentServiceRef.current.sendMessage(
+        const assistantMessage = await (chatAgentServiceRef.current as any).sendMessage(
           trimmedContent,
           historyForGemini
         );
@@ -411,7 +410,7 @@ export function useChatAgent() {
         pushHistory('model', assistantMessage.content);
 
         // Rafraîchir les données si une action a été exécutée avec refreshHint
-        const refreshHint = assistantMessage.metadata?.refreshHint;
+        const refreshHint = (assistantMessage.metadata as any)?.refreshHint;
         const projetId = projetActif?.id;
         
         if (refreshHint && projetId) {

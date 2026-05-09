@@ -41,7 +41,7 @@ export default function NutritionStockComponent() {
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();
-  const { stocks, mouvementsParAliment, loading } = useAppSelector((state) => state.stocks);
+  const { stocks, mouvementsParAliment, loading } = useAppSelector((state) => (state as any).stocks);
   const [selectedStock, setSelectedStock] = useState<StockAliment | null>(null);
   const [showAlimentModal, setShowAlimentModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -74,7 +74,7 @@ export default function NutritionStockComponent() {
   // Ne plus charger automatiquement tous les mouvements - c'est maintenant dans un onglet séparé
   // Charger uniquement les mouvements du stock sélectionné si nécessaire
 
-  const alertes = useMemo(() => (stocks || []).filter((stock) => stock.alerte_active), [stocks]);
+  const alertes = useMemo(() => (stocks || []).filter((stock: any) => stock.alerte_active), [stocks]);
 
   // Mouvements du stock sélectionné (pour l'affichage détaillé si nécessaire)
   const mouvementsStockSelectionne: StockMouvement[] = useMemo(() => {
@@ -87,7 +87,7 @@ export default function NutritionStockComponent() {
   // Synchroniser selectedStock avec les stocks Redux (pour mettre à jour après un mouvement)
   useEffect(() => {
     if (selectedStock) {
-      const updatedStock = (stocks || []).find((s) => s.id === selectedStock.id);
+      const updatedStock = (stocks || []).find((s: any) => s.id === selectedStock.id);
       if (updatedStock && updatedStock.quantite_actuelle !== selectedStock.quantite_actuelle) {
         setSelectedStock(updatedStock);
       }
@@ -97,7 +97,7 @@ export default function NutritionStockComponent() {
   // Pagination: mettre à jour displayedStocks quand stocks change (pas seulement la longueur)
   // Créer une clé basée sur les IDs et quantités pour détecter les changements
   const stocksKey = useMemo(() => {
-    return (stocks || []).map((s) => `${s.id}:${s.quantite_actuelle}`).join(',');
+    return (stocks || []).map((s: any) => `${s.id}:${s.quantite_actuelle}`).join(',');
   }, [stocks]);
 
   // Synchroniser displayedStocks quand stocks change (détecté via la clé)
@@ -216,7 +216,7 @@ export default function NutritionStockComponent() {
         {alertes.length > 0 ? (
           <View style={[styles.alertBox, { backgroundColor: colors.error + '15' }]}>
             <Text style={[styles.alertTitle, { color: colors.error }]}>⚠️ Alertes stock bas</Text>
-            {alertes.slice(0, 3).map((stock) => (
+            {alertes.slice(0, 3).map((stock: any) => (
               <Text key={stock.id} style={[styles.alertText, { color: colors.text }]}>
                 • {stock.nom}: {stock.quantite_actuelle} {stock.unite} (seuil {stock.seuil_alerte}{' '}
                 {stock.unite})

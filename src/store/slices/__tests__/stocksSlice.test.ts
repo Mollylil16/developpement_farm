@@ -12,7 +12,7 @@ import stocksReducer, {
   loadStockStats,
   loadStocksEnAlerte,
 } from '../stocksSlice';
-import { getDatabase } from '../../database';
+import { getDatabase } from '../../../services/database';
 import { StockRepository } from '../../../database/repositories';
 
 // Mock des modules

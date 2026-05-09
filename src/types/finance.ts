@@ -41,6 +41,8 @@ export interface ChargeFixe {
   statut: StatutChargeFixe;
   date_creation: string;
   derniere_modification: string;
+  nom?: string;
+  montant_mensuel?: number;
 }
 
 export interface DepensePonctuelle {
@@ -53,6 +55,8 @@ export interface DepensePonctuelle {
   commentaire?: string;
   photos?: string[]; // URLs des photos de reçus
   date_creation: string;
+  type?: string;
+  opex?: boolean;
 }
 
 export interface CreateChargeFixeInput {

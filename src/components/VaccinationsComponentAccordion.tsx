@@ -58,7 +58,7 @@ export default function VaccinationsComponentAccordion({ refreshControl }: Props
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
 
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  const projetActif = useAppSelector((state) => (state as any).projet.projetActif);
   const vaccinations = useAppSelector(selectAllVaccinations);
   const animaux = useAppSelector(selectAllAnimaux);
   const allDepensesPonctuelles = useAppSelector(selectAllDepensesPonctuelles);

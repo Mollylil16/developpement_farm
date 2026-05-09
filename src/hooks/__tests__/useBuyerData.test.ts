@@ -4,20 +4,20 @@
 
 import { renderHook, waitFor } from '@testing-library/react-native';
 import { useBuyerData } from '../useBuyerData';
-import { useAppSelector } from '../store/hooks';
-import { getDatabase } from '../services/database';
-import { getMarketplaceService } from '../services/MarketplaceService';
+import { useAppSelector } from '../../store/hooks';
+import { getDatabase } from '../../services/database';
+import { getMarketplaceService } from '../../services/MarketplaceService';
 import {
   MarketplaceOfferRepository,
   MarketplaceTransactionRepository,
   MarketplaceListingRepository,
-} from '../database/repositories';
+} from '../../database/repositories';
 
 // Mock dependencies
-jest.mock('../store/hooks');
-jest.mock('../services/database');
-jest.mock('../services/MarketplaceService');
-jest.mock('../database/repositories');
+jest.mock('../../store/hooks');
+jest.mock('../../services/database');
+jest.mock('../../services/MarketplaceService');
+jest.mock('../../database/repositories');
 
 const mockUseAppSelector = useAppSelector;
 const mockGetDatabase = getDatabase;

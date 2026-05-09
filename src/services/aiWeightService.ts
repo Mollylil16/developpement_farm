@@ -9,6 +9,9 @@ import { logger } from '../utils/logger';
 export interface PredictWeightRequest {
   image: string; // base64
   pig_id?: string;
+  projet_id?: string;
+  user_id?: string;
+  auto_register?: boolean;
   metadata?: {
     race?: string;
     age_days?: number;
@@ -113,7 +116,7 @@ class AiWeightService {
   }> {
     try {
       const response = await apiClient.get(`${this.baseUrl}/health`);
-      return response.data;
+      return (response as any).data;
     } catch (error: any) {
       logger.error('Erreur lors de la vérification de santé IA:', error);
       throw error;
@@ -131,7 +134,7 @@ class AiWeightService {
         `${this.baseUrl}/predict`,
         request,
       );
-      return response.data;
+      return (response as any).data;
     } catch (error: any) {
       logger.error('Erreur lors de la prédiction de poids:', error);
       throw error;
@@ -149,7 +152,7 @@ class AiWeightService {
         `${this.baseUrl}/batch-predict`,
         request,
       );
-      return response.data;
+      return (response as any).data;
     } catch (error: any) {
       logger.error('Erreur lors de la prédiction batch:', error);
       throw error;
@@ -192,7 +195,7 @@ class AiWeightService {
           },
         },
       );
-      return response.data;
+      return (response as any).data;
     } catch (error: any) {
       logger.error('Erreur lors de la prédiction vidéo:', error);
       throw error;
@@ -213,7 +216,7 @@ class AiWeightService {
   }> {
     try {
       const response = await apiClient.get(`${this.baseUrl}/models`);
-      return response.data;
+      return (response as any).data;
     } catch (error: any) {
       logger.error('Erreur lors de la récupération des modèles:', error);
       throw error;

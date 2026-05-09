@@ -18,6 +18,9 @@ export interface ChatMessage {
     contextId?: string; // ID du contexte conversationnel (pour relier les réponses aux questions)
     pendingAction?: AgentAction; // Action en attente de clarification
     isClarificationQuestion?: boolean; // Indique si ce message est une question de clarification
+    isProactive?: boolean;
+    isRecommendation?: boolean;
+    confidence?: number;
   };
 }
 
@@ -50,6 +53,37 @@ export type AgentActionType =
   | 'search_lot'
   | 'get_stock_status'
   | 'calculate_costs'
+  | 'update_revenu'
+  | 'update_depense'
+  | 'update_pesee'
+  | 'update_vaccination'
+  | 'update_visite_veterinaire'
+  | 'answer_knowledge_question'
+  | 'describe_capabilities'
+  | 'get_cheptel_details'
+  | 'get_weighing_details'
+  | 'list_knowledge_topics'
+  | 'marketplace_check_offers'
+  | 'marketplace_get_my_listings'
+  | 'marketplace_get_price_trends'
+  | 'marketplace_respond_offer'
+  | 'marketplace_sell_animal'
+  | 'marketplace_set_price'
+  | 'get_gestations'
+  | 'get_gestation_by_truie'
+  | 'predict_mise_bas'
+  | 'get_porcelets'
+  | 'get_porcelets_transition'
+  | 'get_mortalites'
+  | 'get_taux_mortalite'
+  | 'analyze_causes_mortalite'
+  | 'get_ventes'
+  | 'analyze_ventes'
+  | 'get_stock_aliments'
+  | 'calculate_consommation_moyenne'
+  | 'propose_composition_alimentaire'
+  | 'generate_graph_finances'
+  | 'describe_graph_trends'
   | 'other';
 
 export interface AgentAction {
@@ -57,6 +91,7 @@ export interface AgentAction {
   params: Record<string, any>;
   requiresConfirmation?: boolean;
   confirmationMessage?: string;
+  confidence?: number;
 }
 
 export interface AgentActionResult {
@@ -64,6 +99,12 @@ export interface AgentActionResult {
   data?: any;
   message: string;
   error?: string;
+  needsClarification?: boolean;
+  clarificationType?: string;
+  missingParams?: string[];
+  actionType?: string;
+  refreshHint?: string;
+  requiresConfirmation?: boolean;
 }
 
 export interface AgentContext {
@@ -74,6 +115,7 @@ export interface AgentContext {
   availableAnimals?: any[];
   availableLots?: any[];
   recentTransactions?: any[];
+  activeRole?: string;
 }
 
 export interface AgentConfig {
@@ -85,6 +127,7 @@ export interface AgentConfig {
   language?: 'fr-CI' | 'fr';
   enableVoice?: boolean;
   enableProactiveAlerts?: boolean;
+  geminiApiKey?: string;
 }
 
 export type TranscriptionProvider = 'assemblyai' | 'google' | 'openai' | 'none';
@@ -111,5 +154,14 @@ export interface Reminder {
   projetId: string;
   isCompleted: boolean;
   createdAt: string;
+}
+
+// Compatibility type
+export interface SujetDisponible {
+  id: string;
+  code?: string;
+  race?: string;
+  poids?: number;
+  [key: string]: any;
 }
 

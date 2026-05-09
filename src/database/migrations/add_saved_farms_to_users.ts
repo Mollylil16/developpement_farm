@@ -13,7 +13,7 @@ export async function addSavedFarmsToUsers(db: SQLiteDatabase): Promise<void> {
   try {
     // Vérifier si la colonne existe déjà
     const tableInfo = await db.getAllAsync<unknown>("PRAGMA table_info('users')");
-    const savedFarmsColumn = tableInfo.find((col) => col.name === 'saved_farms');
+    const savedFarmsColumn = tableInfo.find((col) => (col as any).name  === 'saved_farms');
 
     if (savedFarmsColumn) {
       console.log('ℹ️  Migration saved_farms déjà appliquée');

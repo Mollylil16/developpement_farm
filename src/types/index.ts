@@ -30,6 +30,19 @@ export interface Gestation {
   nombrePorceletsReel?: number;
   statut: 'en_cours' | 'terminee' | 'avortement';
   notes?: string;
+  // Compatibility snake_case properties
+  projet_id?: string;
+  truie_id?: string;
+  truie_nom?: string;
+  verrat_id?: string;
+  verrat_nom?: string;
+  date_sautage?: string;
+  date_mise_bas_prevue?: string;
+  date_mise_bas_reelle?: string;
+  nombre_porcelets_prevu?: number;
+  nombre_porcelets_reel?: number;
+  date_creation?: string;
+  derniere_modification?: string;
 }
 
 export interface Sevrage {
@@ -39,6 +52,7 @@ export interface Sevrage {
   poidsSevrage: number;
   alimentation: string;
   notes?: string;
+  nombre_porcelets_sevres?: number;
 }
 
 // Types pour la nutrition
@@ -51,6 +65,12 @@ export interface Ration {
   ingredients: IngredientRation[];
   coutParKg: number;
   notes?: string;
+  // Compatibility properties
+  type_porc?: string;
+  cout_total?: number;
+  date_creation?: string;
+  poids_kg?: number;
+  projet_id?: string;
 }
 
 export interface IngredientRation {
@@ -79,6 +99,12 @@ export interface PlanificationAccouplement {
   statut: 'planifie' | 'en_cours' | 'termine';
   saillies: SailliePlanifiee[];
   notes?: string;
+  // Compatibility properties
+  titre?: string;
+  type?: string;
+  description?: string;
+  date_prevue?: string;
+  projet_id?: string;
 }
 
 export interface SailliePlanifiee {
@@ -106,11 +132,13 @@ export interface ObjectifReproduction {
 
 // Types pour les recommandations
 export interface Recommandation {
+  id?: string;
   type: 'reproduction' | 'nutrition' | 'vente' | 'general';
   icon: string;
   color: string;
   titre: string;
   description: string;
+  message?: string;
   action: string;
 }
 
@@ -128,6 +156,12 @@ export interface Mortalite {
   notes?: string;
   photos?: string[]; // URLs des photos
   rapportVeterinaire?: string; // URL du rapport PDF
+  // Compatibility properties
+  projet_id?: string;
+  categorie?: string;
+  nombre_porcs?: number;
+  date_mortalite?: string;
+  cause?: string;
 }
 
 // Types pour les documents de factures
@@ -266,6 +300,18 @@ export interface RapportProduction {
   coutsTotaux: number;
   benefice: number;
 }
+
+// Re-exports from domain-specific type files
+export type { User } from './auth';
+export type { RoleType } from './roles';
+export type { ProductionAnimal, ProductionPesee, StatutAnimal } from './production';
+export { STATUT_ANIMAL_LABELS } from './production';
+export type { CreateGestationInput } from './reproduction';
+export type { ChargeFixe, DepensePonctuelle, Revenu, CategorieRevenu, CreateRevenuInput } from './finance';
+export type { StockAliment, UniteStock, CreateStockAlimentInput, RationBudget } from './nutrition';
+export { getTypePorcLabel } from './nutrition';
+export type { IndicateursPerformance } from './rapports';
+export type { StockMouvement } from './nutrition';
 
 // Types pour l'état de l'application
 export interface AppState {

@@ -73,18 +73,18 @@ export function useDashboardExport(projetActif: unknown): UseDashboardExportRetu
         gmqValues.length > 0 ? gmqValues.reduce((sum, val) => sum + val, 0) / gmqValues.length : 0;
 
       // Calculer les stats de reproduction
-      const gestationsEnCours = gestations.filter((g) => !g.date_fin && !g.date_mise_bas_effective);
+      const gestationsEnCours = gestations.filter((g) => !(g as any).date_fin && !(g as any).date_mise_bas_effective);
       const sevragesTotalPorcelets = sevrages.reduce(
-        (sum, s) => sum + (s.nombre_porcelets || 0),
+        (sum, s) => sum + ((s as any).nombre_porcelets || 0),
         0
       );
 
       // Préparer les données pour le PDF
-      const dashboardData = {
+      const dashboardData: any = {
         projet: {
-          nom: projetActif.nom,
-          description: projetActif.description || '',
-          dateCreation: projetActif.date_creation,
+          nom: (projetActif as any).nom,
+          description: (projetActif as any).description || '',
+          dateCreation: (projetActif as any).date_creation,
         },
         statistiques: {
           production: {
@@ -118,8 +118,8 @@ export function useDashboardExport(projetActif: unknown): UseDashboardExportRetu
           gmq: p.gmq || null,
         })),
         gestationsActives: gestationsEnCours.map((g) => ({
-          truieCode: animaux.find((a) => a.id === g.truie_id)?.code || '',
-          dateSaillie: g.date_saillie,
+          truieCode: animaux.find((a) => a.id === (g as any).truie_id)?.code || '',
+          dateSaillie: (g as any).date_saillie,
           dateMiseBasPrevue: g.date_mise_bas_prevue,
         })),
       };

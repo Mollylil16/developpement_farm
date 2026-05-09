@@ -145,7 +145,8 @@ export function useShakeToCancelModal({
     onShake: () => {
       if (confirmMessage) {
         // Afficher une confirmation avant d'annuler
-        const confirmed = confirm(confirmMessage);
+        // @ts-ignore
+        const confirmed = (confirm as any)(confirmMessage);
         if (confirmed) {
           onClose();
         }

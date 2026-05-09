@@ -72,7 +72,7 @@ export default function ManageProfilesScreen() {
   const { colors } = useTheme();
   const navigation = useNavigation<NavigationProp<any>>();
   const { currentUser, availableRoles, activeRole, switchRole } = useRole();
-  const { projetActif, projets } = useAppSelector((state) => state.projet);
+  const { projetActif, projets } = useAppSelector((state) => (state as any).projet);
   const dispatch = useAppDispatch();
   const [loading, setLoading] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);

@@ -83,10 +83,10 @@ export class DiagnosticPromptEnricher {
   private async getPigContext(animalId: number): Promise<any> {
     try {
       const db = await getDatabase();
-      const animalRepo = new AnimalRepository(db);
-      const vaccinationRepo = new VaccinationRepository(db);
-      const traitementRepo = new TraitementRepository(db);
-      const maladieRepo = new MaladieRepository(db);
+      const animalRepo = new AnimalRepository();
+      const vaccinationRepo = new VaccinationRepository();
+      const traitementRepo = new TraitementRepository();
+      const maladieRepo = new MaladieRepository();
 
       const animal = await animalRepo.findById(animalId);
       if (!animal) return null;
@@ -94,13 +94,13 @@ export class DiagnosticPromptEnricher {
       // Récupérer vaccinations récentes (6 derniers mois)
       const vaccinations = await vaccinationRepo.findByAnimalId(animalId);
       const recentVaccinations = vaccinations
-        .filter(v => {
+        .filter((v: any) => {
           const vaccDate = new Date(v.date_vaccination);
           const sixMonthsAgo = new Date();
           sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
           return vaccDate >= sixMonthsAgo;
         })
-        .map(v => ({
+        .map((v: any) => ({
           type: v.type_vaccin || 'Vaccin',
           date: v.date_vaccination,
         }));
@@ -108,13 +108,13 @@ export class DiagnosticPromptEnricher {
       // Récupérer traitements récents (3 derniers mois)
       const traitements = await traitementRepo.findByAnimalId(animalId);
       const recentTreatments = traitements
-        .filter(t => {
+        .filter((t: any) => {
           const treatDate = new Date(t.date_debut);
           const threeMonthsAgo = new Date();
           threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
           return treatDate >= threeMonthsAgo;
         })
-        .map(t => ({
+        .map((t: any) => ({
           disease: t.nom_maladie || 'Traitement',
           date: t.date_debut,
         }));
@@ -122,13 +122,13 @@ export class DiagnosticPromptEnricher {
       // Récupérer maladies récentes (6 derniers mois)
       const maladies = await maladieRepo.findByAnimalId(animalId);
       const recentMaladies = maladies
-        .filter(m => {
+        .filter((m: any) => {
           const maladieDate = new Date(m.date_debut);
           const sixMonthsAgo = new Date();
           sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
           return maladieDate >= sixMonthsAgo;
         })
-        .map(m => ({
+        .map((m: any) => ({
           disease: m.nom_maladie,
           date: m.date_debut,
         }));

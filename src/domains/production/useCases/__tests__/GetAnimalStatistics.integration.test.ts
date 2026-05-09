@@ -3,8 +3,8 @@
  */
 
 import { GetAnimalStatisticsUseCase } from '../GetAnimalStatistics';
-import type { IAnimalRepository } from '../repositories/IAnimalRepository';
-import type { Animal } from '../entities/Animal';
+import type { IAnimalRepository } from '../../repositories/IAnimalRepository';
+import type { Animal } from '../../entities/Animal';
 
 describe('GetAnimalStatisticsUseCase - Integration', () => {
   let useCase: GetAnimalStatisticsUseCase;

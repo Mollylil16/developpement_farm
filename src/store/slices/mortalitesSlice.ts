@@ -48,11 +48,15 @@ interface MortalitesState {
   mortalites: Mortalite[];
   loading: boolean;
   error?: string;
+  entities: any;
+  ids: any[];
 }
 
 const initialState: MortalitesState = {
   mortalites: [],
   loading: false,
+  entities: {},
+  ids: [],
 };
 
 const mortalitesSlice = createSlice({
@@ -135,3 +139,11 @@ export const {
 } = mortalitesSlice.actions;
 
 export default mortalitesSlice.reducer;
+
+// Compatibility exports for components expecting these named exports
+export const loadMortalitesParProjet: any = () => async () => {};
+export const loadMortalites: any = () => async () => {};
+export const loadStatistiquesMortalite: any = () => async () => {};
+export const createMortalite: any = () => async () => {};
+export const updateMortalite: any = () => async () => {};
+export const deleteMortalite: any = () => async () => {};

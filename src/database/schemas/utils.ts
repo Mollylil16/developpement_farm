@@ -4,7 +4,7 @@
  */
 
 import * as SQLite from 'expo-sqlite';
-import { schemaLogger } from '../../utils/logger';
+import { dbLogger as schemaLogger } from '../../utils/logger';
 
 /**
  * Vérifie si une table existe et est valide (non corrompue)

@@ -51,8 +51,8 @@ function CollaborationsScreenContent() {
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
   const isFocused = useIsFocused();
-  const { projetActif, projets } = useAppSelector((state) => state.projet);
-  const { user: currentUser } = useAppSelector((state) => state.auth);
+  const { projetActif, projets } = useAppSelector((state) => (state as any).projet);
+  const { user: currentUser } = useAppSelector((state) => (state as any).auth);
   const { collaborateurs, invitationsEnAttente, loading } = useAppSelector(
     (state) => state.collaboration
   );

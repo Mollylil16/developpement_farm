@@ -136,6 +136,24 @@ export interface Offer {
   expiresAt: string; // Date d'expiration (ISO)
   dateRecuperationSouhaitee?: string; // Date de récupération souhaitée (ISO date string)
   counterOfferOf?: string; // ID de l'offre originale si c'est une contre-proposition
+  // Extended compatibility properties
+  amount?: any;
+  buyer_nom?: string;
+  buyer_prenom?: string;
+  seller_nom?: string;
+  seller_prenom?: string;
+  created?: string;
+  created_at?: string;
+  created_at_iso?: string;
+  isCounterProposalReceived?: boolean;
+  listing?: any;
+  listing_price?: number;
+  offeredAmount?: number;
+  offered_amount?: number;
+  pig_count?: number;
+  price?: number;
+  sellerId?: string;
+  subject_id?: string;
 }
 
 /**

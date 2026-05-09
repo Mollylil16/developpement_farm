@@ -330,7 +330,7 @@ const ReportsScreen: React.FC = () => {
               <View style={styles.kpiContainer}>
                 <RapportCard
                   title="Naissances"
-                  value={gestations.filter(g => g.statut === 'terminee').length}
+                  value={gestations.filter((g: any) => g.statut === 'terminee').length}
                   icon="child-care"
                   color="#4CAF50"
                   subtitle="Cette période"
@@ -391,7 +391,7 @@ const ReportsScreen: React.FC = () => {
                   <Text style={styles.analysisLabel}>Taux de reproduction</Text>
                   <Text style={styles.analysisValue}>
                     {CalculsAgricoles.calculerTauxReproduction(
-                      gestations.filter(g => g.statut === 'terminee').length,
+                      gestations.filter((g: any) => g.statut === 'terminee').length,
                       porcs.filter(p => p.sexe === 'femelle').length
                     ).toFixed(2)}
                   </Text>

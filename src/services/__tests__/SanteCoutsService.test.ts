@@ -144,9 +144,9 @@ describe('SanteCoutsService', () => {
 
       const mockVisites = [{ id: 'vis1', cout: 15000, date_visite: '2024-01-05' }];
 
-      mockVaccinationRepo.query.mockResolvedValue(mockVaccinations as any);
-      mockTraitementRepo.query.mockResolvedValue(mockTraitements as any);
-      mockVisiteRepo.query.mockResolvedValue(mockVisites as any);
+      (mockVaccinationRepo as any).query.mockResolvedValue(mockVaccinations as any);
+      (mockTraitementRepo as any).query.mockResolvedValue(mockTraitements as any);
+      (mockVisiteRepo as any).query.mockResolvedValue(mockVisites as any);
 
       const result = await SanteCoutsService.getCoutsPeriode(projetId, dateDebut, dateFin);
 
@@ -165,11 +165,11 @@ describe('SanteCoutsService', () => {
         { id: 'v2', cout: null, date_vaccination: '2024-01-20' }, // Ignoré par la requête SQL
       ];
 
-      mockVaccinationRepo.query.mockResolvedValue(
+      (mockVaccinationRepo as any).query.mockResolvedValue(
         mockVaccinations.filter((v) => v.cout !== null) as any
       );
-      mockTraitementRepo.query.mockResolvedValue([]);
-      mockVisiteRepo.query.mockResolvedValue([]);
+      (mockTraitementRepo as any).query.mockResolvedValue([]);
+      (mockVisiteRepo as any).query.mockResolvedValue([]);
 
       const result = await SanteCoutsService.getCoutsPeriode(projetId, dateDebut, dateFin);
 
@@ -178,32 +178,32 @@ describe('SanteCoutsService', () => {
     });
 
     it('devrait utiliser les bonnes requêtes SQL avec les dates', async () => {
-      mockVaccinationRepo.query.mockResolvedValue([]);
-      mockTraitementRepo.query.mockResolvedValue([]);
-      mockVisiteRepo.query.mockResolvedValue([]);
+      (mockVaccinationRepo as any).query.mockResolvedValue([]);
+      (mockTraitementRepo as any).query.mockResolvedValue([]);
+      (mockVisiteRepo as any).query.mockResolvedValue([]);
 
       await SanteCoutsService.getCoutsPeriode(projetId, dateDebut, dateFin);
 
-      expect(mockVaccinationRepo.query).toHaveBeenCalledWith(
+      expect((mockVaccinationRepo as any).query).toHaveBeenCalledWith(
         expect.stringContaining('date_vaccination BETWEEN'),
         [projetId, dateDebut, dateFin]
       );
 
-      expect(mockTraitementRepo.query).toHaveBeenCalledWith(
+      expect((mockTraitementRepo as any).query).toHaveBeenCalledWith(
         expect.stringContaining('date_debut BETWEEN'),
         [projetId, dateDebut, dateFin]
       );
 
-      expect(mockVisiteRepo.query).toHaveBeenCalledWith(
+      expect((mockVisiteRepo as any).query).toHaveBeenCalledWith(
         expect.stringContaining('date_visite BETWEEN'),
         [projetId, dateDebut, dateFin]
       );
     });
 
     it('devrait retourner un objet vide si aucune donnée dans la période', async () => {
-      mockVaccinationRepo.query.mockResolvedValue([]);
-      mockTraitementRepo.query.mockResolvedValue([]);
-      mockVisiteRepo.query.mockResolvedValue([]);
+      (mockVaccinationRepo as any).query.mockResolvedValue([]);
+      (mockTraitementRepo as any).query.mockResolvedValue([]);
+      (mockVisiteRepo as any).query.mockResolvedValue([]);
 
       const result = await SanteCoutsService.getCoutsPeriode(projetId, dateDebut, dateFin);
 
@@ -219,9 +219,9 @@ describe('SanteCoutsService', () => {
     it('devrait gérer les coûts à zéro dans les détails', async () => {
       const mockVaccinations = [{ id: 'v1', cout: 0, date_vaccination: '2024-01-15' }];
 
-      mockVaccinationRepo.query.mockResolvedValue(mockVaccinations as any);
-      mockTraitementRepo.query.mockResolvedValue([]);
-      mockVisiteRepo.query.mockResolvedValue([]);
+      (mockVaccinationRepo as any).query.mockResolvedValue(mockVaccinations as any);
+      (mockTraitementRepo as any).query.mockResolvedValue([]);
+      (mockVisiteRepo as any).query.mockResolvedValue([]);
 
       const result = await SanteCoutsService.getCoutsPeriode(projetId, dateDebut, dateFin);
 

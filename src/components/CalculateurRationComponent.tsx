@@ -58,7 +58,7 @@ export default function CalculateurRationComponent() {
     formuleAvecPrix.composition = formule.composition.map((comp) => {
       // Chercher l'ingrédient correspondant dans la BDD
       const ingredientTrouve = ingredients.find(
-        (ing) =>
+        (ing: any) =>
           ing.nom.toLowerCase().includes(comp.nom.toLowerCase()) ||
           comp.nom.toLowerCase().includes(ing.nom.toLowerCase())
       );

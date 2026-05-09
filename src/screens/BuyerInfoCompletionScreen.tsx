@@ -135,7 +135,7 @@ const BuyerInfoCompletionScreen: React.FC = () => {
             lastName: '', // Sera complété plus tard
             password: '', // Pas de mot de passe pour l'instant
             profileType: profileType || 'buyer',
-          });
+          } as any);
           finalUserId = newUser.id;
           // Mettre à jour l'utilisateur dans le store Redux
           dispatch(updateUser(newUser));

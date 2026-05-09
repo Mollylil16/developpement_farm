@@ -5,7 +5,7 @@
  */
 
 import { BaseRepository } from './BaseRepository';
-import { Vaccination } from '../../types/veterinaire';
+import { Vaccination } from '../../types/sante';
 
 export class VaccinationRepository extends BaseRepository<Vaccination> {
   constructor() {
@@ -16,11 +16,11 @@ export class VaccinationRepository extends BaseRepository<Vaccination> {
     const vaccinationData = {
       projet_id: data.projet_id,
       animal_ids: data.animal_ids || [],
-      vaccin: data.vaccin || data.type_vaccin || null,
+      vaccin: data.vaccin || (data as any).type_vaccin || null,
       nom_vaccin: data.nom_vaccin || null,
-      date_vaccination: data.date_vaccination || data.date_administration || new Date().toISOString(),
-      numero_lot_vaccin: data.numero_lot_vaccin || data.lot_numero || null,
-      veterinaire: data.veterinaire || data.veterinaire_id || null,
+      date_vaccination: data.date_vaccination || (data as any).date_administration || new Date().toISOString(),
+      numero_lot_vaccin: data.numero_lot_vaccin || (data as any).lot_numero || null,
+      veterinaire: data.veterinaire || (data as any).veterinaire_id || null,
       date_rappel: data.date_rappel || null,
       notes: data.notes || null,
       type_prophylaxie: data.type_prophylaxie || 'vitamine',
@@ -39,16 +39,16 @@ export class VaccinationRepository extends BaseRepository<Vaccination> {
     const updateData: Record<string, unknown> = {};
 
     if (data.animal_ids !== undefined) updateData.animal_ids = data.animal_ids;
-    if (data.vaccin !== undefined || data.type_vaccin !== undefined) updateData.vaccin = data.vaccin || data.type_vaccin;
+    if (data.vaccin !== undefined || (data as any).type_vaccin !== undefined) updateData.vaccin = data.vaccin || (data as any).type_vaccin;
     if (data.nom_vaccin !== undefined) updateData.nom_vaccin = data.nom_vaccin;
-    if (data.date_vaccination !== undefined || data.date_administration !== undefined) {
-      updateData.date_vaccination = data.date_vaccination || data.date_administration;
+    if (data.date_vaccination !== undefined || (data as any).date_administration !== undefined) {
+      updateData.date_vaccination = data.date_vaccination || (data as any).date_administration;
     }
-    if (data.numero_lot_vaccin !== undefined || data.lot_numero !== undefined) {
-      updateData.numero_lot_vaccin = data.numero_lot_vaccin || data.lot_numero;
+    if (data.numero_lot_vaccin !== undefined || (data as any).lot_numero !== undefined) {
+      updateData.numero_lot_vaccin = data.numero_lot_vaccin || (data as any).lot_numero;
     }
-    if (data.veterinaire !== undefined || data.veterinaire_id !== undefined) {
-      updateData.veterinaire = data.veterinaire || data.veterinaire_id;
+    if (data.veterinaire !== undefined || (data as any).veterinaire_id !== undefined) {
+      updateData.veterinaire = data.veterinaire || (data as any).veterinaire_id;
     }
     if (data.date_rappel !== undefined) updateData.date_rappel = data.date_rappel;
     if (data.notes !== undefined) updateData.notes = data.notes;
@@ -92,7 +92,7 @@ export class VaccinationRepository extends BaseRepository<Vaccination> {
   async findByType(projetId: string, typeVaccin: string): Promise<Vaccination[]> {
     try {
       const vaccinations = await this.findByProjet(projetId);
-      return vaccinations.filter(v => (v.vaccin || v.type_vaccin) === typeVaccin);
+      return vaccinations.filter(v => (v.vaccin || (v as any).type_vaccin) === typeVaccin);
     } catch (error) {
       console.error('Error finding vaccinations by type:', error);
       return [];
@@ -198,7 +198,7 @@ export class VaccinationRepository extends BaseRepository<Vaccination> {
 
       const parType: Record<string, number> = {};
       vaccinations.forEach(v => {
-        const type = v.vaccin || v.type_vaccin || 'autre';
+        const type = v.vaccin || (v as any).type_vaccin || 'autre';
         parType[type] = (parType[type] || 0) + 1;
       });
 
@@ -278,7 +278,7 @@ export class VaccinationRepository extends BaseRepository<Vaccination> {
     return this.create({
       projet_id: originale.projet_id,
       animal_ids: typeof originale.animal_ids === 'string' ? JSON.parse(originale.animal_ids) : originale.animal_ids,
-      vaccin: originale.vaccin || originale.type_vaccin,
+      vaccin: originale.vaccin || (originale as any).type_vaccin,
       nom_vaccin: originale.nom_vaccin,
       date_vaccination: new Date().toISOString(),
       veterinaire: originale.veterinaire || originale.veterinaire_id,

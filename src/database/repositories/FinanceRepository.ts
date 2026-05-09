@@ -516,7 +516,7 @@ export class ChargeFixeRepository extends BaseRepository<ChargeFixe> {
       throw new Error('Charge fixe introuvable');
     }
     const newStatus = charge.statut === 'actif' ? 'inactif' : 'actif';
-    return this.update(id, { statut: newStatus });
+    return this.update(id, { statut: newStatus as any });
   }
 }
 

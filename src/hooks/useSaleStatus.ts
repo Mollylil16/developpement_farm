@@ -42,9 +42,9 @@ export function useSaleStatus(subjectId: string) {
 
       if (animal) {
         // Les champs marketplace_status et marketplace_listing_id peuvent être dans les données supplémentaires
-        const marketplaceStatus = animal.marketplace_status;
-        const marketplaceListingId = animal.marketplace_listing_id;
-        
+        const marketplaceStatus = (animal as any).marketplace_status;
+        const marketplaceListingId = (animal as any).marketplace_listing_id;
+
         setStatus({
           inMarketplace: !!marketplaceStatus,
           marketplaceStatus: marketplaceStatus as MarketplaceStatus | null,
@@ -161,8 +161,8 @@ export function useBulkSaleStatus(subjectIds: string[]) {
       const statusMap = new Map<string, SubjectSaleStatus>();
       animals.forEach((animal, index) => {
         if (animal) {
-          const marketplaceStatus = animal.marketplace_status;
-          const marketplaceListingId = animal.marketplace_listing_id;
+          const marketplaceStatus = (animal as any).marketplace_status;
+          const marketplaceListingId = (animal as any).marketplace_listing_id;
           
           statusMap.set(subjectIds[index], {
             inMarketplace: !!marketplaceStatus,

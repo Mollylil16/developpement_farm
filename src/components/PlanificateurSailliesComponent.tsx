@@ -38,7 +38,7 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
   const dispatch = useAppDispatch();
 
   const { simulationResultat, sailliesPlanifiees, loading, error } = useAppSelector(
-    (state) => state.planningProduction
+    (state) => (state as any).planningProduction
   );
   const animaux = useAppSelector(selectAllAnimaux);
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
@@ -140,7 +140,7 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
     }
 
     // Vérifier combien de saillies sont déjà validées
-    const sailliesNonValidees = sailliesPlanifiees.filter((s) => !s.validee);
+    const sailliesNonValidees = sailliesPlanifiees.filter((s: any) => !s.validee);
 
     if (sailliesNonValidees.length === 0) {
       Alert.alert(
@@ -202,7 +202,7 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
   const getMarkedDates = (): { [key: string]: any } => {
     const marked: { [key: string]: any } = {};
 
-    (sailliesPlanifiees || []).forEach((saillie) => {
+    (sailliesPlanifiees || []).forEach((saillie: any) => {
       const dateSaillie = format(parseISO(saillie.date_saillie_prevue), 'yyyy-MM-dd');
       const dateMiseBas = format(parseISO(saillie.date_mise_bas_prevue), 'yyyy-MM-dd');
 
@@ -226,7 +226,7 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
 
   const getSailliesForDate = (date: string) => {
     return (sailliesPlanifiees || []).filter(
-      (s) =>
+      (s: any) =>
         format(parseISO(s.date_saillie_prevue), 'yyyy-MM-dd') === date ||
         format(parseISO(s.date_mise_bas_prevue), 'yyyy-MM-dd') === date
     );
@@ -318,7 +318,7 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
           <Text style={styles.buttonText}>✅ Valider le planning - Créer les tâches</Text>
           <View style={[styles.badge, { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
             <Text style={styles.badgeText}>
-              {(sailliesPlanifiees || []).filter((s) => !s.validee).length}
+              {(sailliesPlanifiees || []).filter((s: any) => !s.validee).length}
             </Text>
           </View>
         </TouchableOpacity>
@@ -352,7 +352,7 @@ export default function PlanificateurSailliesComponent({ refreshControl }: Props
           <Text style={[styles.selectedDateTitle, { color: colors.text }]}>
             Événements le {format(parseISO(selectedDate), 'dd MMMM yyyy', { locale: fr })} :
           </Text>
-          {getSailliesForDate(selectedDate).map((saillie) => (
+          {getSailliesForDate(selectedDate).map((saillie: any) => (
             <View key={saillie.id} style={styles.miniSaillieCard}>
               <Text style={[styles.miniSaillieText, { color: colors.text }]}>
                 {format(parseISO(saillie.date_saillie_prevue), 'yyyy-MM-dd') === selectedDate

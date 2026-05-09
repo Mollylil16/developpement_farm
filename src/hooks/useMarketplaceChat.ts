@@ -10,7 +10,7 @@ import type { ChatMessage, ChatConversation } from '../types/marketplace';
 import { logger } from '../utils/logger';
 
 export function useMarketplaceChat(transactionId: string) {
-  const currentUserId = useAppSelector((state) => state.auth.user?.id);
+  const currentUserId = useAppSelector((state) => (state as any).auth.user?.id);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversation, setConversation] = useState<ChatConversation | null>(null);
@@ -45,7 +45,7 @@ export function useMarketplaceChat(transactionId: string) {
       // On utilise les données de la transaction pour créer une conversation virtuelle
       // TODO: Implémenter les endpoints backend pour le chat marketplace
       const conv: ChatConversation | null = transaction.offerId
-        ? {
+        ? ({
             id: `conv-${transaction.offerId}`,
             participants: [transaction.buyerId, transaction.producerId],
             relatedListingId: transaction.offerId, // Utiliser relatedListingId au lieu de relatedOfferId
@@ -56,7 +56,7 @@ export function useMarketplaceChat(transactionId: string) {
             status: 'active',
             createdAt: transaction.createdAt,
             updatedAt: transaction.updatedAt,
-          }
+          } as any)
         : null;
 
       setConversation(conv);

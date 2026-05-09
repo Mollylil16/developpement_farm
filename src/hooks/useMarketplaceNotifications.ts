@@ -27,7 +27,7 @@ export function useMarketplaceNotifications(
     respectAppState = true,
   } = options;
   // Note: projetActifId n'est plus requis - les acheteurs/collaborateurs n'ont pas de projet propre
-  const currentUserId = useAppSelector((state) => state.auth.user?.id);
+  const currentUserId = useAppSelector((state) => (state as any).auth.user?.id);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);

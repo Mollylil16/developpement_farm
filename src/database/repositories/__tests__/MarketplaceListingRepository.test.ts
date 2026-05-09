@@ -23,7 +23,7 @@ describe('MarketplaceListingRepository', () => {
       getFirstAsync: jest.fn(),
       getAllAsync: jest.fn(),
     };
-    repository = new MarketplaceListingRepository(mockDb);
+    repository = new MarketplaceListingRepository();
   });
 
   describe('constructor', () => {

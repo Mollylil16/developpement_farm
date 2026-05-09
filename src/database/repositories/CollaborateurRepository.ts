@@ -51,8 +51,8 @@ export class CollaborateurRepository extends BaseRepository<Collaborateur> {
       prenom: row.prenom,
       email: row.email,
       telephone: row.telephone || undefined,
-      role: row.role,
-      statut: row.statut || 'en_attente',
+      role: row.role as any,
+      statut: (row.statut || 'en_attente') as any,
       permissions: {
         reproduction: Boolean(row.permission_reproduction),
         nutrition: Boolean(row.permission_nutrition),

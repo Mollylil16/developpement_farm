@@ -32,9 +32,9 @@ describe('FinanceRepository', () => {
       getAllAsync: jest.fn(),
     } as any;
 
-    revenuRepo = new RevenuRepository(mockDb);
-    depenseRepo = new DepensePonctuelleRepository(mockDb);
-    chargeFixeRepo = new ChargeFixeRepository(mockDb);
+    revenuRepo = new RevenuRepository();
+    depenseRepo = new DepensePonctuelleRepository();
+    chargeFixeRepo = new ChargeFixeRepository();
   });
 
   describe('RevenuRepository', () => {

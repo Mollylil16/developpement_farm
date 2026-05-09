@@ -2,7 +2,7 @@
  * Actions liées aux mortalités
  */
 
-import { AgentActionResult, AgentContext } from '../../../types/chatAgent';
+import { AgentActionResult, AgentContext } from '../../../../types/chatAgent';
 import { format, subDays } from 'date-fns';
 import apiClient from '../../../api/apiClient';
 
@@ -204,27 +204,27 @@ export class MortaliteActions {
       >
     );
 
-    const totalMortalites = Object.values(causes).reduce((sum, c) => sum + c.nombre, 0);
+    const totalMortalites = Object.values(causes).reduce((sum: number, c: any) => sum + c.nombre, 0);
 
     // Calculer les pourcentages
     Object.keys(causes).forEach((cause) => {
-      causes[cause].pourcentage = (causes[cause].nombre / totalMortalites) * 100;
+      (causes[cause] as any).pourcentage = ((causes[cause] as any).nombre / (totalMortalites as number)) * 100;
     });
 
     // Trier par nombre décroissant
-    const causesTriees = Object.entries(causes).sort((a, b) => b[1].nombre - a[1].nombre);
+    const causesTriees = Object.entries(causes).sort((a: any, b: any) => b[1].nombre - a[1].nombre);
 
     let message = `Analyse des causes de mortalité :\n`;
     message += `• Total : ${totalMortalites} porc(s)\n\n`;
     message += `Causes principales :\n`;
 
-    causesTriees.slice(0, 5).forEach(([cause, data]) => {
+    causesTriees.slice(0, 5).forEach(([cause, data]: any) => {
       message += `\n• ${cause} : ${data.nombre} porc(s) (${data.pourcentage.toFixed(1)}%)`;
     });
 
     // Recommandations
     const recommandations: string[] = [];
-    if (causesTriees[0] && causesTriees[0][1].pourcentage > 50) {
+    if (causesTriees[0] && (causesTriees[0][1] as any).pourcentage > 50) {
       recommandations.push(`La cause "${causesTriees[0][0]}" représente plus de 50% des mortalités. Il est urgent d'agir.`);
     }
     if (causesTriees.find(([cause]) => cause.includes('maladie') || cause.includes('infection'))) {
@@ -245,7 +245,7 @@ export class MortaliteActions {
       success: true,
       message,
       data: {
-        causes: causesTriees.map(([cause, data]) => ({
+        causes: causesTriees.map(([cause, data]: any) => ({
           cause,
           nombre: data.nombre,
           pourcentage: data.pourcentage,

@@ -37,13 +37,13 @@ export class PDFGeneratorService {
     }
   ): Promise<string> {
     const fileName = `Rapport_Ferme_${this.formatDateForFileName(data.periode.debut)}_${this.formatDateForFileName(data.periode.fin)}.pdf`;
-    const filePath = `${FileSystem.documentDirectory}${fileName}`;
+    const filePath = `${(FileSystem as any).documentDirectory}${fileName}`;
 
     // Générer le contenu PDF
     const pdfContent = await this.genererContenuPDF(data, options);
     
     // Créer le fichier PDF (simulation - en réalité, utiliserait une vraie librairie PDF)
-    await FileSystem.writeAsStringAsync(filePath, pdfContent, { encoding: FileSystem.EncodingType.UTF8 });
+    await FileSystem.writeAsStringAsync(filePath, pdfContent, { encoding: (FileSystem as any).EncodingType.UTF8 });
     
     return filePath;
   }
@@ -237,7 +237,7 @@ TOP 5 DES VENTES
 ${transactionsVentes
   .sort((a, b) => b.montant - a.montant)
   .slice(0, 5)
-  .map((t, index) => `${index + 1}. ${t.description} - ${CalculsAgricoles.formaterMontant(t.montant, data.deviseConfig)} (${t.date.toLocaleDateString('fr-FR')})`)
+  .map((t, index) => `${index + 1}. ${t.description} - ${CalculsAgricoles.formaterMontant(t.montant, data.deviseConfig)} (${(t.date as any).toLocaleDateString('fr-FR')})`)
   .join('\n')}
 
 ================================================================================
@@ -301,7 +301,7 @@ DÉTAIL DES GESTATIONS EN COURS
 --------------------------------------------------------------------------------
 ${gestationsEnCours.map(g => {
   const truie = data.porcs.find(p => p.id === g.truieId);
-  return `• Truie ${truie?.numeroIdentification || 'N/A'} - ${g.nombrePorceletsPrevu} porcelets prévus - ${g.dateMiseBasPrevue.toLocaleDateString('fr-FR')}`;
+  return `• Truie ${truie?.numeroIdentification || 'N/A'} - ${g.nombrePorceletsPrevu} porcelets prévus - ${(g.dateMiseBasPrevue as any).toLocaleDateString('fr-FR')}`;
 }).join('\n')}
 
 ================================================================================
@@ -343,20 +343,20 @@ ${this.genererRecommandationsNutrition(data.porcs)}
 LISTE COMPLÈTE DES PORCS
 --------------------------------------------------------------------------------
 ${data.porcs.map(p => 
-  `${p.numeroIdentification} | ${p.sexe} | ${p.race} | ${p.poidsActuel}kg | ${p.dateNaissance.toLocaleDateString('fr-FR')} | ${p.statut}`
+  `${p.numeroIdentification} | ${p.sexe} | ${p.race} | ${p.poidsActuel}kg | ${(p.dateNaissance as any).toLocaleDateString('fr-FR')} | ${p.statut}`
 ).join('\n')}
 
 LISTE DES TRANSACTIONS
 --------------------------------------------------------------------------------
 ${data.transactions.map(t => 
-  `${t.date.toLocaleDateString('fr-FR')} | ${t.type} | ${CalculsAgricoles.formaterMontant(t.montant, data.deviseConfig)} | ${t.description} | ${t.categorie || 'N/A'}`
+  `${(t.date as any).toLocaleDateString('fr-FR')} | ${t.type} | ${CalculsAgricoles.formaterMontant(t.montant, data.deviseConfig)} | ${t.description} | ${t.categorie || 'N/A'}`
 ).join('\n')}
 
 LISTE DES GESTATIONS
 --------------------------------------------------------------------------------
 ${data.gestations.map(g => {
   const truie = data.porcs.find(p => p.id === g.truieId);
-  return `${g.dateMiseBasPrevue.toLocaleDateString('fr-FR')} | ${truie?.numeroIdentification || 'N/A'} | ${g.nombrePorceletsPrevu} porcelets | ${g.statut}`;
+  return `${(g.dateMiseBasPrevue as any).toLocaleDateString('fr-FR')} | ${truie?.numeroIdentification || 'N/A'} | ${g.nombrePorceletsPrevu} porcelets | ${g.statut}`;
 }).join('\n')}
 
 ================================================================================
@@ -423,7 +423,7 @@ Période analysée: ${data.periode.debut.toLocaleDateString('fr-FR')} - ${data.p
     };
 
     porcs.forEach(porc => {
-      const ageEnMois = (maintenant.getTime() - porc.dateNaissance.getTime()) / (1000 * 60 * 60 * 24 * 30);
+      const ageEnMois = (maintenant.getTime() - (porc.dateNaissance as any).getTime()) / (1000 * 60 * 60 * 24 * 30);
       if (ageEnMois <= 6) groupes['0-6 mois']++;
       else if (ageEnMois <= 12) groupes['6-12 mois']++;
       else if (ageEnMois <= 24) groupes['1-2 ans']++;

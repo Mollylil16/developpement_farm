@@ -120,11 +120,11 @@ const ReproductionScreen: React.FC = () => {
   };
 
   // Calculs pour les statistiques
-  const gestationsEnCours = gestations.filter(g => g.statut === 'en_cours').length;
-  const gestationsTerminees = gestations.filter(g => g.statut === 'terminee').length;
+  const gestationsEnCours = gestations.filter((g: any) => g.statut === 'en_cours').length;
+  const gestationsTerminees = gestations.filter((g: any) => g.statut === 'terminee').length;
   const totalPorceletsSevres = sevrages.length;
   const moyennePorceletsParGestation = gestations.length > 0 
-    ? gestations.reduce((sum, g) => sum + g.nombrePorceletsPrevu, 0) / gestations.length 
+    ? gestations.reduce((sum: any, g: any) => sum + g.nombrePorceletsPrevu, 0) / gestations.length 
     : 0;
 
   const GestationCard = ({ gestation }: { gestation: Gestation }) => {
@@ -283,10 +283,10 @@ const ReproductionScreen: React.FC = () => {
       <View style={styles.content}>
         {activeTab === 'gestations' && (
           <Section title="Gestations en cours">
-            {gestations.filter(g => g.statut === 'en_cours').map(gestation => (
+            {gestations.filter((g: any) => g.statut === 'en_cours').map((gestation: any) => (
               <GestationCard key={gestation.id} gestation={gestation} />
             ))}
-            {gestations.filter(g => g.statut === 'en_cours').length === 0 && (
+            {gestations.filter((g: any) => g.statut === 'en_cours').length === 0 && (
               <View style={styles.emptyContainer}>
                 <MaterialIcons name="pregnant-woman" size={48} color="#ccc" />
                 <Text style={styles.emptyText}>Aucune gestation en cours</Text>
@@ -297,7 +297,7 @@ const ReproductionScreen: React.FC = () => {
 
         {activeTab === 'sevrages' && (
           <Section title="Sevrages récents">
-            {sevrages.slice(-10).map(sevrage => (
+            {sevrages.slice(-10).map((sevrage: any) => (
               <SevrageCard key={sevrage.id} sevrage={sevrage} />
             ))}
             {sevrages.length === 0 && (
@@ -315,7 +315,7 @@ const ReproductionScreen: React.FC = () => {
               onDayPress={(day) => setSelectedDate(day.dateString)}
               markedDates={{
                 [selectedDate]: { selected: true, selectedColor: '#FF9800' },
-                ...gestations.reduce((acc, g) => {
+                ...gestations.reduce((acc: any, g: any) => {
                   const dateKey = g.dateMiseBasPrevue.toISOString().split('T')[0];
                   acc[dateKey] = { marked: true, dotColor: '#FF9800' };
                   return acc;

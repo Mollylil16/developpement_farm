@@ -25,7 +25,7 @@ export default function HomeView({ onNavigateToSettings, onNavigateToMonProjet, 
   const { colors } = useTheme();
   const navigation = useNavigation<any>();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   const { activeRole, availableRoles, switchRole, logoutRole } = useRole();
   const [roleSwitcherVisible, setRoleSwitcherVisible] = useState(false);
   const [addRoleModalVisible, setAddRoleModalVisible] = useState(false);

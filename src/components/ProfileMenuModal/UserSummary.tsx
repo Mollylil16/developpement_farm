@@ -13,7 +13,7 @@ import ProfilePhoto from '../ProfilePhoto';
 
 export default function UserSummary() {
   const { colors } = useTheme();
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => (state as any).auth);
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();
   

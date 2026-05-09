@@ -37,8 +37,8 @@ export default function ProtectedScreen({
 }: ProtectedScreenProps) {
   const { activeRole } = useRole();
   const rolePermissions = useRolePermissions();
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
-  const currentUser = useAppSelector((state) => state.auth.user);
+  const projetActif = useAppSelector((state) => (state as any).projet.projetActif);
+  const currentUser = useAppSelector((state) => (state as any).auth.user);
   const collaborateurActuel = useAppSelector((state) => state.collaboration.collaborateurActuel);
   const navigation = useNavigation();
   const { colors } = useTheme();

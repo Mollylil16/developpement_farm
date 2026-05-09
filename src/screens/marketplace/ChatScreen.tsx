@@ -26,7 +26,7 @@ import { useMarketplaceChat } from '../../hooks/useMarketplaceChat';
 export default function ChatScreen() {
   const route = useRoute();
   const navigation = useNavigation();
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => (state as any).auth);
   
   // Récupérer les paramètres de route
   const { transactionId } = (route.params as { transactionId?: string }) || {};

@@ -28,12 +28,12 @@ export interface AnimalPeseeDetail {
   };
 }
 
-interface UseAnimalPeseeDetailParams {
+export interface UseAnimalPeseeDetailParams {
   animalId: string | undefined;
   enabled?: boolean; // Optionnel : pour désactiver le chargement automatique
 }
 
-interface UseAnimalPeseeDetailReturn {
+export interface UseAnimalPeseeDetailReturn {
   data: AnimalPeseeDetail | null;
   loading: boolean;
   error: string | null;

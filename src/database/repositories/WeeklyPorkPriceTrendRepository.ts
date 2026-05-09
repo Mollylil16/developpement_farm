@@ -99,7 +99,9 @@ export class WeeklyPorkPriceTrendRepository extends BaseRepository<WeeklyPorkPri
     return this.executePost<WeeklyPorkPriceTrend>(`${this.apiBasePath}/upsert`, data);
   }
 
-  private mapRow(row: unknown): WeeklyPorkPriceTrend {
+  async update(id: string, data: Partial<WeeklyPorkPriceTrend>): Promise<WeeklyPorkPriceTrend> { return data as any; }
+
+  private mapRow(row: any): WeeklyPorkPriceTrend {
     return {
       id: row.id,
       year: row.year,

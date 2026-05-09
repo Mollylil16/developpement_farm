@@ -20,7 +20,7 @@ export interface AuthLoadingState {
  * Hook pour gérer les états de chargement et messages d'authentification
  */
 export function useAuthLoading(): AuthLoadingState {
-  const { isLoading, error } = useAppSelector((state) => state.auth);
+  const { isLoading, error } = useAppSelector((state) => (state as any).auth);
   const [localError, setLocalError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 

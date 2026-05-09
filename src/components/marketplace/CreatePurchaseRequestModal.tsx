@@ -162,7 +162,7 @@ export default function CreatePurchaseRequestModal({
         // Mode édition
         try {
           const db = await getDatabase();
-          const repo = new PurchaseRequestRepository(db);
+          const repo = new PurchaseRequestRepository();
           
           // Construire l'objet de mise à jour
           const updates: any = {

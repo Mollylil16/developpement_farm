@@ -105,7 +105,7 @@ export default function StockAlimentFormModal({
   const calculRationEnSacs = useMemo(() => {
     if (!useRation || !selectedRationId) return null;
 
-    const ration = rationsBudget.find((r) => r.id === selectedRationId);
+    const ration = rationsBudget.find((r: any) => r.id === selectedRationId);
     if (!ration) return null;
 
     const quantiteTotaleKg = ration.quantite_totale_kg;
@@ -130,7 +130,7 @@ export default function StockAlimentFormModal({
   // Auto-remplir le nom de l'aliment avec le nom de la ration sélectionnée
   useEffect(() => {
     if (useRation && selectedRationId) {
-      const ration = rationsBudget.find((r) => r.id === selectedRationId);
+      const ration = rationsBudget.find((r: any) => r.id === selectedRationId);
       if (ration) {
         setFormData((prev) => ({
           ...prev,
@@ -332,18 +332,18 @@ export default function StockAlimentFormModal({
                       {selectedRationId ? (
                         <>
                           <Text style={[styles.rationSelectedText, { color: colors.text }]}>
-                            {rationsBudget.find((r) => r.id === selectedRationId)?.nom}
+                            {rationsBudget.find((r: any) => r.id === selectedRationId)?.nom}
                           </Text>
                           <Text
                             style={[styles.rationSelectedSubtext, { color: colors.textSecondary }]}
                           >
                             {getTypePorcLabel(
-                              rationsBudget.find((r) => r.id === selectedRationId)?.type_porc ||
+                              rationsBudget.find((r: any) => r.id === selectedRationId)?.type_porc ||
                                 'porc_croissance'
                             )}{' '}
                             •{' '}
                             {rationsBudget
-                              .find((r) => r.id === selectedRationId)
+                              .find((r: any) => r.id === selectedRationId)
                               ?.quantite_totale_kg.toFixed(0)}{' '}
                             kg
                           </Text>
@@ -386,7 +386,7 @@ export default function StockAlimentFormModal({
                           </Text>
                         </View>
                       ) : (
-                        rationsBudget.map((ration) => (
+                        rationsBudget.map((ration: any) => (
                           <TouchableOpacity
                             key={ration.id}
                             style={[

@@ -63,9 +63,9 @@ export default function CreatePurchaseRequestOfferModal({
     try {
       setFetchingListing(true);
       const db = await getDatabase();
-      const listingRepo = new MarketplaceListingRepository(db);
-      const animalRepo = new AnimalRepository(db);
-      const poidsRepo = new PeseeRepository(db);
+      const listingRepo = new MarketplaceListingRepository();
+      const animalRepo = new AnimalRepository();
+      const poidsRepo = new PeseeRepository();
 
       const listingData = await listingRepo.findById(match.listingId);
       if (!listingData) {

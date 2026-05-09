@@ -3,10 +3,10 @@
  */
 
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { migrationLogger } from '../../utils/logger';
+import { dbLogger as migrationLogger } from '../../utils/logger';
 
 export async function addCategoriePoidsAndNombreCroissance(db: SQLiteDatabase): Promise<void> {
-  migrationLogger.step('Migration 032: Ajout de categorie_poids et nombre_croissance');
+  (migrationLogger as any).step('Migration 032: Ajout de categorie_poids et nombre_croissance');
 
   try {
     // Ajouter categorie_poids à production_animaux si elle n'existe pas

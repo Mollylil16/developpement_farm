@@ -5,8 +5,8 @@
  */
 
 import { CreateDepenseUseCase, type CreateDepenseInput } from '../CreateDepense';
-import type { IFinanceRepository } from '../repositories/IFinanceRepository';
-import type { Depense } from '../entities/Depense';
+import type { IFinanceRepository } from '../../repositories/IFinanceRepository';
+import type { Depense } from '../../entities/Depense';
 
 // Mocks
 jest.mock('react-native-uuid', () => ({

@@ -61,7 +61,7 @@ export default function AddListingModal({
   batchPigIds,
 }: AddListingModalProps) {
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
-  const { user } = useAppSelector((state) => state.auth ?? { user: null });
+  const { user } = useAppSelector((state) => (state as any).auth ?? { user: null });
   const { getCurrentLocation } = useGeolocation();
 
   // Déterminer le mode

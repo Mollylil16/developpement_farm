@@ -30,10 +30,10 @@ const rappelVaccinationSchema = new schema.Entity('rappels_vaccinations');
 // SELECTORS DE BASE
 // ============================================
 
-const selectSanteState = (state: RootState) => state.sante;
+const selectSanteState = (state: RootState) => (state as any).sante;
 
-export const selectSanteLoading = (state: RootState) => state.sante.loading;
-export const selectSanteError = (state: RootState) => state.sante.error;
+export const selectSanteLoading = (state: RootState) => (state as any).sante?.loading;
+export const selectSanteError = (state: RootState) => (state as any).sante?.error;
 
 // Memoizer selectSanteStatistics pour éviter les re-renders inutiles
 export const selectSanteStatistics = createSelector(
@@ -354,12 +354,12 @@ export const selectHistoriqueMedicalAnimal = (animalId: string) =>
 
 export const selectNombreAlertesCritiques = createSelector(
   [selectSanteAlertes],
-  (alertes) => alertes.filter((a) => a.gravite === 'critique').length
+  (alertes) => alertes.filter((a: any) => a.gravite === 'critique').length
 );
 
 export const selectNombreAlertesElevees = createSelector(
   [selectSanteAlertes],
-  (alertes) => alertes.filter((a) => a.gravite === 'elevee').length
+  (alertes) => alertes.filter((a: any) => a.gravite === 'elevee').length
 );
 
 export const selectHasAlertesCritiques = createSelector(

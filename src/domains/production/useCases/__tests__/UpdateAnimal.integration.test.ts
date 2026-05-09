@@ -3,8 +3,8 @@
  */
 
 import { UpdateAnimalUseCase, type UpdateAnimalInput } from '../UpdateAnimal';
-import type { IAnimalRepository } from '../repositories/IAnimalRepository';
-import type { Animal } from '../entities/Animal';
+import type { IAnimalRepository } from '../../repositories/IAnimalRepository';
+import type { Animal } from '../../entities/Animal';
 
 describe('UpdateAnimalUseCase - Integration', () => {
   let useCase: UpdateAnimalUseCase;

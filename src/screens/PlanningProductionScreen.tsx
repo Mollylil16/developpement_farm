@@ -23,8 +23,8 @@ export default function PlanningProductionScreen() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
 
-  const { projetActif } = useAppSelector((state) => state.projet);
-  const planningState = useAppSelector((state) => state.planningProduction);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
+  const planningState = useAppSelector((state) => (state as any).planningProduction);
 
   const [ongletActif, setOngletActif] = useState<OngletType>('simulation');
   const [refreshing, setRefreshing] = useState(false);

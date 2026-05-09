@@ -355,7 +355,7 @@ IMPORTANT : Utilise TOUJOURS les fonctions quand l'action le permet. Ne dis jama
 
           // Exécuter la fonction via executeFromFunctionCall
           try {
-            const result = await this.actionExecutor.executeFromFunctionCall(
+            const result = await (this.actionExecutor as any).executeFromFunctionCall(
               functionName,
               args,
               this.context

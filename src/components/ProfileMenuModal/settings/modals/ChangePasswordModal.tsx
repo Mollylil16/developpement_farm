@@ -21,7 +21,7 @@ interface ChangePasswordModalProps {
 
 export default function ChangePasswordModal({ visible, onClose }: ChangePasswordModalProps) {
   const { colors } = useTheme();
-  const user = useAppSelector((state) => state.auth.user);
+  const user = useAppSelector((state) => (state as any).auth.user);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -54,7 +54,7 @@ export default function ChangePasswordModal({ visible, onClose }: ChangePassword
     setLoading(true);
     try {
       const db = await getDatabase();
-      const userRepo = new UserRepository(db);
+      const userRepo = new UserRepository();
       
       // Récupérer l'utilisateur avec le hash du mot de passe
       // Note: password_hash n'est pas dans le type User, on doit le récupérer directement

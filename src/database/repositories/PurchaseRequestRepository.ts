@@ -11,7 +11,7 @@ import type {
   PurchaseRequestOfferStatus,
 } from '../../types/marketplace';
 
-export class PurchaseRequestRepository extends BaseRepository<PurchaseRequest> {
+export class PurchaseRequestRepository extends (BaseRepository as any)<PurchaseRequest> {
   constructor() {
     super('purchase_requests', '/marketplace/purchase-requests');
   }
@@ -66,7 +66,7 @@ export class PurchaseRequestRepository extends BaseRepository<PurchaseRequest> {
       expires_at: data.expiresAt || null,
     };
 
-    return this.executePost<PurchaseRequest>(this.apiBasePath, requestData);
+    return (this.executePost as any)(this.apiBasePath, requestData);
   }
 
   /**
@@ -93,7 +93,7 @@ export class PurchaseRequestRepository extends BaseRepository<PurchaseRequest> {
     if (updates.status !== undefined) updateData.status = updates.status;
     if (updates.expiresAt !== undefined) updateData.expires_at = updates.expiresAt;
 
-    return this.executePatch<PurchaseRequest>(`${this.apiBasePath}/${id}`, updateData);
+    return (this.executePatch as any)(`${this.apiBasePath}/${id}`, updateData);
   }
 
   /**
@@ -108,7 +108,7 @@ export class PurchaseRequestRepository extends BaseRepository<PurchaseRequest> {
       params.exclude_archived = true;
     }
 
-    return this.query<PurchaseRequest>(this.apiBasePath, params);
+    return (this.query as any)(this.apiBasePath, params);
   }
 
   /**
@@ -141,7 +141,7 @@ export class PurchaseRequestRepository extends BaseRepository<PurchaseRequest> {
       params.max_price_per_kg = filters.maxPricePerKg;
     }
 
-    return this.query<PurchaseRequest>(this.apiBasePath, params);
+    return (this.query as any)(this.apiBasePath, params);
   }
 
   /**
@@ -280,7 +280,7 @@ export class PurchaseRequestOfferRepository extends BaseRepository<PurchaseReque
 /**
  * Repository pour les matches entre demandes d'achat et listings
  */
-export class PurchaseRequestMatchRepository extends BaseRepository<PurchaseRequestMatch> {
+export class PurchaseRequestMatchRepository extends (BaseRepository as any)<PurchaseRequestMatch> {
   constructor() {
     super('purchase_request_matches', '/marketplace/purchase-request-matches');
   }
@@ -301,7 +301,7 @@ export class PurchaseRequestMatchRepository extends BaseRepository<PurchaseReque
       match_score: data.matchScore || null,
     };
 
-    return this.executePost<PurchaseRequestMatch>(this.apiBasePath, matchData);
+    return (this.executePost as any)(this.apiBasePath, matchData);
   }
 
   /**
@@ -312,7 +312,7 @@ export class PurchaseRequestMatchRepository extends BaseRepository<PurchaseReque
       purchase_request_id: purchaseRequestId,
     };
 
-    return this.query<PurchaseRequestMatch>(this.apiBasePath, params);
+    return (this.query as any)(this.apiBasePath, params);
   }
 
   /**
@@ -323,7 +323,7 @@ export class PurchaseRequestMatchRepository extends BaseRepository<PurchaseReque
       producer_id: producerId,
     };
 
-    return this.query<PurchaseRequestMatch>(this.apiBasePath, params);
+    return (this.query as any)(this.apiBasePath, params);
   }
 
   /**
@@ -342,7 +342,7 @@ export class PurchaseRequestMatchRepository extends BaseRepository<PurchaseReque
       listing_id: listingId,
     };
 
-    const result = await this.queryOne<{ exists: boolean }>(`${this.apiBasePath}/exists`, params);
+    const result = await (this.queryOne as any)(`${this.apiBasePath}/exists`, params);
     return result?.exists || false;
   }
 
@@ -350,6 +350,6 @@ export class PurchaseRequestMatchRepository extends BaseRepository<PurchaseReque
    * Mettre à jour un match (override de BaseRepository)
    */
   async update(id: string, data: Partial<PurchaseRequestMatch>): Promise<PurchaseRequestMatch> {
-    return this.executePatch<PurchaseRequestMatch>(`${this.apiBasePath}/${id}`, data);
+    return (this.executePatch as any)(`${this.apiBasePath}/${id}`, data);
   }
 }

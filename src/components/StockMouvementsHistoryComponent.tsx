@@ -32,7 +32,7 @@ export default function StockMouvementsHistoryComponent() {
   const dispatch = useAppDispatch();
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();
-  const { stocks, mouvementsParAliment, loading } = useAppSelector((state) => state.stocks);
+  const { stocks, mouvementsParAliment, loading } = useAppSelector((state) => (state as any).stocks);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'tous' | 'entree' | 'sortie' | 'ajustement'>('tous');
@@ -102,7 +102,7 @@ export default function StockMouvementsHistoryComponent() {
   // Récupérer tous les mouvements de tous les aliments
   const tousLesMouvements = useMemo(() => {
     const mouvements: StockMouvement[] = [];
-    stocks.forEach((stock) => {
+    stocks.forEach((stock: any) => {
       const mouvementsStock = mouvementsParAliment[stock.id] || [];
       mouvements.push(...mouvementsStock);
     });
@@ -128,7 +128,7 @@ export default function StockMouvementsHistoryComponent() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtres = filtres.filter((m) => {
-        const aliment = stocks.find((s) => s.id === m.aliment_id);
+        const aliment = stocks.find((s: any) => s.id === m.aliment_id);
         return aliment?.nom.toLowerCase().includes(query);
       });
     }
@@ -316,7 +316,7 @@ export default function StockMouvementsHistoryComponent() {
                     Tous
                   </Text>
                 </TouchableOpacity>
-                {stocks.slice(0, 5).map((stock) => (
+                {stocks.slice(0, 5).map((stock: any) => (
                   <TouchableOpacity
                     key={stock.id}
                     style={[
@@ -397,7 +397,7 @@ export default function StockMouvementsHistoryComponent() {
         ) : (
           <View>
             {displayedMouvements.map((mouvement) => {
-              const aliment = stocks.find((s) => s.id === mouvement.aliment_id);
+              const aliment = stocks.find((s: any) => s.id === mouvement.aliment_id);
               const alimentNom = aliment?.nom || 'Aliment inconnu';
               const typeColor = getTypeColor(mouvement.type);
 

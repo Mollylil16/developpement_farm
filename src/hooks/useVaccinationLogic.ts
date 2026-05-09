@@ -60,11 +60,11 @@ export function useVaccinationLogic(): VaccinationLogicReturn {
   const dispatch = useAppDispatch();
 
   // Sélecteurs Redux
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  const projetActif = useAppSelector((state) => (state as any).projet.projetActif);
   const vaccinations = useAppSelector((state) => selectAllVaccinations(state));
   const animaux = useAppSelector((state) => selectAllAnimaux(state));
   const statistics = useAppSelector((state) => selectSanteStatistics(state));
-  const loading = useAppSelector((state) => state.sante.loading.vaccinations);
+  const loading = useAppSelector((state) => (state as any).sante.loading.vaccinations);
 
   // État local
   const [refreshing, setRefreshing] = useState(false);
@@ -185,9 +185,9 @@ export function useVaccinationLogic(): VaccinationLogicReturn {
 
       // Trouver le dernier traitement et le prochain prévu
       const traitementsEffectues = vaccinationsType
-        .filter((v) => v.statut === 'effectue' && v.date_administration)
-        .sort((a, b) => (b.date_administration || '').localeCompare(a.date_administration || ''));
-      const dernierTraitement = traitementsEffectues[0]?.date_administration;
+        .filter((v) => v.statut === 'effectue' && (v as any).date_administration)
+        .sort((a, b) => ((b as any).date_administration || '').localeCompare((a as any).date_administration || ''));
+      const dernierTraitement = (traitementsEffectues[0] as any)?.date_administration;
 
       return {
         type_prophylaxie: type,

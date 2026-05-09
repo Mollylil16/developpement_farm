@@ -57,8 +57,8 @@ interface UseActionPermissionsReturn {
 export function useActionPermissions(): UseActionPermissionsReturn {
   const { activeRole } = useRole();
   const rolePermissions = useRolePermissions();
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
-  const currentUser = useAppSelector((state) => state.auth.user);
+  const projetActif = useAppSelector((state) => (state as any).projet.projetActif);
+  const currentUser = useAppSelector((state) => (state as any).auth.user);
 
   // Vérifier si l'utilisateur est propriétaire du projet actif
   const isProprietaire =

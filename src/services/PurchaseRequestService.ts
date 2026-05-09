@@ -250,7 +250,7 @@ export class PurchaseRequestService {
     let matches = true;
 
     // 1. Vérifier la race
-    const animal = await this.animalRepo.findById(listing.subjectId);
+    const animal = await this.animalRepo.findById(listing.subjectId as string);
     if (!animal) {
       matches = false;
       return { matches: false, score: 0 };

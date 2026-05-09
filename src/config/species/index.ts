@@ -1,7 +1,7 @@
 import { SpeciesCode, SpeciesProfile } from './types';
 import { PORC_PROFILE } from './porc';
 
-export { SpeciesCode, SpeciesProfile } from './types';
+export type { SpeciesCode, SpeciesProfile } from './types';
 export { PORC_PROFILE } from './porc';
 
 const SPECIES_REGISTRY: Partial<Record<SpeciesCode, SpeciesProfile>> = {

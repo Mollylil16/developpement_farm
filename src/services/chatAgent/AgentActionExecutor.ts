@@ -111,8 +111,8 @@ export class AgentActionExecutor {
     }
 
     const db = await getDatabase();
-    const repo = new RevenuRepository(db);
-    const animalRepo = new AnimalRepository(db);
+    const repo = new RevenuRepository();
+    const animalRepo = new AnimalRepository();
 
     // Vérifier les informations manquantes et demander si nécessaire
     const nombre = params.nombre || params.nombre_porcs || params.quantite;
@@ -279,8 +279,8 @@ export class AgentActionExecutor {
     }
 
     const db = await getDatabase();
-    const mortaliteRepo = new MortaliteRepository(db);
-    const animalRepo = new AnimalRepository(db);
+    const mortaliteRepo = new MortaliteRepository();
+    const animalRepo = new AnimalRepository();
 
     // Vérifier les informations manquantes
     const nombrePorcs = params.nombre_porcs || params.nombre || 1;
@@ -378,7 +378,7 @@ export class AgentActionExecutor {
     }
 
     const db = await getDatabase();
-    const repo = new DepensePonctuelleRepository(db);
+    const repo = new DepensePonctuelleRepository();
 
     // Valider et calculer le montant
     let montant: number;
@@ -451,7 +451,7 @@ export class AgentActionExecutor {
     }
 
     const db = await getDatabase();
-    const repo = new VisiteVeterinaireRepository(db);
+    const repo = new VisiteVeterinaireRepository();
 
     const visite = await repo.create({
       projet_id: this.context.projetId,
@@ -485,7 +485,7 @@ export class AgentActionExecutor {
     }
 
     const db = await getDatabase();
-    const repo = new VaccinationRepository(db);
+    const repo = new VaccinationRepository();
 
     // Calculer la date de rappel (généralement 21 jours pour la plupart des vaccins)
     const dateRappel = params.date_rappel || this.calculateDateRappel(params.date || new Date().toISOString());
@@ -522,7 +522,7 @@ export class AgentActionExecutor {
     }
 
     const db = await getDatabase();
-    const repo = new TraitementRepository(db);
+    const repo = new TraitementRepository();
 
     const traitement = await repo.create({
       projet_id: this.context.projetId,
@@ -560,10 +560,10 @@ export class AgentActionExecutor {
     }
 
     const db = await getDatabase();
-    const animalRepo = new AnimalRepository(db);
-    const revenuRepo = new RevenuRepository(db);
-    const depenseRepo = new DepensePonctuelleRepository(db);
-    const peseeRepo = new PeseeRepository(db);
+    const animalRepo = new AnimalRepository();
+    const revenuRepo = new RevenuRepository();
+    const depenseRepo = new DepensePonctuelleRepository();
+    const peseeRepo = new PeseeRepository();
 
     // Statistiques des animaux
     const statsAnimaux = await animalRepo.getStats(this.context.projetId);
@@ -621,8 +621,8 @@ export class AgentActionExecutor {
     }
 
     const db = await getDatabase();
-    const vaccinationRepo = new VaccinationRepository(db);
-    const rappelRepo = new RappelVaccinationRepository(db);
+    const vaccinationRepo = new VaccinationRepository();
+    const rappelRepo = new RappelVaccinationRepository();
 
     // Récupérer toutes les vaccinations du projet
     const vaccinations = await vaccinationRepo.findByProjet(this.context.projetId);
@@ -697,8 +697,8 @@ export class AgentActionExecutor {
     }
 
     const db = await getDatabase();
-    const vaccinationRepo = new VaccinationRepository(db);
-    const rappelRepo = new RappelVaccinationRepository(db);
+    const vaccinationRepo = new VaccinationRepository();
+    const rappelRepo = new RappelVaccinationRepository();
 
     // Si une vaccination_id est fournie, créer directement le rappel
     if (params.vaccination_id) {
@@ -770,7 +770,7 @@ export class AgentActionExecutor {
     }
 
     const db = await getDatabase();
-    const repo = new AnimalRepository(db);
+    const repo = new AnimalRepository();
 
     const animaux = await repo.findByProjet(this.context.projetId);
     const result = animaux.filter((a) => {
@@ -797,7 +797,7 @@ export class AgentActionExecutor {
     }
 
     const db = await getDatabase();
-    const stockRepo = new StockRepository(db);
+    const stockRepo = new StockRepository();
 
     // Récupérer tous les stocks du projet
     const stocks = await stockRepo.findByProjet(this.context.projetId);
@@ -850,8 +850,8 @@ export class AgentActionExecutor {
     }
 
     const db = await getDatabase();
-    const depenseRepo = new DepensePonctuelleRepository(db);
-    const chargeFixeRepo = new ChargeFixeRepository(db);
+    const depenseRepo = new DepensePonctuelleRepository();
+    const chargeFixeRepo = new ChargeFixeRepository();
 
     // Période de calcul (par défaut : dernier mois)
     const dateFin = params.date_fin || new Date().toISOString().split('T')[0];
@@ -1052,7 +1052,7 @@ export class AgentActionExecutor {
     }
 
     const db = await getDatabase();
-    const repo = new MaladieRepository(db);
+    const repo = new MaladieRepository();
 
     const maladie = await repo.create({
       projet_id: this.context.projetId,
@@ -1174,7 +1174,7 @@ export class AgentActionExecutor {
       // Enregistrer automatiquement la maladie
       try {
         const db = await getDatabase();
-        const repo = new MaladieRepository(db);
+        const repo = new MaladieRepository();
         
         const maladie = await repo.create({
           projet_id: this.context.projetId,
@@ -1285,8 +1285,8 @@ export class AgentActionExecutor {
     }
 
     const db = await getDatabase();
-    const vaccinationRepo = new VaccinationRepository(db);
-    const traitementRepo = new TraitementRepository(db);
+    const vaccinationRepo = new VaccinationRepository();
+    const traitementRepo = new TraitementRepository();
 
     // Rechercher les lots dans les vaccinations et traitements
     const vaccinations = await vaccinationRepo.findByProjet(this.context.projetId);
@@ -1369,12 +1369,12 @@ export class AgentActionExecutor {
     }
 
     const db = await getDatabase();
-    const animalRepo = new AnimalRepository(db);
-    const revenuRepo = new RevenuRepository(db);
-    const depenseRepo = new DepensePonctuelleRepository(db);
-    const peseeRepo = new PeseeRepository(db);
-    const vaccinationRepo = new VaccinationRepository(db);
-    const maladieRepo = new MaladieRepository(db);
+    const animalRepo = new AnimalRepository();
+    const revenuRepo = new RevenuRepository();
+    const depenseRepo = new DepensePonctuelleRepository();
+    const peseeRepo = new PeseeRepository();
+    const vaccinationRepo = new VaccinationRepository();
+    const maladieRepo = new MaladieRepository();
 
     // Statistiques des animaux
     const statsAnimaux = await animalRepo.getStats(this.context.projetId);
@@ -1465,7 +1465,7 @@ ${recommandations.length > 0 ? '\nRecommandations :\n' + recommandations.map(r =
     }
 
     const db = await getDatabase();
-    const repo = new ChargeFixeRepository(db);
+    const repo = new ChargeFixeRepository();
 
     // Extraire le montant
     let montant = 0;
@@ -1538,8 +1538,8 @@ ${recommandations.length > 0 ? '\nRecommandations :\n' + recommandations.map(r =
     }
 
     const db = await getDatabase();
-    const peseeRepo = new PeseeRepository(db);
-    const animalRepo = new AnimalRepository(db);
+    const peseeRepo = new PeseeRepository();
+    const animalRepo = new AnimalRepository();
 
     // Trouver l'animal par code ou ID
     let animalId = params.animal_id;
@@ -1590,7 +1590,7 @@ ${recommandations.length > 0 ? '\nRecommandations :\n' + recommandations.map(r =
     }
 
     const db = await getDatabase();
-    const repo = new IngredientRepository(db);
+    const repo = new IngredientRepository();
 
     if (!params.nom) {
       throw new Error('Le nom de l\'ingrédient est requis.');
@@ -1648,7 +1648,7 @@ ${recommandations.length > 0 ? '\nRecommandations :\n' + recommandations.map(r =
     }
 
     const db = await getDatabase();
-    const repo = new PlanificationRepository(db);
+    const repo = new PlanificationRepository();
 
     if (!params.titre) {
       throw new Error('Le titre de la tâche est requis.');

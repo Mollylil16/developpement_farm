@@ -5,7 +5,7 @@
 
 import * as SQLite from 'expo-sqlite';
 import { createTableSafely } from '../schemas/utils';
-import { schemaLogger } from '../../utils/logger';
+import { dbLogger as schemaLogger } from '../../utils/logger';
 
 /**
  * Crée la table veterinarians si elle n'existe pas

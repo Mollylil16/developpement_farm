@@ -31,7 +31,7 @@ export default function ProfilScreen() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
 
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => (state as any).auth);
 
   // Initialiser les champs à vide - ils seront chargés depuis la DB
   const [nom, setNom] = useState('');

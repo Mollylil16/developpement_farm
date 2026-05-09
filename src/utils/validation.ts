@@ -198,3 +198,7 @@ export class ValidationFormulaires {
     };
   }
 }
+
+// Compatibility exports
+export const validateEmail: any = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+export const validatePhone: any = (phone: string) => /^[+]?[\d\s-]{8,}$/.test(phone);

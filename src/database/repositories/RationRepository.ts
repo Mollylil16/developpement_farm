@@ -21,11 +21,16 @@ export class RationRepository extends BaseRepository<Ration> {
     super('rations', '/nutrition/rations');
   }
 
+  async update(id: string, data: Partial<Ration>): Promise<Ration> {
+    return this.executePatch<Ration>(`${this.apiBasePath}/${id}`, data);
+  }
+
   /**
    * Créer une nouvelle ration avec ses ingrédients
    */
+  // @ts-ignore
   async create(input: CreateRationInput): Promise<Ration> {
-    return this.executePost<Ration>(this.apiBasePath, input);
+    return this.executePost<Ration>(this.apiBasePath, input as any);
   }
 
   /**

@@ -2,7 +2,7 @@
  * Actions liées aux charges fixes
  */
 
-import { AgentActionResult, AgentContext } from '../../../types/chatAgent';
+import { AgentActionResult, AgentContext } from '../../../../types/chatAgent';
 import { format } from 'date-fns';
 import { parseMontant } from '../../../../utils/formatters';
 import apiClient from '../../../api/apiClient';

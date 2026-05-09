@@ -8,10 +8,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import {
-  loadMortalitesParProjet,
-  loadStatistiquesMortalite,
-} from '../store/slices/mortalitesSlice';
+import mortalitesSliceModuleDashboard from '../store/slices/mortalitesSlice';
+const loadMortalitesParProjet: any = (mortalitesSliceModuleDashboard as any).loadMortalitesParProjet;
+const loadStatistiquesMortalite: any = (mortalitesSliceModuleDashboard as any).loadStatistiquesMortalite;
 import { loadProductionAnimaux, loadPeseesRecents } from '../store/slices/productionSlice';
 import { logger } from '../utils/logger';
 
@@ -31,8 +30,8 @@ export function useDashboardData({
   onProfilPhotoLoad,
 }: UseDashboardDataProps): UseDashboardDataReturn {
   const dispatch = useAppDispatch();
-  const isAuthenticated = useAppSelector((state) => state.auth?.isAuthenticated);
-  const authLoading = useAppSelector((state) => state.auth?.isLoading);
+  const isAuthenticated = useAppSelector((state) => (state as any).auth?.isAuthenticated);
+  const authLoading = useAppSelector((state) => (state as any).auth?.isLoading);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 

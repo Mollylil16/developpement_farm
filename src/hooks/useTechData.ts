@@ -7,7 +7,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { getErrorMessage } from '../types/common';
 import apiClient from '../services/api/apiClient';
-import { loadPlanificationsParProjet } from '../store/slices/planificationSlice';
+import planificationSliceModuleTech from '../store/slices/planificationSlice';
+const loadPlanificationsParProjet: any = (planificationSliceModuleTech as any).loadPlanificationsParProjet;
 import { format, startOfDay, endOfDay, isToday, parseISO } from 'date-fns';
 import { logger } from '../utils/logger';
 
@@ -46,8 +47,8 @@ interface TechData {
 }
 
 export function useTechData(techUserId?: string) {
-  const { user } = useAppSelector((state) => state.auth);
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { user } = useAppSelector((state) => (state as any).auth);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   const { planifications } = useAppSelector((state) => state.planification);
   const dispatch = useAppDispatch();
   const [data, setData] = useState<TechData>({

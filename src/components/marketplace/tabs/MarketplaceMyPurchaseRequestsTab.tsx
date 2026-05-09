@@ -59,7 +59,7 @@ export default function MarketplaceMyPurchaseRequestsTab({
   const loadRequests = useCallback(async () => {
     try {
       const db = await getDatabase();
-      const repo = new PurchaseRequestRepository(db);
+      const repo = new PurchaseRequestRepository();
       const allRequests = await repo.findByBuyerId(buyerId, false);
       setRequests(allRequests);
     } catch (error) {
@@ -92,7 +92,7 @@ export default function MarketplaceMyPurchaseRequestsTab({
           onPress: async () => {
             try {
               const db = await getDatabase();
-              const repo = new PurchaseRequestRepository(db);
+              const repo = new PurchaseRequestRepository();
               await repo.archive(requestId);
               loadRequests();
             } catch (error) {
@@ -107,7 +107,7 @@ export default function MarketplaceMyPurchaseRequestsTab({
   const handleRestore = useCallback(async (requestId: string) => {
     try {
       const db = await getDatabase();
-      const repo = new PurchaseRequestRepository(db);
+      const repo = new PurchaseRequestRepository();
       await repo.restore(requestId);
       loadRequests();
     } catch (error) {

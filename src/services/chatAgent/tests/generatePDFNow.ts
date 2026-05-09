@@ -32,7 +32,7 @@ export async function generatePDFNow(
     ]);
   } catch (error: unknown) {
     console.error('Erreur génération PDF:', error);
-    Alert.alert('❌ Erreur', `Impossible de générer le PDF:\n${error.message}`, [{ text: 'OK' }]);
+    Alert.alert('❌ Erreur', `Impossible de générer le PDF:\n${(error as any).message}`, [{ text: 'OK' }]);
     throw error;
   }
 }

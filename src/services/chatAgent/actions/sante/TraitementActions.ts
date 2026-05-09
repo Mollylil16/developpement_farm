@@ -2,7 +2,7 @@
  * Actions liées aux traitements
  */
 
-import { AgentActionResult, AgentContext } from '../../../types/chatAgent';
+import { AgentActionResult, AgentContext } from '../../../../types/chatAgent';
 import { format } from 'date-fns';
 import apiClient from '../../../api/apiClient';
 

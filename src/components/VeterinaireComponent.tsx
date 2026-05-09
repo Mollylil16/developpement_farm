@@ -82,7 +82,7 @@ const PERIODICITE_JOURS: Record<Periodicite, number> = {
 function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const navigation = useNavigation<unknown>();
+  const navigation = useNavigation<any>();
 
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();

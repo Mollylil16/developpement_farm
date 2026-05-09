@@ -58,7 +58,7 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
   const value: LanguageContextType = {
     language,
     setLanguage,
-    t,
+    t: t as any,
     isLoading,
   };
 

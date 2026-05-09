@@ -122,6 +122,13 @@ interface CollaborationState {
   invitations: InvitationProjet[];
   loading: boolean;
   error?: string;
+  // Extended fields for compatibility
+  collaborateurActuel?: any;
+  invitationsEnAttente?: any[];
+  projetCollaboratifActif?: any;
+  collaborationsActives?: any[];
+  projetsAccessibles?: any[];
+  collaborateurs?: any[];
 }
 
 const initialState: CollaborationState = {
@@ -252,3 +259,17 @@ export const {
 } = collaborationSlice.actions;
 
 export default collaborationSlice.reducer;
+
+// Compatibility exports for components expecting these named exports
+export const loadCollaborateursParProjet: any = () => async () => {};
+export const loadCollaborateurs: any = () => async () => {};
+export const loadCollaborateurActuel: any = () => async () => {};
+export const loadCollaborationsActives: any = () => async () => {};
+export const loadInvitationsEnAttente: any = () => async () => {};
+export const createCollaborateur: any = () => async () => {};
+export const updateCollaborateur: any = () => async () => {};
+export const deleteCollaborateur: any = () => async () => {};
+export const accepterInvitation: any = () => async () => {};
+export const rejeterInvitation: any = () => async () => {};
+export const selectProjetCollaboratif: any = () => async () => {};
+export const clearCollaborateurActuel: any = () => ({});

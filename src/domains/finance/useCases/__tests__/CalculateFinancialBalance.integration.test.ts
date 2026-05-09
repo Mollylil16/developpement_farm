@@ -6,10 +6,10 @@ import {
   CalculateFinancialBalanceUseCase,
   type CalculateFinancialBalanceInput,
 } from '../CalculateFinancialBalance';
-import type { IFinanceRepository } from '../repositories/IFinanceRepository';
-import type { Revenu } from '../entities/Revenu';
-import type { Depense } from '../entities/Depense';
-import type { ChargeFixe } from '../entities/ChargeFixe';
+import type { IFinanceRepository } from '../../repositories/IFinanceRepository';
+import type { Revenu } from '../../entities/Revenu';
+import type { Depense } from '../../entities/Depense';
+import type { ChargeFixe } from '../../entities/ChargeFixe';
 
 describe('CalculateFinancialBalanceUseCase - Integration', () => {
   let useCase: CalculateFinancialBalanceUseCase;

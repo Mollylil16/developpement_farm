@@ -62,7 +62,7 @@ export default function ProductionHistoriqueComponent() {
   const { animauxEnrichis } = useMarketplaceStatusForAnimals();
   const animauxEnrichisMap = React.useMemo(() => {
     const map = new Map<string, typeof animauxEnrichis[0]>();
-    animauxEnrichis.forEach((animal) => {
+    animauxEnrichis.forEach((animal: any) => {
       map.set(animal.id, animal);
     });
     return map;

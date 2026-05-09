@@ -28,8 +28,8 @@ import type { Projet } from '../types/projet';
  */
 export function useProjetEffectif(): Projet | null {
   const { activeRole } = useRole();
-  const projetActif = useAppSelector((state) => state.projet?.projetActif);
-  const projetCollaboratifActif = useAppSelector((state) => state.collaboration?.projetCollaboratifActif);
+  const projetActif = useAppSelector((state) => (state as any).projet?.projetActif);
+  const projetCollaboratifActif = useAppSelector((state) => (state as any).collaboration?.projetCollaboratifActif);
 
   // Pour vétérinaires et techniciens, utiliser le projet collaboratif
   if (activeRole === 'veterinarian' || activeRole === 'technician') {

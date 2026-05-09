@@ -26,9 +26,9 @@ const generateUUID = (): string => {
  */
 const initPhotosDirectory = async (): Promise<void> => {
   try {
-    const dirInfo = await FileSystem.getInfoAsync(PHOTOS_DIRECTORY);
+    const dirInfo = await (FileSystem as any).getInfoAsync(PHOTOS_DIRECTORY);
     if (!dirInfo.exists) {
-      await FileSystem.makeDirectoryAsync(PHOTOS_DIRECTORY, { intermediates: true });
+      await (FileSystem as any).makeDirectoryAsync(PHOTOS_DIRECTORY, { intermediates: true });
       logger.debug('Dossier photos créé:', PHOTOS_DIRECTORY);
     }
   } catch (error) {
@@ -59,7 +59,7 @@ export const savePhotoToAppStorage = async (sourceUri: string): Promise<string> 
     const destUri = PHOTOS_DIRECTORY + filename;
 
     // Copier la photo
-    await FileSystem.copyAsync({
+    await (FileSystem as any).copyAsync({
       from: sourceUri,
       to: destUri,
     });
@@ -83,9 +83,9 @@ export const deletePhotoFromStorage = async (photoUri: string): Promise<void> =>
       return;
     }
 
-    const fileInfo = await FileSystem.getInfoAsync(photoUri);
+    const fileInfo = await (FileSystem as any).getInfoAsync(photoUri);
     if (fileInfo.exists) {
-      await FileSystem.deleteAsync(photoUri);
+      await (FileSystem as any).deleteAsync(photoUri);
       logger.debug('Photo supprimée:', photoUri);
     }
   } catch (error) {
@@ -100,7 +100,7 @@ export const deletePhotoFromStorage = async (photoUri: string): Promise<void> =>
  */
 export const photoExists = async (photoUri: string): Promise<boolean> => {
   try {
-    const fileInfo = await FileSystem.getInfoAsync(photoUri);
+    const fileInfo = await (FileSystem as any).getInfoAsync(photoUri);
     return fileInfo.exists;
   } catch {
     return false;
@@ -114,18 +114,18 @@ export const photoExists = async (photoUri: string): Promise<boolean> => {
 export const cleanupOrphanedPhotos = async (activePhotoUris: string[]): Promise<void> => {
   try {
     // Vérifier si le dossier existe
-    const dirInfo = await FileSystem.getInfoAsync(PHOTOS_DIRECTORY);
+    const dirInfo = await (FileSystem as any).getInfoAsync(PHOTOS_DIRECTORY);
     if (!dirInfo.exists) {
       logger.debug("Dossier photos n'existe pas encore");
       return;
     }
 
     // Lister toutes les photos dans le dossier
-    const files = await FileSystem.readDirectoryAsync(PHOTOS_DIRECTORY);
+    const files = await (FileSystem as any).readDirectoryAsync(PHOTOS_DIRECTORY);
     logger.debug(`${files.length} photos trouvées dans le dossier`);
 
     // Filtrer les photos orphelines
-    const orphanedFiles = files.filter((filename) => {
+    const orphanedFiles = files.filter((filename: any) => {
       const fullPath = PHOTOS_DIRECTORY + filename;
       return !activePhotoUris.includes(fullPath);
     });
@@ -135,7 +135,7 @@ export const cleanupOrphanedPhotos = async (activePhotoUris: string[]): Promise<
     // Supprimer les photos orphelines
     for (const filename of orphanedFiles) {
       try {
-        await FileSystem.deleteAsync(PHOTOS_DIRECTORY + filename, { idempotent: true });
+        await (FileSystem as any).deleteAsync(PHOTOS_DIRECTORY + filename, { idempotent: true });
         logger.debug('Photo orpheline supprimée:', filename);
       } catch (error) {
         logger.warn('Erreur suppression photo orpheline:', filename, error);
@@ -153,14 +153,14 @@ export const cleanupOrphanedPhotos = async (activePhotoUris: string[]): Promise<
  */
 export const getPhotoStorageSize = async (): Promise<number> => {
   try {
-    const dirInfo = await FileSystem.getInfoAsync(PHOTOS_DIRECTORY);
+    const dirInfo = await (FileSystem as any).getInfoAsync(PHOTOS_DIRECTORY);
     if (!dirInfo.exists) return 0;
 
-    const files = await FileSystem.readDirectoryAsync(PHOTOS_DIRECTORY);
+    const files = await (FileSystem as any).readDirectoryAsync(PHOTOS_DIRECTORY);
     let totalSize = 0;
 
     for (const filename of files) {
-      const fileInfo = await FileSystem.getInfoAsync(PHOTOS_DIRECTORY + filename);
+      const fileInfo = await (FileSystem as any).getInfoAsync(PHOTOS_DIRECTORY + filename);
       if (fileInfo.exists && 'size' in fileInfo) {
         totalSize += fileInfo.size || 0;
       }

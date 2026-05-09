@@ -160,13 +160,13 @@ export class AdvancedReasoningService {
     }
 
     const db = await getDatabase();
-    const animalRepo = new AnimalRepository(db);
-    const stockRepo = new StockRepository(db);
-    const revenuRepo = new RevenuRepository(db);
-    const depenseRepo = new DepensePonctuelleRepository(db);
-    const vaccinationRepo = new VaccinationRepository(db);
-    const traitementRepo = new TraitementRepository(db);
-    const gestationRepo = new GestationRepository(db);
+    const animalRepo = new AnimalRepository();
+    const stockRepo = new StockRepository();
+    const revenuRepo = new RevenuRepository();
+    const depenseRepo = new DepensePonctuelleRepository();
+    const vaccinationRepo = new VaccinationRepository();
+    const traitementRepo = new TraitementRepository();
+    const gestationRepo = new GestationRepository();
 
     const now = new Date();
     const in7Days = addDays(now, 7);

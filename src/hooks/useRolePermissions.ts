@@ -30,6 +30,9 @@ export interface RolePermissions {
 
   // Rapports
   canGenerateReports: boolean;
+  // Extended permissions
+  canManageCollaborators?: boolean;
+  canManageMarketplace?: boolean;
 }
 
 /**
@@ -100,6 +103,6 @@ export const useRolePermissions = (): RolePermissions => {
   const { activeRole } = useRole();
 
   // S'assurer que activeRole est valide, sinon utiliser 'producer' par défaut
-  const validRole = activeRole && permissionsByRole[activeRole] ? activeRole : 'producer';
-  return permissionsByRole[validRole];
+  const validRole = activeRole && (permissionsByRole as any)[activeRole] ? activeRole : 'producer';
+  return (permissionsByRole as any)[validRole];
 };

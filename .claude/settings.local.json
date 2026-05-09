@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(npx tsc *)",
+      "Bash(sed -n '50,65p' src/store/slices/financeSlice.ts)",
+      "Bash(sed -n '160,170p' src/store/slices/financeSlice.ts)",
+      "Bash(python3)",
+      "Read(//usr/**)",
+      "Read(//usr/local/**)",
+      "Bash(sed -i 's/\\(col as any\\)\\\\. === /\\(col as any\\).name === /g' \"C:/Users/HP/developpement_farm-1/.claude/worktrees/admiring-varahamihira-5e675a/src/database/migrations/add_saved_farms_to_users.ts\")",
+      "Bash(sed -i 's/\\(dbAnimal as any\\)\\\\.,$/\\(dbAnimal as any\\).code,/g' \"C:/Users/HP/developpement_farm-1/.claude/worktrees/admiring-varahamihira-5e675a/src/infrastructure/database/repositories/AnimalRepositoryImpl.ts\")",
+      "Bash(sed -i 's/\\(error as any\\)\\\\.}`/\\(error as any\\).message}`/g' \"C:/Users/HP/developpement_farm-1/.claude/worktrees/admiring-varahamihira-5e675a/src/services/chatAgent/tests/generatePDFNow.ts\")",
+      "Bash(sed -i 's/\\(error as any\\)\\\\.\\\\\\)/$\\\\\\(error as any\\\\\\).message\\)/g' \"C:/Users/HP/developpement_farm-1/.claude/worktrees/admiring-varahamihira-5e675a/src/services/chatAgent/tests/runValidation.ts\")",
+      "Bash(sed -i 's/\\(error as any\\)\\\\.\\\\x01`/\\(error as any\\).message`/g' \"C:/Users/HP/developpement_farm-1/.claude/worktrees/admiring-varahamihira-5e675a/src/services/chatAgent/tests/generatePDFNow.ts\")",
+      "Bash(sed -i 's/\\(error as any\\)\\\\.\\\\x01\\)/\\(error as any\\).message\\)/g' \"C:/Users/HP/developpement_farm-1/.claude/worktrees/admiring-varahamihira-5e675a/src/services/chatAgent/tests/runValidation.ts\")",
+      "Bash(perl -i -pe 's/\\\\\\(error as any\\\\\\)\\\\.[^\\\\w`\\\\\\)]/\\\\\\(error as any\\\\\\).message/g' \"C:/Users/HP/developpement_farm-1/.claude/worktrees/admiring-varahamihira-5e675a/src/services/chatAgent/tests/generatePDFNow.ts\")",
+      "Bash(perl -i -pe 's/\\\\\\(error as any\\\\\\)\\\\.\\\\x01,/\\\\\\(error as any\\\\\\).message,/g' \"C:/Users/HP/developpement_farm-1/.claude/worktrees/admiring-varahamihira-5e675a/src/services/chatAgent/tests/AgentValidationTest.ts\")",
+      "Bash(python3 -c ' *)",
+      "Bash(git stash *)"
+    ]
+  }
+}

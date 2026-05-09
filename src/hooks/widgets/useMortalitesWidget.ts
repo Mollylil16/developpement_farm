@@ -4,7 +4,8 @@
 
 import { useMemo } from 'react';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { loadMortalitesParProjet } from '../../store/slices/mortalitesSlice';
+import mortalitesSliceModule from '../../store/slices/mortalitesSlice';
+const loadMortalitesParProjet: any = (mortalitesSliceModule as any).loadMortalitesParProjet;
 import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
 import { startOfMonth, parseISO, isAfter } from 'date-fns';
 import type { Mortalite } from '../../types/mortalites';

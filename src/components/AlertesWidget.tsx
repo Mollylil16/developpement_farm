@@ -39,11 +39,11 @@ export default function AlertesWidget() {
   const projetActif = useProjetEffectif();
   const gestations: Gestation[] = useAppSelector(selectAllGestations);
   const sevrages: Sevrage[] = useAppSelector(selectAllSevrages);
-  const stocks = useAppSelector((state) => state.stocks?.stocks ?? []);
+  const stocks = useAppSelector((state) => (state as any).stocks?.stocks ?? []);
   const planifications = useAppSelector((state) => state.planification?.planifications ?? []);
-  const alertesPlanning = useAppSelector((state) => state.planningProduction?.alertes);
-  const simulationResultat = useAppSelector((state) => state.planningProduction?.simulationResultat);
-  const sailliesPlanifiees = useAppSelector((state) => state.planningProduction?.sailliesPlanifiees);
+  const alertesPlanning = useAppSelector((state) => (state as any).planningProduction?.alertes);
+  const simulationResultat = useAppSelector((state) => (state as any).planningProduction?.simulationResultat);
+  const sailliesPlanifiees = useAppSelector((state) => (state as any).planningProduction?.sailliesPlanifiees);
   const alertesPlanningTyped: AlertePlanningProduction[] = alertesPlanning || [];
 
   // Charger les données nécessaires
@@ -162,7 +162,7 @@ export default function AlertesWidget() {
       });
 
     // 4. Tâches en retard (calcul local)
-    planifications
+    (planifications as any)
       .filter((p: Planification) => p.statut === 'a_faire' && p.date_echeance && isPast(parseISO(p.date_echeance)))
       .forEach((p: Planification) => {
         if (!p.date_echeance) return;
@@ -189,7 +189,7 @@ export default function AlertesWidget() {
     const demain = new Date(aujourdhui);
     demain.setDate(demain.getDate() + 1);
 
-    planifications
+    (planifications as any)
       .filter((p: Planification) => {
         if (p.statut !== 'a_faire' || !p.date_echeance) return false;
         const dateEcheance = parseISO(p.date_echeance);

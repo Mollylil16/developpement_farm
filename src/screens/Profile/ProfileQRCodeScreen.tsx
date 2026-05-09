@@ -40,7 +40,7 @@ interface QRCodeResponse {
 export default function ProfileQRCodeScreen() {
   const navigation = useNavigation();
   const { colors } = useTheme();
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => (state as any).auth);
 
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
   const [expiresIn, setExpiresIn] = useState<number>(0); // secondes restantes

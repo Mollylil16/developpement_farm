@@ -20,6 +20,8 @@ export interface CreateUserInput {
   lastName: string; // OBLIGATOIRE
   provider: 'telephone' | 'email' | 'google' | 'apple';
   providerId?: string; // Pour OAuth
+  password?: string;
+  profileType?: string;
 }
 
 export type ProfileType = 'producer' | 'buyer' | 'veterinarian' | 'technician';

@@ -111,7 +111,7 @@ describe('productionCache', () => {
   describe('getCachedPesees', () => {
     it('devrait retourner les pesées du cache par animal', async () => {
       const animalId = 'animal-1';
-      const pesees: ProductionPesee[] = [
+      const pesees = [
         {
           id: 'pesee-1',
           animal_id: animalId,
@@ -136,7 +136,7 @@ describe('productionCache', () => {
 
     it('devrait retourner les pesées du cache par projet', async () => {
       const projetId = 'projet-1';
-      const pesees: ProductionPesee[] = [
+      const pesees = [
         {
           id: 'pesee-1',
           animal_id: 'animal-1',
@@ -179,7 +179,7 @@ describe('productionCache', () => {
   describe('setCachedPesees', () => {
     it('devrait stocker les pesées dans le cache', async () => {
       const animalId = 'animal-1';
-      const pesees: ProductionPesee[] = [
+      const pesees = [
         {
           id: 'pesee-1',
           animal_id: animalId,

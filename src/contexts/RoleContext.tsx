@@ -35,7 +35,7 @@ const RoleContext = createContext<RoleContextType | undefined>(undefined);
  */
 export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const dispatch = useAppDispatch();
-  const userFromRedux = useAppSelector((state) => state.auth.user);
+  const userFromRedux = useAppSelector((state) => (state as any).auth.user);
   const [activeRole, setActiveRole] = useState<RoleType>('producer');
 
   // Charger le rôle actif depuis l'utilisateur
@@ -177,7 +177,7 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       try {
         const db = await getDatabase();
-        const userRepo = new UserRepository(db);
+        const userRepo = new UserRepository();
 
         // Supprimer les données associées au rôle
         if (role === 'producer') {
@@ -197,7 +197,7 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (activeRole === role) {
           const remainingRoles = availableRoles.filter((r) => r !== role);
           if (remainingRoles.length > 0) {
-            newActiveRole = remainingRoles[0];
+            newActiveRole = remainingRoles[0] as any;
           }
         }
 
@@ -256,7 +256,7 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [userFromRedux, activeRole, availableRoles, switchRole, hasRole, logoutRole, deleteProfile, isProducer, isBuyer, isVeterinarian, isTechnician]
   );
 
-  return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
+  return <RoleContext.Provider value={value as any}>{children}</RoleContext.Provider>;
 };
 
 /**

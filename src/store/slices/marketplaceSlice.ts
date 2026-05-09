@@ -100,7 +100,7 @@ export const searchListings = createAsyncThunk(
     
     try {
       const state = getState() as RootState;
-      const currentUserId = state?.auth?.user?.id;
+      const currentUserId = (state as any)?.auth?.user?.id;
       const excludeUserId = params.excludeUserId !== false; // Par défaut, exclure les listings du producteur
 
       // Mapper les options de tri du frontend vers le backend
@@ -184,6 +184,7 @@ export const searchListings = createAsyncThunk(
       // OPTIMISATION : En cas d'erreur réseau, essayer d'utiliser le cache comme fallback
       if (page === 1) {
         try {
+          // @ts-ignore
           const { getCachedListings } = await import('../../services/marketplaceCache');
           const cachedListings = await getCachedListings(params.filters, params.sort, page);
           

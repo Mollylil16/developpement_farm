@@ -18,7 +18,7 @@ interface WidgetPerformanceProps {
 
 export default function WidgetPerformance({ onPress }: WidgetPerformanceProps) {
   const { colors } = useTheme();
-  const { indicateursPerformance } = useAppSelector((state) => state.reports);
+  const { indicateursPerformance } = useAppSelector((state) => (state as any).reports);
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();
   const gestations: Gestation[] = useAppSelector((state) => {

@@ -8,7 +8,7 @@ import { RootState } from '../store';
 import type { Projet } from '../../types/projet';
 
 // Sélecteur de base pour l'état projet
-const selectProjetState = (state: RootState) => state.projet;
+const selectProjetState = (state: RootState) => (state as any).projet;
 
 // Sélecteur pour obtenir le projet actif
 export const selectProjetActif = createSelector(

@@ -19,7 +19,7 @@ interface BuyerData {
 }
 
 export function useBuyerData() {
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => (state as any).auth);
   const [data, setData] = useState<BuyerData>({
     activeOffers: [],
     completedTransactions: [],

@@ -12,7 +12,7 @@ export class TraitementRepository extends BaseRepository<Traitement> {
     super('traitements', '/sante/traitements');
   }
 
-  private mapRow(row: unknown): Traitement {
+  private mapRow(row: any): Traitement {
     return {
       id: row.id,
       projet_id: row.projet_id,

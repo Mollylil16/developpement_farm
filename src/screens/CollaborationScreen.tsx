@@ -204,7 +204,7 @@ const CollaborationScreen: React.FC = () => {
         <View style={styles.statItem}>
           <MaterialIcons name="schedule" size={16} color="#666" />
           <Text style={styles.statText}>
-            Modifié {projet.derniereModification.toLocaleDateString()}
+            Modifié {(projet.derniereModification as any).toLocaleDateString()}
           </Text>
         </View>
       </View>
@@ -224,7 +224,7 @@ const CollaborationScreen: React.FC = () => {
           <Text style={styles.utilisateurRole}>{utilisateur.role}</Text>
           {utilisateur.derniereActivite && (
             <Text style={styles.utilisateurActivite}>
-              Dernière activité: {utilisateur.derniereActivite.toLocaleDateString()}
+              Dernière activité: {(utilisateur.derniereActivite as any).toLocaleDateString()}
             </Text>
           )}
         </View>
@@ -248,7 +248,7 @@ const CollaborationScreen: React.FC = () => {
           <Text style={styles.activiteDescription}>{activite.description}</Text>
         </View>
         <Text style={styles.activiteDate}>
-          {activite.date.toLocaleDateString()} {activite.date.toLocaleTimeString()}
+          {(activite.date as any).toLocaleDateString()} {(activite.date as any).toLocaleTimeString()}
         </Text>
       </View>
     </View>

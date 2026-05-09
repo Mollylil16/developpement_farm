@@ -44,8 +44,8 @@ export default function MarketplaceMatchedRequestsTab({
   const loadMatches = useCallback(async () => {
     try {
       const db = await getDatabase();
-      const matchRepo = new PurchaseRequestMatchRepository(db);
-      const requestRepo = new PurchaseRequestRepository(db);
+      const matchRepo = new PurchaseRequestMatchRepository();
+      const requestRepo = new PurchaseRequestRepository();
 
       // Récupérer tous les matches du producteur
       const allMatches = await matchRepo.findByProducerId(producerId);

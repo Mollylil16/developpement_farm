@@ -9,21 +9,21 @@ import type { Collaborateur } from '../../types/collaboration';
  * Sélectionner tous les collaborateurs
  */
 export const selectAllCollaborateurs = (state: RootState): Collaborateur[] => {
-  return state.collaboration.collaborateurs || [];
+  return (state.collaboration as any).collaborateurs || [];
 };
 
 /**
  * Sélectionner le collaborateur actuel
  */
 export const selectCollaborateurActuel = (state: RootState): Collaborateur | null => {
-  return state.collaboration.collaborateurActuel;
+  return (state.collaboration as any).collaborateurActuel;
 };
 
 /**
  * Sélectionner les invitations en attente
  */
 export const selectInvitationsEnAttente = (state: RootState): Collaborateur[] => {
-  return state.collaboration.invitationsEnAttente || [];
+  return (state.collaboration as any).invitationsEnAttente || [];
 };
 
 /**
@@ -37,28 +37,28 @@ export const selectCollaborationLoading = (state: RootState): boolean => {
  * Sélectionner l'erreur
  */
 export const selectCollaborationError = (state: RootState): string | null => {
-  return state.collaboration.error;
+  return (state.collaboration as any).error ?? null;
 };
 
 /**
  * Sélectionner les collaborateurs par rôle
  */
 export const selectCollaborateursByRole = (state: RootState, role: string): Collaborateur[] => {
-  return (state.collaboration.collaborateurs || []).filter((c) => c.role === role);
+  return ((state.collaboration as any).collaborateurs || []).filter((c: any) => c.role === role);
 };
 
 /**
  * Sélectionner les collaborateurs actifs
  */
 export const selectCollaborateursActifs = (state: RootState): Collaborateur[] => {
-  return (state.collaboration.collaborateurs || []).filter((c) => c.statut === 'actif');
+  return ((state.collaboration as any).collaborateurs || []).filter((c: any) => c.statut === 'actif');
 };
 
 /**
  * Sélectionner le vétérinaire du projet (s'il existe)
  */
 export const selectVeterinaire = (state: RootState): Collaborateur | undefined => {
-  return (state.collaboration.collaborateurs || []).find(
-    (c) => c.role === 'veterinaire' && c.statut === 'actif'
+  return ((state.collaboration as any).collaborateurs || []).find(
+    (c: any) => c.role === 'veterinaire' && c.statut === 'actif'
   );
 };

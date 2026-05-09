@@ -3,9 +3,9 @@
  */
 
 import { GetAlertesSanitairesUseCase } from '../GetAlertesSanitaires';
-import type { ISanteRepository } from '../repositories/ISanteRepository';
-import type { Vaccination } from '../entities/Vaccination';
-import type { Maladie } from '../entities/Maladie';
+import type { ISanteRepository } from '../../repositories/ISanteRepository';
+import type { Vaccination } from '../../entities/Vaccination';
+import type { Maladie } from '../../entities/Maladie';
 
 describe('GetAlertesSanitairesUseCase - Integration', () => {
   let useCase: GetAlertesSanitairesUseCase;

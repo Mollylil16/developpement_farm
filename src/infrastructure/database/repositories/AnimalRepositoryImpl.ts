@@ -32,7 +32,7 @@ export class AnimalRepositoryImpl implements IAnimalRepository {
 
   async findActifsByProjet(projetId: string): Promise<Animal[]> {
     const animaux = await this.repository.findActifsByProjet(projetId);
-    return animaux.map((a) => this.mapToDomain(a));
+    return animaux.map((a: any) => this.mapToDomain(a));
   }
 
   async create(
@@ -83,16 +83,16 @@ export class AnimalRepositoryImpl implements IAnimalRepository {
 
   async findReproducteursActifs(projetId: string): Promise<Animal[]> {
     const animaux = await this.repository.findReproducteursActifs(projetId);
-    return animaux.map((a) => this.mapToDomain(a));
+    return animaux.map((a: any) => this.mapToDomain(a));
   }
 
   /**
    * Mappe l'entité de la base de données vers l'entité du domaine
    */
-  private mapToDomain(dbAnimal: unknown): Animal {
+  private mapToDomain(dbAnimal: any): Animal {
     return {
       id: dbAnimal.id,
-      code: dbAnimal.code,
+      code: (dbAnimal as any).code,
       nom: dbAnimal.nom,
       projetId: dbAnimal.projet_id,
       sexe: dbAnimal.sexe,

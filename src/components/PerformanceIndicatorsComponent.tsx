@@ -84,7 +84,7 @@ export default function PerformanceIndicatorsComponent() {
   const dispatch = useAppDispatch();
   const [exportingPDF, setExportingPDF] = useState(false);
   const [performanceGlobale, setPerformanceGlobale] = useState<any>(null);
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
   const depensesPonctuelles: DepensePonctuelle[] = useAppSelector(selectAllDepensesPonctuelles);
   const revenus = useAppSelector(selectAllRevenus);
@@ -94,7 +94,7 @@ export default function PerformanceIndicatorsComponent() {
   const animaux = useAppSelector(selectAllAnimaux);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const mortalites: Mortalite[] = useAppSelector(selectAllMortalites);
-  const { indicateursPerformance, recommandations } = useAppSelector((state) => state.reports);
+  const { indicateursPerformance, recommandations } = useAppSelector((state) => (state as any).reports);
 
   // Utiliser useRef pour tracker les chargements et éviter les boucles
   const aChargeRef = useRef<string | null>(null);
@@ -857,7 +857,7 @@ export default function PerformanceIndicatorsComponent() {
           porceletsSevres: porceletsSevres,
           tauxSurvie: tauxSurvie,
         },
-        recommandations: (recommandations || []).map((r) => ({
+        recommandations: (recommandations || []).map((r: any) => ({
           categorie: r.titre,
           priorite: r.type === 'avertissement' ? ('haute' as const) : ('moyenne' as const),
           message: r.message,
@@ -1097,7 +1097,7 @@ export default function PerformanceIndicatorsComponent() {
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>
                   💡 Recommandations
                 </Text>
-                {recommandations.map((rec) => (
+                {recommandations.map((rec: any) => (
                   <View
                     key={rec.id}
                     style={[

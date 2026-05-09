@@ -10,7 +10,7 @@ import { animauxSchema, peseesSchema } from '../normalization/schemas';
 import type { ProductionAnimal, ProductionPesee } from '../../types/production';
 
 // Sélecteur de base pour l'état production
-const selectProductionState = (state: RootState) => state.production;
+const selectProductionState = (state: RootState) => (state as any).production;
 
 // Sélecteurs intermédiaires pour éviter les nouvelles références
 const selectAnimauxIds = createSelector(
