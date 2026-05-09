@@ -97,5 +97,6 @@ archive/
 patches/
 
 # ========== CONFIG NON NÉCESSAIRES ==========
-config/
+# /config/ = uniquement un éventuel dossier config/ à la racine, PAS src/config/ (nécessaire au build)
+/config/
 llms.txt

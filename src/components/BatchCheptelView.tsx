@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '../store/hooks';
 import { useProjetEffectif } from '../hooks/useProjetEffectif';
@@ -83,24 +84,33 @@ setBatches(batchesData);
 
   // Charger les bandes uniquement quand l'écran est visible
   // AVEC condition de temps pour éviter les appels excessifs
+  // Si 'batch_cheptel_refresh_ts' est posé (ex: après "Vendu" marketplace sur une annonce bande),
+  // on force un rechargement pour refléter les suppressions dans batch_pigs.
   useFocusEffect(
     useCallback(() => {
-      if (!projetActif?.id) return;
-      
-      const now = Date.now();
-      const sameProject = lastLoadRef.current.projetId === projetActif.id;
-      const recentLoad = sameProject && (now - lastLoadRef.current.timestamp) < MIN_RELOAD_INTERVAL;
-
-      // Ne pas recharger si données récentes (< 1 min) pour le même projet
-      if (recentLoad && batches.length > 0) {
-        if (__DEV__) {
-          logger.debug(`[BatchCheptelView] Skip reload - données récentes (${Math.round((now - lastLoadRef.current.timestamp) / 1000)}s)`);
+      let cancelled = false;
+      (async () => {
+        if (!projetActif?.id) return;
+        const refreshRequested = await AsyncStorage.getItem('batch_cheptel_refresh_ts');
+        if (refreshRequested) {
+          await AsyncStorage.removeItem('batch_cheptel_refresh_ts');
+          if (!cancelled) lastLoadRef.current = { projetId: null, timestamp: 0 };
         }
-        return;
-      }
-      
-      lastLoadRef.current = { projetId: projetActif.id, timestamp: now };
-      loadBatches();
+        const now = Date.now();
+        const sameProject = lastLoadRef.current.projetId === projetActif.id;
+        const recentLoad = sameProject && (now - lastLoadRef.current.timestamp) < MIN_RELOAD_INTERVAL;
+        if (recentLoad && batches.length > 0) {
+          if (__DEV__) {
+            logger.debug(`[BatchCheptelView] Skip reload - données récentes (${Math.round((now - lastLoadRef.current.timestamp) / 1000)}s)`);
+          }
+          return;
+        }
+        if (!cancelled) {
+          lastLoadRef.current = { projetId: projetActif.id, timestamp: now };
+          loadBatches();
+        }
+      })();
+      return () => { cancelled = true; };
     }, [projetActif?.id, loadBatches, batches.length])
   );
 

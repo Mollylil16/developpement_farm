@@ -3395,15 +3395,19 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
         }
         subjectIds = [listing.subject_id];
       } else if (listingType === 'batch') {
-        const pigIds = Array.isArray(listing.pig_ids)
-          ? listing.pig_ids
-          : typeof listing.pig_ids === 'string'
-            ? JSON.parse(listing.pig_ids || '[]')
-            : [];
-        if (pigIds.length === 0) {
-          throw new BadRequestException('Annonce de bande sans porcs');
+        let raw: unknown = listing.pig_ids;
+        if (typeof raw === 'string') {
+          try {
+            raw = JSON.parse(raw || '[]');
+          } catch {
+            raw = [];
+          }
         }
-        subjectIds = pigIds;
+        const pigIds = Array.isArray(raw) ? raw : (raw && typeof raw === 'object' ? Object.values(raw) : []);
+        subjectIds = pigIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
+        if (subjectIds.length === 0) {
+          throw new BadRequestException('Annonce de bande sans porcs (pig_ids invalides ou vides)');
+        }
       }
 
       // 3. Marquer le listing comme sold
@@ -3418,7 +3422,17 @@ throw new ForbiddenException('Ce projet ne vous appartient pas');
       await this.removeSubjectFromOtherListings(client, subjectIds, listingId, listingType);
 
       // 5. Retirer les sujets du cheptel (statut vendu ou suppression batch_pigs)
-      await this.updateAnimalsSoldStatus(client, subjectIds, listingType, now);
+      const animalsUpdated = await this.updateAnimalsSoldStatus(client, subjectIds, listingType, now);
+      if (listingType === 'individual' && subjectIds.length > 0 && animalsUpdated === 0) {
+        throw new BadRequestException(
+          'Impossible de retirer le sujet du cheptel : animal introuvable dans production_animaux (vérifiez que l\'annonce est bien en mode individuel).'
+        );
+      }
+      if (listingType === 'batch' && subjectIds.length > 0 && animalsUpdated === 0) {
+        throw new BadRequestException(
+          'Impossible de retirer les sujets du cheptel : porcs introuvables dans batch_pigs.'
+        );
+      }
 
       // 6. Créer le revenu en Finance > Revenus (schéma table revenus)
       const revenueId = this.generateId('revenu');

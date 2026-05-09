@@ -13,11 +13,14 @@ import {
   Alert,
   StyleSheet,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { useAppSelector } from '../../../store/hooks';
+import { useAppSelector, useAppDispatch } from '../../../store/hooks';
 import { selectAllAnimaux } from '../../../store/selectors/productionSelectors';
+import { loadProductionAnimaux } from '../../../store/slices/productionSlice';
+import { invalidateProjetCache } from '../../../services/productionCache';
 import apiClient from '../../../services/api/apiClient';
 import { MarketplaceTheme } from '../../../styles/marketplace.theme';
 import EmptyState from '../../EmptyState';
@@ -42,6 +45,7 @@ function MarketplaceMyListingsTab({
   onViewDetails,
 }: MarketplaceMyListingsTabProps) {
   const marketplaceColors = MarketplaceTheme.colors;
+  const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth ?? { user: null });
   const allAnimaux = useAppSelector(selectAllAnimaux);
 
@@ -88,6 +92,19 @@ function MarketplaceMyListingsTab({
                 `/marketplace/listings/${listing.id}/marquer-vendu`,
                 {}
               );
+              // Invalider le cache production et recharger les animaux pour que le cheptel
+              // affiche bien le retrait des sujets vendus (statut=vendu exclus du filtre actif)
+              const projetId = listing.farmId;
+              if (projetId) {
+                await invalidateProjetCache(projetId);
+                dispatch(loadProductionAnimaux({ projetId, inclureInactifs: true }));
+              }
+              // En mode bande : forcer le rechargement des bandes au prochain focus du cheptel
+              // (les sujets vendus sont supprimés de batch_pigs ; le comptage doit se rafraîchir)
+              const isBatch = listing.listingType === 'batch' || !!listing.batchId;
+              if (isBatch) {
+                await AsyncStorage.setItem('batch_cheptel_refresh_ts', Date.now().toString());
+              }
               onRefresh();
               Alert.alert('Succès', res?.message || 'Annonce marquée vendue. Revenu enregistré et sujets retirés du cheptel.');
             } catch (error) {
