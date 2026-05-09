@@ -120,7 +120,12 @@ export async function getApiBaseUrl(): Promise<string> {
     const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
     const customUrl = await AsyncStorage.getItem('@fermier_pro:api_url');
     if (customUrl) {
-      return customUrl;
+      // In production, reject any non-HTTPS override to prevent MITM attacks
+      if (!__DEV__ && !customUrl.startsWith('https://')) {
+        console.warn('[Security] Non-HTTPS API URL override rejected in production.');
+      } else {
+        return customUrl;
+      }
     }
   } catch {
     // Ignorer si AsyncStorage n'est pas disponible

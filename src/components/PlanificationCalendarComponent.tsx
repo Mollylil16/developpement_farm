@@ -33,7 +33,7 @@ export default function PlanificationCalendarComponent() {
     const marked: { [key: string]: any } = {};
 
     planifications.forEach((planification) => {
-      const datePrevue = planification.date_prevue.split('T')[0];
+      const datePrevue = (planification.date_prevue || '').split('T')[0];
 
       if (!marked[datePrevue]) {
         marked[datePrevue] = {
@@ -78,7 +78,7 @@ export default function PlanificationCalendarComponent() {
   }, [planifications, colors]);
 
   const getPlanificationsPourDate = (date: string): Planification[] => {
-    return planifications.filter((p) => p.date_prevue.split('T')[0] === date);
+    return planifications.filter((p) => (p.date_prevue || '').split('T')[0] === date);
   };
 
   const onDayPress = (day: DateData) => {

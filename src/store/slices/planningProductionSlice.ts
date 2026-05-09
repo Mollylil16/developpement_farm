@@ -112,20 +112,20 @@ export const genererPlanSaillies = createAsyncThunk(
     try {
       const state = getState() as RootState;
       const { simulationResultat, objectifProduction, parametresProduction } =
-        state.planningProduction;
+        (state as any).planningProduction;
 
       if (!simulationResultat || !objectifProduction) {
         throw new Error("Veuillez d'abord lancer une simulation");
       }
 
       // Récupérer le projet actif
-      const projetActif = state.projet?.projetActif;
+      const projetActif = (state as any).projet?.projetActif;
       if (!projetActif) {
         throw new Error('Aucun projet actif sélectionné');
       }
 
       // Récupérer les truies disponibles du cheptel (filtrées par projet)
-      const animaux = state.production?.entities?.animaux || {};
+      const animaux = (state as any).production?.entities?.animaux || {};
 
       // Type guard pour Gestation
       const isGestation = (g: unknown): g is Gestation => {
@@ -145,7 +145,7 @@ export const genererPlanSaillies = createAsyncThunk(
           isGestation(g) && g.statut === 'en_cours' && g.projet_id === projetActif.id
       );
       const truiesEnGestationIds = new Set(
-        gestationsEnCours.map((g) => g.truie_id).filter(Boolean)
+        gestationsEnCours.map((g) => (g as any).truie_id).filter(Boolean)
       );
 
       // Helper pour vérifier si un animal est reproducteur (gère les booléens et les entiers SQLite)
@@ -427,7 +427,7 @@ export const genererPrevisionsVentes = createAsyncThunk(
   ) => {
     try {
       const state = getState() as RootState;
-      const { parametresProduction } = state.planningProduction;
+      const { parametresProduction } = (state as any).planningProduction;
 
       // Utiliser les paramètres fournis ou ceux par défaut
       const poidsCible = params?.poids_cible_kg ?? parametresProduction.poids_moyen_vente_kg;
@@ -446,7 +446,7 @@ export const genererPrevisionsVentes = createAsyncThunk(
       };
 
       // Recuperer les animaux depuis l'etat Redux (entities normalisées)
-      const animauxEntities = state.production?.entities?.animaux || {};
+      const animauxEntities = (state as any).production?.entities?.animaux || {};
       const animaux = Object.values(animauxEntities).filter(isProductionAnimalLocal);
 
       // Filtrer uniquement les animaux à vendre (non reproducteurs)
@@ -460,8 +460,8 @@ export const genererPrevisionsVentes = createAsyncThunk(
       });
 
       // Recuperer les pesees par animal depuis l'etat Redux
-      const peseesParAnimalIds = state.production?.peseesParAnimal || {};
-      const peseesEntities = state.production?.entities?.pesees || {};
+      const peseesParAnimalIds = (state as any).production?.peseesParAnimal || {};
+      const peseesEntities = (state as any).production?.entities?.pesees || {};
 
       // Type guard pour ProductionPesee
       const isProductionPesee = (p: unknown): p is ProductionPesee => {
@@ -478,7 +478,7 @@ export const genererPrevisionsVentes = createAsyncThunk(
       Object.keys(peseesParAnimalIds).forEach((animalId) => {
         const peseeIds = peseesParAnimalIds[animalId] || [];
         peseesParAnimal[animalId] = peseeIds
-          .map((id) => peseesEntities[id])
+          .map((id: any) => peseesEntities[id])
           .filter(isProductionPesee);
       });
 
@@ -505,7 +505,7 @@ export const genererPrevisionsFuturesVentes = createAsyncThunk(
   async (params: { poids_cible_kg?: number } | undefined, { getState, rejectWithValue }) => {
     try {
       const state = getState() as RootState;
-      const { parametresProduction, sailliesPlanifiees } = state.planningProduction;
+      const { parametresProduction, sailliesPlanifiees } = (state as any).planningProduction;
 
       if (!sailliesPlanifiees || sailliesPlanifiees.length === 0) {
         return rejectWithValue(
@@ -564,6 +564,7 @@ export const validerPlanningSaillies = createAsyncThunk(
     try {
       // Importer dynamiquement pour éviter les dépendances circulaires
       const { genererTachesDepuisSaillie } = await import('../../utils/planningProductionCalculs');
+      // @ts-ignore
       const { createPlanificationsBatch } = await import('./planificationSlice');
 
       const toutesLesTaches: CreatePlanificationInput[] = [];
@@ -614,7 +615,7 @@ export const validerPlanningSaillies = createAsyncThunk(
           const nbTachesParSaillie = 10; // Nombre de tâches par saillie
           const tachesIds = tachesCrees
             .slice(i * nbTachesParSaillie, (i + 1) * nbTachesParSaillie)
-            .map((t) => t.id);
+            .map((t: any) => t.id);
 
           sailliesValidees[i].taches_creees = tachesIds;
         }

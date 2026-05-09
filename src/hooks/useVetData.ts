@@ -7,7 +7,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { getErrorMessage } from '../types/common';
 import apiClient from '../services/api/apiClient';
-import { loadPlanificationsParProjet } from '../store/slices/planificationSlice';
+import planificationSliceModuleVet from '../store/slices/planificationSlice';
+const loadPlanificationsParProjet: any = (planificationSliceModuleVet as any).loadPlanificationsParProjet;
 import type { VisiteVeterinaire } from '../types/sante';
 import { format, startOfDay, endOfDay, isToday } from 'date-fns';
 import { logger } from '../utils/logger';
@@ -35,8 +36,8 @@ interface VetData {
 }
 
 export function useVetData(vetUserId?: string) {
-  const { user } = useAppSelector((state) => state.auth);
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { user } = useAppSelector((state) => (state as any).auth);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   const dispatch = useAppDispatch();
   const [data, setData] = useState<VetData>({
     todayConsultations: [],
@@ -45,7 +46,7 @@ export function useVetData(vetUserId?: string) {
     healthAlerts: [],
     loading: true,
     error: null,
-  });
+  } as any);
 
   const loadVetData = useCallback(async () => {
     if (!user?.id || !vetUserId) {
@@ -96,7 +97,7 @@ export function useVetData(vetUserId?: string) {
 
       // Combiner les IDs des clients et des collaborations pour obtenir tous les projets accessibles
       const accessibleProjectIds = new Set([
-        ...vetClients.map((c) => c.farmId),
+        ...vetClients.map((c: any) => c.farmId),
         ...collaborationProjectIds,
       ]);
 
@@ -106,7 +107,7 @@ export function useVetData(vetUserId?: string) {
 
       // Charger les planifications pour le projet actif si disponible et avec permission
       if (projetActif?.id && accessibleProjectIds.has(projetActif.id)) {
-        const hasPermission = projectPermissionsMap.has(projetActif.id) || vetClients.some(c => c.farmId === projetActif.id);
+        const hasPermission = projectPermissionsMap.has(projetActif.id) || vetClients.some((c: any) => c.farmId === projetActif.id);
         if (hasPermission) {
           try {
             await dispatch(loadPlanificationsParProjet(projetActif.id));
@@ -120,10 +121,10 @@ export function useVetData(vetUserId?: string) {
       const allVisites: VisiteVeterinaire[] = [];
       for (const project of accessibleProjects) {
         // Vérifier si le vétérinaire a la permission pour ce projet
-        const hasPermission = 
-          vetClients.some(c => c.farmId === project.id) || // Client direct
+        const hasPermission =
+          vetClients.some((c: any) => c.farmId === project.id) || // Client direct
           projectPermissionsMap.has(project.id); // Collaboration avec permission
-        
+
         if (!hasPermission) {
           logger.debug(`[useVetData] Pas de permission pour projet ${project.id}, ignoré`);
           continue;
@@ -211,10 +212,10 @@ export function useVetData(vetUserId?: string) {
 
       for (const project of accessibleProjects) {
         // Vérifier si le vétérinaire a la permission pour ce projet
-        const hasPermission = 
-          vetClients.some(c => c.farmId === project.id) || // Client direct
+        const hasPermission =
+          vetClients.some((c: any) => c.farmId === project.id) || // Client direct
           projectPermissionsMap.has(project.id); // Collaboration avec permission
-        
+
         if (!hasPermission) {
           continue; // Ignorer ce projet
         }

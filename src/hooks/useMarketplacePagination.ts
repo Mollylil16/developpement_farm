@@ -345,16 +345,16 @@ export function useFarmGrouping() {
           totalPrice: data.totalPrice,
           averageWeight: data.totalWeight / data.listings.length,
           priceRange: {
-            min: Math.min(...data.listings.map(l => l.pricePerKg)),
-            max: Math.max(...data.listings.map(l => l.pricePerKg)),
+            min: Math.min(...data.listings.map((l: any) => l.pricePerKg)),
+            max: Math.max(...data.listings.map((l: any) => l.pricePerKg)),
           },
           listings: data.listings,
           representativeListing: firstListing,
-        });
+        } as any);
       }
-      
+
       // Trier par nombre de sujets décroissant
-      farms.sort((a, b) => b.subjectCount - a.subjectCount);
+      farms.sort((a, b) => (a as any).subjectCount - (b as any).subjectCount);
       
       return farms;
     } catch (error) {

@@ -1,40 +1,21 @@
 {
   "cli": {
-    "version": ">= 5.2.0",
-    "appVersionSource": "remote"
+    "version": ">= 5.9.1"
   },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal",
-      "ios": {
-        "simulator": true
-      },
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://fermier-pro-backend.onrender.com",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "742075194736-is9po2thb8gg87lqgiq23572qbdr2p1d.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS": "742075194736-4gacvg1o6c39cppf3r4n1ki2n72s2qba.apps.googleusercontent.com"
-      }
+      "distribution": "internal"
     },
     "preview": {
       "distribution": "internal",
-      "ios": {
-        "simulator": false
-      },
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://fermier-pro-backend.onrender.com",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "742075194736-is9po2thb8gg87lqgiq23572qbdr2p1d.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS": "742075194736-4gacvg1o6c39cppf3r4n1ki2n72s2qba.apps.googleusercontent.com"
+      "android": {
+        "buildType": "apk"
       }
     },
     "production": {
-      "ios": {
-        "simulator": false
-      },
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://fermier-pro-backend.onrender.com",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID": "742075194736-is9po2thb8gg87lqgiq23572qbdr2p1d.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS": "742075194736-4gacvg1o6c39cppf3r4n1ki2n72s2qba.apps.googleusercontent.com"
+      "android": {
+        "buildType": "apk"
       }
     }
   },
@@ -42,5 +23,3 @@
     "production": {}
   }
 }
-
-

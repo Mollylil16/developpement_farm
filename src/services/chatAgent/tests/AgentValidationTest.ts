@@ -157,7 +157,7 @@ export class AgentValidationTest {
           testName: `Détection: "${test.message}"`,
           passed: false,
           confidence: 0,
-          error: error.message,
+          error: (error as any).message,
         });
       }
     }
@@ -214,7 +214,7 @@ export class AgentValidationTest {
         message: 'j ai vendu 5 porcs a kouame pour 800000',
         expectedParams: { nombre: 5, montant: 800000, acheteur: 'kouame' },
         tolerance: {
-          acheteur: (actual, expected) =>
+          acheteur: (actual: any, expected: any) =>
             actual?.toLowerCase().includes(expected.toLowerCase()) ||
             expected.toLowerCase().includes(actual?.toLowerCase() || ''),
         },
@@ -280,7 +280,7 @@ export class AgentValidationTest {
           testName: `Extraction: "${test.message}"`,
           passed: false,
           confidence: 0,
-          error: error.message,
+          error: (error as any).message,
         });
       }
     }
@@ -339,7 +339,7 @@ export class AgentValidationTest {
           testName: `Robustesse: "${test.message}"`,
           passed: false,
           confidence: 0,
-          error: error.message,
+          error: (error as any).message,
         });
       }
     }
@@ -405,7 +405,7 @@ export class AgentValidationTest {
           testName: `Cas limite: ${test.description}`,
           passed: !test.shouldPass, // Si erreur et ne devrait pas passer, c'est OK
           confidence: 0,
-          error: error.message,
+          error: (error as any).message,
         });
       }
     }

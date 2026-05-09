@@ -312,7 +312,7 @@ export default function GestationScreen() {
   const { colors } = useTheme();
   const route = useRoute<RouteProp<{ params: GestationRouteParams }, 'params'>>();
   const mode = useModeElevage();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   
   // Paramètres batch (si navigation depuis une bande)
   const batch = route.params?.batch;

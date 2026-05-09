@@ -77,7 +77,7 @@ describe('financeSlice - Optimistic Updates', () => {
       const pendingCharges = Object.values(pendingState.entities.chargesFixes);
       
       // Devrait avoir une charge temporaire
-      const tempCharge = pendingCharges.find(c => c.id.startsWith('temp_charge_fixe_'));
+      const tempCharge = pendingCharges.find((c: any) => c.id.startsWith('temp_charge_fixe_'));
       expect(tempCharge).toBeDefined();
       expect(tempCharge?.montant).toBe(100000);
       expect(tempCharge?.libelle).toBe('Salaire employé');
@@ -93,7 +93,7 @@ describe('financeSlice - Optimistic Updates', () => {
 
       // La charge temporaire ne devrait plus exister
       const tempCharges = Object.values(fulfilledState.entities.chargesFixes).filter(
-        c => c.id.startsWith('temp_charge_fixe_')
+        (c: any) => c.id.startsWith('temp_charge_fixe_')
       );
       expect(tempCharges).toHaveLength(0);
     });
@@ -116,7 +116,7 @@ describe('financeSlice - Optimistic Updates', () => {
       // Vérifier que l'état a été mis à jour optimistiquement
       const pendingState = store.getState().finance;
       const tempChargesBefore = Object.values(pendingState.entities.chargesFixes).filter(
-        c => c.id.startsWith('temp_charge_fixe_')
+        (c: any) => c.id.startsWith('temp_charge_fixe_')
       );
       expect(tempChargesBefore.length).toBeGreaterThan(0);
 
@@ -125,7 +125,7 @@ describe('financeSlice - Optimistic Updates', () => {
       // Après l'échec, la charge temporaire devrait être supprimée (rollback)
       const rejectedState = store.getState().finance;
       const tempChargesAfter = Object.values(rejectedState.entities.chargesFixes).filter(
-        c => c.id.startsWith('temp_charge_fixe_')
+        (c: any) => c.id.startsWith('temp_charge_fixe_')
       );
       expect(tempChargesAfter).toHaveLength(0);
       expect(rejectedState.error).toBeDefined();
@@ -243,7 +243,7 @@ describe('financeSlice - Optimistic Updates', () => {
       // Vérifier optimistic update
       const pendingState = store.getState().finance;
       const tempDepenses = Object.values(pendingState.entities.depensesPonctuelles).filter(
-        d => d.id.startsWith('temp_depense_')
+        (d: any) => d.id.startsWith('temp_depense_')
       );
       expect(tempDepenses.length).toBeGreaterThan(0);
 
@@ -272,7 +272,7 @@ describe('financeSlice - Optimistic Updates', () => {
       // Vérifier rollback
       const rejectedState = store.getState().finance;
       const tempDepenses = Object.values(rejectedState.entities.depensesPonctuelles).filter(
-        d => d.id.startsWith('temp_depense_')
+        (d: any) => d.id.startsWith('temp_depense_')
       );
       expect(tempDepenses).toHaveLength(0);
       expect(rejectedState.error).toBeDefined();
@@ -302,7 +302,7 @@ describe('financeSlice - Optimistic Updates', () => {
       // Vérifier optimistic update
       const pendingState = store.getState().finance;
       const tempRevenus = Object.values(pendingState.entities.revenus).filter(
-        r => r.id.startsWith('temp_revenu_')
+        (r: any) => r.id.startsWith('temp_revenu_')
       );
       expect(tempRevenus.length).toBeGreaterThan(0);
 

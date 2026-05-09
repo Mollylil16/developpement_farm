@@ -4,7 +4,8 @@
 
 import { useMemo } from 'react';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { loadPlanificationsAVenir } from '../../store/slices/planificationSlice';
+import planificationSliceModule from '../../store/slices/planificationSlice';
+const loadPlanificationsAVenir: any = (planificationSliceModule as any).loadPlanificationsAVenir;
 import { useEffect, useRef } from 'react';
 
 export interface PlanningWidgetData {
@@ -38,7 +39,7 @@ export function usePlanningWidget(projetId?: string): PlanningWidgetData | null 
   return useMemo(() => {
     if (!projetId) return null;
 
-    const tachesAFaire = planifications.filter((p) => p.statut === 'a_faire');
+    const tachesAFaire = planifications.filter((p) => (p as any).statut === 'a_faire');
 
     return {
       emoji: '📅',

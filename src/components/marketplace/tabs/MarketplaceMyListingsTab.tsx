@@ -46,7 +46,7 @@ function MarketplaceMyListingsTab({
 }: MarketplaceMyListingsTabProps) {
   const marketplaceColors = MarketplaceTheme.colors;
   const dispatch = useAppDispatch();
-  const { user } = useAppSelector((state) => state.auth ?? { user: null });
+  const { user } = useAppSelector((state) => (state as any).auth ?? { user: null });
   const allAnimaux = useAppSelector(selectAllAnimaux);
 
   const handleRemove = async (listing: MarketplaceListing) => {

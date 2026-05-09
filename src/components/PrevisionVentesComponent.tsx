@@ -49,7 +49,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
     parametresProduction,
     simulationResultat,
     sailliesPlanifiees,
-  } = useAppSelector((state) => state.planningProduction);
+  } = useAppSelector((state) => (state as any).planningProduction);
   const animaux = useAppSelector(selectAllAnimaux);
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();
@@ -193,7 +193,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
   const getMarkedDates = (): { [key: string]: any } => {
     const marked: { [key: string]: any } = {};
 
-    (previsionsVentes || []).forEach((prevision) => {
+    (previsionsVentes || []).forEach((prevision: any) => {
       if (!prevision.date_vente_prevue) return;
 
       const dateVente = format(parseISO(prevision.date_vente_prevue), 'yyyy-MM-dd');
@@ -220,16 +220,16 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
 
   const getPrevisionsForDate = (date: string) => {
     return (previsionsVentes || []).filter(
-      (p) => p.date_vente_prevue && format(parseISO(p.date_vente_prevue), 'yyyy-MM-dd') === date
+      (p: any) => p.date_vente_prevue && format(parseISO(p.date_vente_prevue), 'yyyy-MM-dd') === date
     );
   };
 
   const renderHeader = () => {
     const previsionsSemaineProchaine = (previsionsVentes || []).filter(
-      (p) => p.jours_restants > 0 && p.jours_restants <= 7
+      (p: any) => p.jours_restants > 0 && p.jours_restants <= 7
     );
     const previsionsMoisProchain = (previsionsVentes || []).filter(
-      (p) => p.jours_restants > 7 && p.jours_restants <= 30
+      (p: any) => p.jours_restants > 7 && p.jours_restants <= 30
     );
 
     return (
@@ -416,7 +416,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
           <Text style={[styles.selectedDateTitle, { color: colors.text }]}>
             Ventes prévues le {format(parseISO(selectedDate), 'dd MMMM yyyy', { locale: fr })} :
           </Text>
-          {getPrevisionsForDate(selectedDate).map((prevision) => {
+          {getPrevisionsForDate(selectedDate).map((prevision: any) => {
             const animal = animaux.find((a) => a.id === prevision.animal_id);
             return (
               <View key={prevision.animal_id} style={styles.miniPrevisionCard}>
@@ -555,7 +555,7 @@ export default function PrevisionVentesComponent({ refreshControl }: Props) {
 
   const renderListe = () => (
     <FlatList
-      data={(previsionsVentes || []).sort((a, b) => a.jours_restants - b.jours_restants)}
+      data={(previsionsVentes || []).sort((a: any, b: any) => a.jours_restants - b.jours_restants)}
       keyExtractor={(item) => item.animal_id}
       ListHeaderComponent={renderHeader()}
       renderItem={renderPrevisionCard}

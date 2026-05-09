@@ -4,7 +4,8 @@
 
 import { useMemo } from 'react';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { loadCollaborateursParProjet } from '../../store/slices/collaborationSlice';
+import collaborationSliceModule from '../../store/slices/collaborationSlice';
+const loadCollaborateursParProjet: any = (collaborationSliceModule as any).loadCollaborateursParProjet;
 import { useEffect, useRef } from 'react';
 
 export interface CollaborationWidgetData {
@@ -18,7 +19,7 @@ export interface CollaborationWidgetData {
 
 export function useCollaborationWidget(projetId?: string): CollaborationWidgetData | null {
   const dispatch = useAppDispatch();
-  const { collaborateurs } = useAppSelector((state) => state.collaboration);
+  const { collaborateurs } = useAppSelector((state) => (state as any).collaboration);
   const dataChargeesRef = useRef<string | null>(null);
 
   // Charger les données

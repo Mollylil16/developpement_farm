@@ -5,8 +5,8 @@
  */
 
 import { CreateAnimalUseCase, type CreateAnimalInput } from '../CreateAnimal';
-import type { IAnimalRepository } from '../repositories/IAnimalRepository';
-import type { Animal } from '../entities/Animal';
+import type { IAnimalRepository } from '../../repositories/IAnimalRepository';
+import type { Animal } from '../../entities/Animal';
 
 // Mocks
 jest.mock('react-native-uuid', () => ({

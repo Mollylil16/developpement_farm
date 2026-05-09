@@ -26,8 +26,8 @@ export class SevrageRepository extends BaseRepository<Sevrage> {
       projet_id: data.projet_id,
       gestation_id: data.gestation_id,
       date_sevrage: data.date_sevrage || new Date().toISOString(),
-      nombre_porcelets: data.nombre_porcelets || 0,
-      poids_moyen_kg: data.poids_moyen_kg || null,
+      nombre_porcelets: (data as any).nombre_porcelets || 0,
+      poids_moyen_kg: (data as any).poids_moyen_kg || null,
       notes: data.notes || null,
     };
 
@@ -41,8 +41,8 @@ export class SevrageRepository extends BaseRepository<Sevrage> {
     const updateData: Record<string, unknown> = {};
 
     if (data.date_sevrage !== undefined) updateData.date_sevrage = data.date_sevrage;
-    if (data.nombre_porcelets !== undefined) updateData.nombre_porcelets = data.nombre_porcelets;
-    if (data.poids_moyen_kg !== undefined) updateData.poids_moyen_kg = data.poids_moyen_kg;
+    if ((data as any).nombre_porcelets !== undefined) updateData.nombre_porcelets = (data as any).nombre_porcelets;
+    if ((data as any).poids_moyen_kg !== undefined) updateData.poids_moyen_kg = (data as any).poids_moyen_kg;
     if (data.notes !== undefined) updateData.notes = data.notes;
 
     return this.executePatch<Sevrage>(`/reproduction/sevrages/${id}`, updateData);
@@ -130,10 +130,10 @@ export class SevrageRepository extends BaseRepository<Sevrage> {
       const sevrages = await this.findByProjet(projetId);
       
       const total = sevrages.length;
-      const totalPorceletsSevrages = sevrages.reduce((sum, s) => sum + (s.nombre_porcelets || 0), 0);
+      const totalPorceletsSevrages = sevrages.reduce((sum, s) => sum + ((s as any).nombre_porcelets || 0), 0);
       const moyennePorceletsParSevrage = total > 0 ? totalPorceletsSevrages / total : 0;
       const poidsMoyenGlobal = sevrages.length > 0
-        ? sevrages.reduce((sum, s) => sum + (s.poids_moyen_kg || 0), 0) / sevrages.length
+        ? sevrages.reduce((sum, s) => sum + ((s as any).poids_moyen_kg || 0), 0) / sevrages.length
         : 0;
 
       return {
@@ -170,7 +170,7 @@ export class SevrageRepository extends BaseRepository<Sevrage> {
 
       // Fallback: calculer côté client (nécessite d'accéder aux gestations)
       const sevrages = await this.findByProjet(projetId);
-      const porceletsSevrages = sevrages.reduce((sum, s) => sum + (s.nombre_porcelets || 0), 0);
+      const porceletsSevrages = sevrages.reduce((sum, s) => sum + ((s as any).nombre_porcelets || 0), 0);
       
       // Note: Pour calculer porceletsNes, il faudrait accéder aux gestations
       // Pour l'instant, on retourne 0 si l'endpoint backend n'est pas disponible

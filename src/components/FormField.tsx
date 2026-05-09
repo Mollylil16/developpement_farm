@@ -7,12 +7,14 @@ interface FormFieldProps extends TextInputProps {
   label: string;
   error?: string;
   required?: boolean;
+  helper?: string; // Texte d'aide optionnel
 }
 
 export default function FormField({
   label,
   error,
   required,
+  helper,
   style,
   ...textInputProps
 }: FormFieldProps) {
@@ -44,6 +46,7 @@ export default function FormField({
         />
       </View>
       {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
+      {helper && !error && <Text style={[styles.helperText, { color: colors.textSecondary }]}>{helper}</Text>}
     </View>
   );
 }
@@ -71,5 +74,10 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     marginTop: SPACING.xs,
     fontWeight: FONT_WEIGHTS.medium,
+  },
+  helperText: {
+    fontSize: FONT_SIZES.sm,
+    marginTop: SPACING.xs,
+    fontStyle: 'italic',
   },
 });

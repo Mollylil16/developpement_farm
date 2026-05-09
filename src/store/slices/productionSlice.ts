@@ -495,7 +495,7 @@ const productionSlice = createSlice({
         // Ajouter l'animal réel
         state.entities.animaux = mergeEntitiesWithCheck(
           state.entities.animaux,
-          normalized.entities.animaux
+          normalized.entities.animaux as any
         );
         if (!state.ids.animaux.includes(animalId)) {
           state.ids.animaux = [animalId, ...state.ids.animaux];

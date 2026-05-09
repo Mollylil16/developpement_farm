@@ -19,12 +19,12 @@ const selectFinanceState = (state: RootState) => state.finance;
 // Sélecteurs intermédiaires pour éviter les nouvelles références
 const selectChargesFixesIds = createSelector(
   [selectFinanceState],
-  (financeState) => financeState.ids.chargesFixes
+  (financeState) => (financeState as any).ids.chargesFixes
 );
 
 const selectChargesFixesEntities = createSelector(
   [selectFinanceState],
-  (financeState) => financeState.entities.chargesFixes
+  (financeState) => (financeState as any).entities.chargesFixes
 );
 
 // Sélecteurs pour les charges fixes
@@ -43,7 +43,7 @@ export const selectAllChargesFixes = createSelector(
 export const selectChargeFixeById = createSelector(
   [selectFinanceState, (_: RootState, chargeId: string) => chargeId],
   (financeState, chargeId): ChargeFixe | undefined => {
-    const { entities } = financeState;
+    const { entities } = financeState as any;
     if (!entities.chargesFixes || !chargeId) return undefined;
     const normalized = denormalize([chargeId], chargesFixesSchema, {
       chargesFixes: entities.chargesFixes,
@@ -55,12 +55,12 @@ export const selectChargeFixeById = createSelector(
 // Sélecteurs intermédiaires pour les dépenses ponctuelles
 const selectDepensesPonctuellesIds = createSelector(
   [selectFinanceState],
-  (financeState) => financeState.ids.depensesPonctuelles
+  (financeState) => (financeState as any).ids.depensesPonctuelles
 );
 
 const selectDepensesPonctuellesEntities = createSelector(
   [selectFinanceState],
-  (financeState) => financeState.entities.depensesPonctuelles
+  (financeState) => (financeState as any).entities.depensesPonctuelles
 );
 
 // Sélecteurs pour les dépenses ponctuelles
@@ -79,7 +79,7 @@ export const selectAllDepensesPonctuelles = createSelector(
 export const selectDepensePonctuelleById = createSelector(
   [selectFinanceState, (_: RootState, depenseId: string) => depenseId],
   (financeState, depenseId): DepensePonctuelle | undefined => {
-    const { entities } = financeState;
+    const { entities } = financeState as any;
     if (!entities.depensesPonctuelles || !depenseId) return undefined;
     const normalized = denormalize([depenseId], depensesPonctuellesSchema, {
       depensesPonctuelles: entities.depensesPonctuelles,
@@ -91,12 +91,12 @@ export const selectDepensePonctuelleById = createSelector(
 // Sélecteurs intermédiaires pour les revenus
 const selectRevenusIds = createSelector(
   [selectFinanceState],
-  (financeState) => financeState.ids.revenus
+  (financeState) => (financeState as any).ids.revenus
 );
 
 const selectRevenusEntities = createSelector(
   [selectFinanceState],
-  (financeState) => financeState.entities.revenus
+  (financeState) => (financeState as any).entities.revenus
 );
 
 // Sélecteurs pour les revenus
@@ -113,7 +113,7 @@ export const selectAllRevenus = createSelector(
 export const selectRevenuById = createSelector(
   [selectFinanceState, (_: RootState, revenuId: string) => revenuId],
   (financeState, revenuId): Revenu | undefined => {
-    const { entities } = financeState;
+    const { entities } = financeState as any;
     if (!entities.revenus || !revenuId) return undefined;
     const normalized = denormalize([revenuId], revenusSchema, { revenus: entities.revenus });
     return Array.isArray(normalized) ? normalized[0] : undefined;

@@ -87,38 +87,38 @@ export default function FinanceGraphiquesComponent() {
       
       // Charger les données financières uniquement quand l'écran est visible
       dispatch(loadRevenus(projetActif.id))
-        .then((result) => {
+        .then((result: any) => {
           if (loadRevenus.fulfilled.match(result)) {
             console.log(`[FinanceGraphiquesComponent] ${result.payload.length} revenus chargés`);
           } else {
             console.error('[FinanceGraphiquesComponent] Erreur chargement revenus:', result.payload);
           }
         })
-        .catch((error) => {
+        .catch((error: any) => {
           console.error('[FinanceGraphiquesComponent] Erreur lors du chargement des revenus:', error);
         });
       
       dispatch(loadChargesFixes(projetActif.id))
-        .then((result) => {
+        .then((result: any) => {
           if (loadChargesFixes.fulfilled.match(result)) {
             console.log(`[FinanceGraphiquesComponent] ${result.payload.length} charges fixes chargées`);
           } else {
             console.error('[FinanceGraphiquesComponent] Erreur chargement charges fixes:', result.payload);
           }
         })
-        .catch((error) => {
+        .catch((error: any) => {
           console.error('[FinanceGraphiquesComponent] Erreur lors du chargement des charges fixes:', error);
         });
       
       dispatch(loadDepensesPonctuelles(projetActif.id))
-        .then((result) => {
+        .then((result: any) => {
           if (loadDepensesPonctuelles.fulfilled.match(result)) {
             console.log(`[FinanceGraphiquesComponent] ${result.payload.length} dépenses ponctuelles chargées`);
           } else {
             console.error('[FinanceGraphiquesComponent] Erreur chargement dépenses ponctuelles:', result.payload);
           }
         })
-        .catch((error) => {
+        .catch((error: any) => {
           console.error('[FinanceGraphiquesComponent] Erreur lors du chargement des dépenses ponctuelles:', error);
         });
     }, [dispatch, projetActif?.id])

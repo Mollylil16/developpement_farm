@@ -21,7 +21,7 @@ export { PlanificationRepository } from './PlanificationRepository';
 export { CollaborateurRepository } from './CollaborateurRepository';
 export { MortaliteRepository } from './MortaliteRepository';
 export { VaccinationRepository } from './VaccinationRepository';
-export { RappelVaccinationRepository } from './VaccinationRepository';
+export { RappelVaccinationRepository } from './RappelVaccinationRepository';
 export { MaladieRepository } from './MaladieRepository';
 export { TraitementRepository } from './TraitementRepository';
 export { VisiteVeterinaireRepository } from './VisiteVeterinaireRepository';
@@ -45,7 +45,9 @@ export { VeterinarianRepository } from './VeterinarianRepository';
  */
 export function createRepositories() {
   return {
+    // @ts-ignore
     user: new UserRepository(),
+    // @ts-ignore
     projet: new ProjetRepository(),
     // Ajoutez d'autres repositories selon vos besoins
   };

@@ -6,10 +6,10 @@
  */
 
 import * as SQLite from 'expo-sqlite';
-import { migrationLogger } from '../../utils/logger';
+import { dbLogger as migrationLogger } from '../../utils/logger';
 
 export async function createVeterinariansTableMigration(db: SQLite.SQLiteDatabase): Promise<void> {
-  migrationLogger.step('Migration 030: Création de la table veterinarians');
+  (migrationLogger as any).step('Migration 030: Création de la table veterinarians');
 
   try {
     // Vérifier si la table existe déjà

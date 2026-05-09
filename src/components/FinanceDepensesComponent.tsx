@@ -153,6 +153,7 @@ function FinanceDepensesComponent() {
 
   const getCategoryLabel = (categorie: string): string => {
     const labels: Record<string, string> = {
+      medicaments: 'Médicaments',
       vaccins: 'Vaccins',
       alimentation: 'Alimentation',
       veterinaire: 'Vétérinaire',

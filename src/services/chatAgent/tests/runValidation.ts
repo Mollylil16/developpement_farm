@@ -65,7 +65,7 @@ export async function runAndDisplayValidation(context: AgentContext): Promise<vo
     });
     console.log('✅ Rapport PDF généré et prêt à être partagé !');
   } catch (error: unknown) {
-    console.error('❌ Erreur lors de la génération du PDF:', error.message);
+    console.error('❌ Erreur lors de la génération du PDF:', (error as any).message);
   }
 }
 

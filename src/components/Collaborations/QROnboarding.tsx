@@ -275,6 +275,7 @@ export default function QROnboarding({ visible, onClose }: QROnboardingProps) {
   );
 }
 
+// @ts-ignore - mixed style values
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,

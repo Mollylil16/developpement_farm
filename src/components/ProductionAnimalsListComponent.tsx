@@ -2,7 +2,7 @@
  * Composant pour afficher la liste des animaux en production avec leurs pesées
  */
 
-import React, { useEffect, useState, useMemo, useCallback, useRef, memo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -30,7 +30,7 @@ import {
   loadPeseesRecents,
   deletePesee,
 } from '../store/slices/productionSlice';
-import type { ProductionAnimal, ProductionPesee } from '../types/production';
+import { ProductionAnimal, ProductionPesee } from '../types';
 import { SPACING, BORDER_RADIUS, FONT_SIZES } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import LoadingSpinner from './LoadingSpinner';
@@ -45,14 +45,12 @@ import { fr } from 'date-fns/locale';
 import { useFocusEffect } from '@react-navigation/native';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { evaluerGMQIndividuel, calculerGMQMoyen } from '../utils/gmqEvaluation';
-import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
-function ProductionAnimalsListComponent() {
+export default function ProductionAnimalsListComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const { canCreate, canUpdate, canDelete } = useActionPermissions();
-  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
-  const projetActif = useProjetEffectif();
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   const animaux = useAppSelector(selectAllAnimaux);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const peseesRecents = useAppSelector(selectPeseesRecents);
@@ -102,7 +100,7 @@ function ProductionAnimalsListComponent() {
 
     return animauxActifs.map((animal) => {
       const pesees = peseesParAnimal[animal.id] || [];
-
+      
       // Les pesées sont triées par date ASC (croissante), donc la dernière est à la fin
       const dernierePesee = pesees.length > 0 ? pesees[pesees.length - 1] : null;
 
@@ -237,9 +235,8 @@ function ProductionAnimalsListComponent() {
                 if (selectedAnimal) {
                   dispatch(loadPeseesParAnimal(selectedAnimal.id));
                 }
-              } catch (error: unknown) {
-                const errorMessage = error instanceof Error ? error.message : String(error) || 'Erreur lors de la suppression de la pesée.';
-                Alert.alert('Erreur', errorMessage);
+              } catch (error: any) {
+                Alert.alert('Erreur', error || 'Erreur lors de la suppression de la pesée.');
               }
             },
           },
@@ -250,7 +247,7 @@ function ProductionAnimalsListComponent() {
   );
 
   // Composant mémorisé pour chaque carte d'animal - défini AVANT les retours anticipés pour éviter les problèmes de hooks
-  const AnimalCard = memo(
+  const AnimalCard = React.memo(
     ({
       item,
       isSelected,
@@ -411,32 +408,40 @@ function ProductionAnimalsListComponent() {
           )}
 
           {/* Évaluation GMQ */}
-          {gmqMoyen !== null &&
-            dernierePesee &&
-            (() => {
-              const evaluation = evaluerGMQIndividuel(gmqMoyen);
-              return (
-                <View
-                  style={[
-                    styles.gmqEvaluationBox,
-                    {
-                      backgroundColor: `${evaluation.couleur}15`,
-                      borderColor: `${evaluation.couleur}40`,
-                    },
-                  ]}
-                >
-                  <View style={styles.gmqEvaluationHeader}>
-                    <Text style={{ fontSize: 20 }}>{evaluation.icone}</Text>
-                    <Text style={[styles.gmqEvaluationTitle, { color: evaluation.couleur }]}>
-                      {evaluation.commentaire}
-                    </Text>
-                  </View>
-                  <Text style={[styles.gmqEvaluationText, { color: colors.text }]}>
-                    {evaluation.recommandation}
+          {gmqMoyen !== null && dernierePesee && (() => {
+            const evaluation = evaluerGMQIndividuel(gmqMoyen);
+            return (
+              <View
+                style={[
+                  styles.gmqEvaluationBox,
+                  { 
+                    backgroundColor: `${evaluation.couleur}15`,
+                    borderColor: `${evaluation.couleur}40`,
+                  },
+                ]}
+              >
+                <View style={styles.gmqEvaluationHeader}>
+                  <Text style={{ fontSize: 20 }}>{evaluation.icone}</Text>
+                  <Text
+                    style={[
+                      styles.gmqEvaluationTitle,
+                      { color: evaluation.couleur },
+                    ]}
+                  >
+                    {evaluation.commentaire}
                   </Text>
                 </View>
-              );
-            })()}
+                <Text
+                  style={[
+                    styles.gmqEvaluationText,
+                    { color: colors.text },
+                  ]}
+                >
+                  {evaluation.recommandation}
+                </Text>
+              </View>
+            );
+          })()}
 
           {isSelected && (
             <View style={[styles.historyContainer, { borderTopColor: colors.border }]}>
@@ -552,7 +557,7 @@ function ProductionAnimalsListComponent() {
               // Récupérer l'animal mis à jour depuis Redux (accès direct au store)
               const state = store.getState();
               const animauxMisAJour = selectAllAnimaux(state);
-              const animalMisAJour = animauxMisAJour.find((a) => a.id === animal.id);
+              const animalMisAJour = animauxMisAJour.find(a => a.id === animal.id);
               setSelectedAnimal(animalMisAJour || animal);
             } else {
               setSelectedAnimal(animal);
@@ -594,11 +599,12 @@ function ProductionAnimalsListComponent() {
         animauxAvecPesee++;
 
         // Calculer le GMQ moyen de l'animal
-        const peseesAvecGMQ = pesees.map((p) => ({
+        // Mapper les pesées au format attendu par calculerGMQMoyen
+        const peseesFormatees = pesees.map(p => ({
           date: p.date,
-          gmq: p.gmq ?? null,
+          gmq: p.gmq || null,
         }));
-        const gmqMoyen = calculerGMQMoyen(peseesAvecGMQ);
+        const gmqMoyen = calculerGMQMoyen(peseesFormatees);
         if (gmqMoyen > 0) {
           sommeGMQ += gmqMoyen;
           animauxAvecGMQ++;
@@ -754,12 +760,7 @@ function ProductionAnimalsListComponent() {
 
         {/* Sélecteur de période */}
         {evolutionPoidsFerme && evolutionPoidsFerme.length > 0 && (
-          <View
-            style={[
-              styles.periodSelectorContainer,
-              { marginHorizontal: SPACING.md, marginTop: SPACING.md },
-            ]}
-          >
+          <View style={[styles.periodSelectorContainer, { marginHorizontal: SPACING.md, marginTop: SPACING.md }]}>
             <View style={styles.periodSelector}>
               {([7, 30, 90] as const).map((jours) => (
                 <TouchableOpacity
@@ -1283,6 +1284,3 @@ const styles = StyleSheet.create({
     lineHeight: FONT_SIZES.sm * 1.6,
   },
 });
-
-// Mémoïser le composant pour éviter les re-renders inutiles
-export default React.memo(ProductionAnimalsListComponent);

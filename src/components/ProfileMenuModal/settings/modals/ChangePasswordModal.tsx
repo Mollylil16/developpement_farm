@@ -9,8 +9,10 @@ import { useTheme } from '../../../../contexts/ThemeContext';
 import { useAppSelector } from '../../../../store/hooks';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../../../../constants/theme';
 import CustomModal from '../../../CustomModal';
-import apiClient from '../../../../services/api/apiClient';
+import { getDatabase } from '../../../../services/database';
+import { UserRepository } from '../../../../database/repositories';
 import { getErrorMessage } from '../../../../types/common';
+import { hashPassword } from '../../../../utils/hashPassword';
 
 interface ChangePasswordModalProps {
   visible: boolean;
@@ -19,7 +21,7 @@ interface ChangePasswordModalProps {
 
 export default function ChangePasswordModal({ visible, onClose }: ChangePasswordModalProps) {
   const { colors } = useTheme();
-  const user = useAppSelector((state) => state.auth?.user);
+  const user = useAppSelector((state) => (state as any).auth.user);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -51,13 +53,42 @@ export default function ChangePasswordModal({ visible, onClose }: ChangePassword
 
     setLoading(true);
     try {
-      // TODO: Créer un endpoint backend dédié pour changer le mot de passe
-      // Pour l'instant, on utilise PATCH /users/:id avec password_hash
-      // Note: Le backend devrait gérer le hashage du mot de passe
-      await apiClient.patch(`/users/${user.id}`, {
-        currentPassword,
-        newPassword,
-      });
+      const db = await getDatabase();
+      const userRepo = new UserRepository();
+      
+      // Récupérer l'utilisateur avec le hash du mot de passe
+      // Note: password_hash n'est pas dans le type User, on doit le récupérer directement
+      const dbUserRow = await db.getFirstAsync<{ password_hash?: string }>(
+        'SELECT password_hash FROM users WHERE id = ?',
+        [user.id]
+      );
+      if (!dbUserRow) {
+        Alert.alert('Erreur', 'Utilisateur introuvable');
+        setLoading(false);
+        return;
+      }
+
+      // Vérifier le mot de passe actuel
+      if (dbUserRow.password_hash) {
+        const currentPasswordHash = await hashPassword(currentPassword);
+        
+        if (currentPasswordHash !== dbUserRow.password_hash) {
+          Alert.alert('Erreur', 'Mot de passe actuel incorrect');
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Hasher le nouveau mot de passe
+      const newPasswordHash = await hashPassword(newPassword);
+
+      // Mettre à jour le mot de passe
+      // Note: UserRepository.update ne gère pas password_hash directement
+      // Utiliser une requête SQL directe
+      await db.runAsync(
+        'UPDATE users SET password_hash = ? WHERE id = ?',
+        [newPasswordHash, user.id]
+      );
 
       Alert.alert('Succès', 'Mot de passe modifié avec succès', [
         {
@@ -71,10 +102,7 @@ export default function ChangePasswordModal({ visible, onClose }: ChangePassword
         },
       ]);
     } catch (error: unknown) {
-      Alert.alert(
-        'Erreur',
-        getErrorMessage(error) || 'Erreur lors de la modification du mot de passe'
-      );
+      Alert.alert('Erreur', getErrorMessage(error) || 'Erreur lors de la modification du mot de passe');
     } finally {
       setLoading(false);
     }
@@ -91,18 +119,8 @@ export default function ChangePasswordModal({ visible, onClose }: ChangePassword
     >
       <View style={styles.content}>
         <Text style={[styles.label, { color: colors.textSecondary }]}>Mot de passe actuel</Text>
-        <View
-          style={[
-            styles.inputContainer,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <Ionicons
-            name="lock-closed-outline"
-            size={20}
-            color={colors.textSecondary}
-            style={styles.inputIcon}
-          />
+        <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
           <TextInput
             style={[styles.input, { color: colors.text }]}
             placeholder="Entrez votre mot de passe actuel"
@@ -129,18 +147,8 @@ export default function ChangePasswordModal({ visible, onClose }: ChangePassword
         <Text style={[styles.label, { color: colors.textSecondary, marginTop: SPACING.md }]}>
           Nouveau mot de passe
         </Text>
-        <View
-          style={[
-            styles.inputContainer,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <Ionicons
-            name="lock-closed-outline"
-            size={20}
-            color={colors.textSecondary}
-            style={styles.inputIcon}
-          />
+        <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
           <TextInput
             style={[styles.input, { color: colors.text }]}
             placeholder="Au moins 6 caractères"
@@ -167,18 +175,8 @@ export default function ChangePasswordModal({ visible, onClose }: ChangePassword
         <Text style={[styles.label, { color: colors.textSecondary, marginTop: SPACING.md }]}>
           Confirmer le nouveau mot de passe
         </Text>
-        <View
-          style={[
-            styles.inputContainer,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-          ]}
-        >
-          <Ionicons
-            name="lock-closed-outline"
-            size={20}
-            color={colors.textSecondary}
-            style={styles.inputIcon}
-          />
+        <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} style={styles.inputIcon} />
           <TextInput
             style={[styles.input, { color: colors.text }]}
             placeholder="Confirmez le nouveau mot de passe"
@@ -234,3 +232,4 @@ const styles = StyleSheet.create({
     padding: SPACING.xs,
   },
 });
+

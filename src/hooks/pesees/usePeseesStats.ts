@@ -17,14 +17,14 @@ export interface PeseesStats {
   total_animaux: number;
 }
 
-interface UsePeseesStatsParams {
+export interface UsePeseesStatsParams {
   projetId: string | undefined;
   mode: 'individuel' | 'bande';
   periode?: '7j' | '30j' | '90j' | 'tout';
   enabled?: boolean; // Optionnel : pour désactiver le chargement automatique
 }
 
-interface UsePeseesStatsReturn {
+export interface UsePeseesStatsReturn {
   data: PeseesStats | null;
   loading: boolean;
   error: string | null;

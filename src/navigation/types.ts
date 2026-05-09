@@ -17,15 +17,10 @@ export const SCREENS = {
   SANTE: 'Sante',
   FINANCE: 'Finance',
   REPORTS: 'Reports',
-  STATISTICS: 'Statistics',
-  LOGIN_LOGS: 'LoginLogs',
   PLANIFICATION: 'Planification',
+  PARAMETRES: 'Parametres',
   TRAINING: 'Training',
   COLLABORATION: 'Collaboration',
-  COLLABORATION_VET_TECH: 'CollaborationVetTech',
-  MY_QR_CODE: 'MyQRCode',
-  SCAN_QR_COLLABORATEUR: 'ScanQRCollaborateur',
-  QR_INVITATION_CONFIG: 'QRInvitationConfig',
   MORTALITES: 'Mortalites',
   ADMIN: 'Admin',
   MARKETPLACE: 'Marketplace',
@@ -39,38 +34,44 @@ export const SCREENS = {
   TASKS: 'Tasks',
   RECORDS: 'Records',
   OFFERS: 'Offers',
-  // 🆕 Écrans d'authentification et onboarding
-  ONBOARDING_AUTH: 'OnboardingAuth', // Ancien (à supprimer progressivement)
-  SIGN_UP_METHOD: 'SignUpMethod', // Nouveau : Choix méthode inscription
-  PHONE_SIGN_UP: 'PhoneSignUp', // Nouveau : Inscription par téléphone
-  USER_INFO: 'UserInfo', // Nouveau : Collecte nom/prénom
-  SIGN_IN: 'SignIn', // Nouveau : Connexion
-  OTP_VERIFICATION: 'OtpVerification', // Vérification OTP
+  // 🆕 Écrans d'onboarding
+  ONBOARDING_AUTH: 'OnboardingAuth',
   PROFILE_SELECTION: 'ProfileSelection',
-  FORGOT_PASSWORD: 'ForgotPassword',
-  RESET_PASSWORD: 'ResetPassword',
   BUYER_INFO_COMPLETION: 'BuyerInfoCompletion',
   VETERINARIAN_INFO_COMPLETION: 'VeterinarianInfoCompletion',
   VET_PROPOSE_FARMS: 'VetProposeFarms',
   SERVICE_PROPOSAL_NOTIFICATIONS: 'ServiceProposalNotifications',
   // Agent conversationnel
   CHAT_AGENT: 'ChatAgent',
-  // Écrans unifiés (supportent les deux modes : individuel et batch)
-  VACCINATION: 'Vaccination',
+  // 🆕 Écrans additionnels
+  MY_PROJECTS: 'MyProjects',
+  STATISTICS: 'Statistics',
+  COLLABORATION_VET_TECH: 'CollaborationVetTech',
+  MANAGE_PROFILES: 'ManageProfiles',
+  MY_QR_CODE: 'MyQRCode',
+  SCAN_QR_COLLABORATEUR: 'ScanQRCollaborateur',
+  QR_INVITATION_CONFIG: 'QRInvitationConfig',
+  LOGIN_LOGS: 'LoginLogs',
+  SIGN_UP_METHOD: 'SignUpMethod',
+  PHONE_SIGN_UP: 'PhoneSignUp',
+  RESET_PASSWORD: 'ResetPassword',
+  OTP_VERIFICATION: 'OtpVerification',
+  USER_INFO: 'UserInfo',
   WEIGHING: 'Weighing',
-  SALE: 'Sale',
-  MORTALITY: 'Mortality',
+  PLANNING_PRODUCTION: 'PlanningProduction',
+  TRANSACTION_DETAIL: 'TransactionDetail',
   DISEASE: 'Disease',
   GESTATION: 'Gestation',
-  MANAGE_PROFILES: 'ManageProfiles',
-  // Écrans de détails
+  MORTALITY: 'Mortality',
+  SALE: 'Sale',
+  SIGN_IN: 'SignIn',
   SUJET_PESEE_DETAIL: 'SujetPeseeDetail',
-  // 🆕 Écrans pour vétérinaires et techniciens
-  MY_PROJECTS: 'MyProjects',
-  VET_PROJECT_DETAIL: 'VetProjectDetail',
+  VACCINATION: 'Vaccination',
   VET_CONSULTATIONS: 'VetConsultations',
+  VET_PROJECT_DETAIL: 'VetProjectDetail',
   VET_REPORTS: 'VetReports',
   VET_TREATMENTS: 'VetTreatments',
+  FORGOT_PASSWORD: 'ForgotPassword',
 } as const;
 
 export type ScreenName = (typeof SCREENS)[keyof typeof SCREENS];

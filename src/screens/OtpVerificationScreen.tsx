@@ -19,7 +19,7 @@ export default function OtpVerificationScreen() {
   const navigation = useNavigation<NavigationProp<any>>();
   const route = useRoute();
   const dispatch = useAppDispatch();
-  const { isLoading, error, user } = useAppSelector((state) => state.auth);
+  const { isLoading, error, user } = useAppSelector((state) => (state as any).auth);
 
   const { identifier, isEmail } =
     (route.params as { identifier?: string; isEmail?: boolean }) || {};

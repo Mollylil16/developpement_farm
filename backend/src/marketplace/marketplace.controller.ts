@@ -11,6 +11,7 @@ import {
   HttpStatus,
   Query,
   ForbiddenException,
+  BadRequestException,
   UseInterceptors,
   UploadedFile,
   UploadedFiles,
@@ -19,6 +20,7 @@ import {
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { open as fsOpen, unlink } from 'fs/promises';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { Logger } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
@@ -45,7 +47,24 @@ import { AutoSaleService, CreateAutoSaleSettingsDto } from './auto-sale.service'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
-// ✅ Fonction HORS de la classe (avant le @Controller)
+async function validateImageMagicBytes(filePath: string): Promise<boolean> {
+  const buf = Buffer.alloc(12);
+  const handle = await fsOpen(filePath, 'r');
+  try {
+    await handle.read(buf, 0, 12, 0);
+  } finally {
+    await handle.close();
+  }
+  // JPEG: FF D8 FF
+  if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return true;
+  // PNG: 89 50 4E 47
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return true;
+  // WebP: RIFF????WEBP (bytes 0-3 = "RIFF", bytes 8-11 = "WEBP")
+  if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+      buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return true;
+  return false;
+}
+
 function getMulterOptions() {
   return {
     storage: diskStorage({
@@ -210,15 +229,7 @@ export class MarketplaceController {
   @ApiResponse({ status: 200, description: "Listing avec ses sujets." })
   @ApiResponse({ status: 404, description: 'Listing non trouvé.' })
   async getListingSubjects(@Param('listingId') listingId: string) {
-    try {
-      console.log('[Controller] getListingSubjects pour listing:', listingId);
-      const result = await this.marketplaceService.getListingSubjects(listingId);
-      console.log('[Controller] Sujets retournés:', result?.subjects?.length || 0);
-      return result;
-    } catch (error) {
-      console.error('[Controller] Erreur getListingSubjects:', error);
-      throw error;
-    }
+    return this.marketplaceService.getListingSubjects(listingId);
   }
 
   @Post('listings/details')
@@ -469,13 +480,10 @@ export class MarketplaceController {
   @ApiResponse({ status: 200, description: 'Liste des offres reçues.' })
   async getReceivedOffers(@CurrentUser('id') userId: string) {
     try {
-      console.log('[Controller] my-received-offers pour user:', userId);
       const offers = await this.marketplaceService.getSellerInquiries(userId);
-      console.log('[Controller] Offres reçues retournées:', offers?.length || 0);
       return offers || [];
     } catch (error) {
-      console.error('[Controller] Erreur critique getReceivedOffers:', error);
-      // Retourner tableau vide au lieu de 500 pour éviter le crash
+      this.logger.error('[getReceivedOffers] Erreur critique', { userId });
       return [];
     }
   }
@@ -727,6 +735,13 @@ export class MarketplaceController {
     if (!file) {
       throw new ForbiddenException('Aucun fichier fourni');
     }
+    if (file.path) {
+      const isValid = await validateImageMagicBytes(file.path);
+      if (!isValid) {
+        await unlink(file.path).catch(() => {});
+        throw new BadRequestException('Le fichier fourni n\'est pas une image valide');
+      }
+    }
     return this.marketplaceService.addPhotoToListing(
       listingId,
       file,
@@ -749,6 +764,15 @@ export class MarketplaceController {
   ) {
     if (!files || files.length === 0) {
       throw new ForbiddenException('Aucun fichier fourni');
+    }
+    for (const f of files) {
+      if (f.path) {
+        const isValid = await validateImageMagicBytes(f.path);
+        if (!isValid) {
+          await Promise.all(files.map(f2 => f2.path ? unlink(f2.path).catch(() => {}) : Promise.resolve()));
+          throw new BadRequestException('Un ou plusieurs fichiers ne sont pas des images valides');
+        }
+      }
     }
     return this.marketplaceService.addMultiplePhotos(
       listingId,
@@ -779,140 +803,6 @@ export class MarketplaceController {
       index,
       userId
     );
-  }
-
-  // ========================================
-  // DEBUG ENDPOINTS
-  // ========================================
-
-  @Get('debug/test-insert')
-  @ApiOperation({ summary: 'Endpoint de test pour diagnostiquer le problème d\'insertion' })
-  @ApiResponse({ status: 200, description: 'Résultat du test d\'insertion.' })
-  async testInsert() {
-    const testId = `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    this.logger.log(`[TEST] Début test insertion avec ID: ${testId}`);
-    
-    // Test 1: INSERT direct sans transaction
-    try {
-      const directInsert = await this.databaseService.query(
-        `INSERT INTO marketplace_listings (
-          id, listing_type, subject_id, producer_id, farm_id,
-          price_per_kg, calculated_price, weight, status, listed_at, updated_at,
-          last_weight_date, location_latitude, location_longitude, location_address,
-          location_city, location_region, sale_terms, views, inquiries,
-          date_creation, derniere_modification
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
-        RETURNING *`,
-        [
-          testId,
-          'individual',
-          'test_subject',
-          'user_1767600180501_h6go0mq84',
-          'projet_1767633845447_4ynljhhok',
-          2000,
-          42000,
-          21,
-          'available',
-          new Date().toISOString(),
-          new Date().toISOString(),
-          new Date().toISOString(),
-          0.0, // latitude
-          0.0, // longitude
-          'Test Address',
-          'Test City',
-          'Test Region',
-          JSON.stringify({ transport: 'buyer_responsibility' }),
-          0, // views
-          0, // inquiries
-          new Date().toISOString(),
-          new Date().toISOString(),
-        ]
-      );
-      
-      this.logger.log(`[TEST] INSERT direct réussi:`, {
-        id: directInsert.rows[0]?.id,
-        farm_id: directInsert.rows[0]?.farm_id,
-        producer_id: directInsert.rows[0]?.producer_id,
-        status: directInsert.rows[0]?.status,
-      });
-      
-      // Vérification immédiate
-      const check1 = await this.databaseService.query(
-        'SELECT id, farm_id, producer_id, status FROM marketplace_listings WHERE id = $1',
-        [testId]
-      );
-      
-      this.logger.log(`[TEST] Vérification immédiate (après INSERT):`, {
-        found: check1.rows.length > 0,
-        listing: check1.rows[0] || null,
-      });
-      
-      // Attendre 1 seconde
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Vérification après 1 seconde
-      const check2 = await this.databaseService.query(
-        'SELECT id, farm_id, producer_id, status FROM marketplace_listings WHERE id = $1',
-        [testId]
-      );
-      
-      this.logger.log(`[TEST] Vérification après 1s:`, {
-        found: check2.rows.length > 0,
-        listing: check2.rows[0] || null,
-      });
-      
-      // Compter tous les listings
-      const count = await this.databaseService.query(
-        'SELECT COUNT(*) as total FROM marketplace_listings WHERE status != $1',
-        ['removed']
-      );
-      
-      this.logger.log(`[TEST] Total listings dans la base: ${count.rows[0]?.total || 0}`);
-      
-      // Lister tous les IDs
-      const allIds = await this.databaseService.query(
-        'SELECT id, farm_id, producer_id, status, listed_at FROM marketplace_listings WHERE status != $1 ORDER BY listed_at DESC LIMIT 5',
-        ['removed']
-      );
-      
-      this.logger.log(`[TEST] 5 derniers listings:`, allIds.rows);
-      
-      // Vérifier spécifiquement les listings du projet
-      const projectListings = await this.databaseService.query(
-        `SELECT id, farm_id, producer_id, status 
-         FROM marketplace_listings 
-         WHERE farm_id = $1 AND status != $2`,
-        ['projet_1767633845447_4ynljhhok', 'removed']
-      );
-      
-      this.logger.log(`[TEST] Listings du projet projet_1767633845447_4ynljhhok:`, projectListings.rows);
-      
-      return {
-        success: true,
-        testId,
-        immediateCheck: check1.rows[0] || null,
-        delayedCheck: check2.rows[0] || null,
-        totalListings: count.rows[0]?.total || 0,
-        recentListings: allIds.rows,
-        projectListings: projectListings.rows,
-      };
-      
-    } catch (error: any) {
-      this.logger.error(`[TEST] Erreur:`, {
-        message: error?.message,
-        stack: error?.stack,
-        code: error?.code,
-        detail: error?.detail,
-      });
-      return {
-        success: false,
-        error: error?.message || 'Erreur inconnue',
-        stack: error?.stack,
-        code: error?.code,
-        detail: error?.detail,
-      };
-    }
   }
 
   // ========================================

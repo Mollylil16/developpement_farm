@@ -48,7 +48,7 @@ function MarketplaceOffersTab({
 }: MarketplaceOffersTabProps) {
   const marketplaceColors = MarketplaceTheme.colors;
   const { colors, isDark } = useTheme();
-  const { user } = useAppSelector((state) => state.auth ?? { user: null });
+  const { user } = useAppSelector((state) => (state as any).auth ?? { user: null });
   const dispatch = useAppDispatch();
   const [offersTab, setOffersTab] = useState<'received' | 'sent'>('received');
   

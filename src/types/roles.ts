@@ -9,6 +9,17 @@
 export type RoleType = 'producer' | 'buyer' | 'veterinarian' | 'technician';
 
 /**
+ * Use Role.X instead of raw strings to avoid silent typo bugs.
+ * Values match the RoleType union — this is the single source of truth.
+ */
+export const Role = {
+  PRODUCER: 'producer',
+  BUYER: 'buyer',
+  VETERINARIAN: 'veterinarian',
+  TECHNICIAN: 'technician',
+} as const satisfies Record<string, RoleType>;
+
+/**
  * Statut de validation d'un profil
  */
 export type ProfileStatus = 'pending' | 'approved' | 'rejected' | 'suspended';

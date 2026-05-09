@@ -17,7 +17,7 @@ const AUTO_LOGOUT_COOLDOWN_MS = 2000;
 /**
  * Middleware qui intercepte les erreurs 401 et déclenche une déconnexion automatique
  */
-export const authMiddleware: Middleware = (store) => (next) => (action) => {
+export const authMiddleware: Middleware = (store) => (next) => (action: any) => {
   // Traiter l'action normalement en premier
   const result = next(action);
 
@@ -47,7 +47,7 @@ export const authMiddleware: Middleware = (store) => (next) => (action) => {
       });
 
       const state = store.getState() as RootState;
-      const alreadyLoggedOut = !state.auth?.isAuthenticated;
+      const alreadyLoggedOut = !(state as any).auth?.isAuthenticated;
       const now = Date.now();
       const inCooldown = now - lastAutoLogoutAt < AUTO_LOGOUT_COOLDOWN_MS;
 
@@ -55,7 +55,7 @@ export const authMiddleware: Middleware = (store) => (next) => (action) => {
         lastAutoLogoutAt = now;
         // Utiliser setTimeout pour éviter les conflits de dispatch pendant le traitement
         setTimeout(() => {
-          store.dispatch(signOut());
+          store.dispatch(signOut() as any);
         }, 0);
       }
     }

@@ -66,7 +66,7 @@ export default function ProductionPeseeFormModal({
   const { canCreate, canUpdate } = useActionPermissions();
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();
-  const currentUser = useAppSelector((state) => state.auth?.user);
+  const currentUser = useAppSelector((state) => (state as any).auth?.user);
   const mode = useModeElevage();
   const isBatchMode = mode === 'bande' || !!batchId;
   const [loading, setLoading] = useState(false);

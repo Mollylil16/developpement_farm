@@ -12,7 +12,7 @@ export class VisiteVeterinaireRepository extends BaseRepository<VisiteVeterinair
     super('visites_veterinaires', '/sante/visites-veterinaires');
   }
 
-  private mapRow(row: unknown): VisiteVeterinaire {
+  private mapRow(row: any): VisiteVeterinaire {
     return {
       id: row.id,
       projet_id: row.projet_id,

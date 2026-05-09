@@ -44,7 +44,7 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();
   const { objectifProduction, simulationResultat, recommendations, loading } = useAppSelector(
-    (state) => state.planningProduction
+    (state) => (state as any).planningProduction
   );
   const animaux = useAppSelector(selectAllAnimaux);
 
@@ -424,7 +424,7 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
           </Text>
         </View>
 
-        {recommendations.map((rec, index) => (
+        {recommendations.map((rec: any, index: any) => (
           <View
             key={index}
             style={[
@@ -453,7 +453,7 @@ export default function SimulateurProductionComponent({ refreshControl }: Props)
             {/* Actions recommandées */}
             {rec.actions && rec.actions.length > 0 && (
               <View style={styles.actionsContainer}>
-                {rec.actions.map((action, idx) => (
+                {rec.actions.map((action: any, idx: any) => (
                   <View key={idx} style={styles.actionCard}>
                     <View style={styles.actionHeader}>
                       <Ionicons name="arrow-forward" size={16} color={colors.primary} />

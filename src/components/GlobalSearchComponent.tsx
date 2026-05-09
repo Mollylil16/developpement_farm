@@ -60,12 +60,12 @@ export default function GlobalSearchComponent({
   const animaux = useAppSelector((state) => {
     const prodState = state.production;
     if (!prodState?.entities?.animaux || !prodState?.ids?.animaux) return [];
-    return prodState.ids.animaux.map((id) => prodState.entities.animaux[id]).filter(Boolean);
+    return prodState.ids.animaux.map((id: any) => prodState.entities.animaux[id]).filter(Boolean);
   });
   const peseesRecents = useAppSelector((state) => {
     const prodState = state.production;
     if (!prodState?.entities?.pesees || !prodState?.peseesRecents) return [];
-    return prodState.peseesRecents.map((id) => prodState.entities.pesees[id]).filter(Boolean);
+    return prodState.peseesRecents.map((id: any) => prodState.entities.pesees[id]).filter(Boolean);
   });
   const gestations = useAppSelector((state) => {
     const reproState = state.reproduction;
@@ -79,7 +79,7 @@ export default function GlobalSearchComponent({
     if (!reproState?.entities?.sevrages || !reproState?.ids?.sevrages) return [];
     return reproState.ids.sevrages.map((id) => reproState.entities.sevrages[id]).filter(Boolean);
   });
-  const stocks = useAppSelector((state) => state.stocks?.stocks || []);
+  const stocks = useAppSelector((state) => (state as any).stocks?.stocks || []);
   const ingredients = useAppSelector((state) => state.nutrition?.ingredients || []);
   const rations = useAppSelector((state) => state.nutrition?.rations || []);
   const depensesPonctuelles = useAppSelector((state) => {
@@ -87,14 +87,14 @@ export default function GlobalSearchComponent({
     if (!financeState?.entities?.depensesPonctuelles || !financeState?.ids?.depensesPonctuelles)
       return [];
     return financeState.ids.depensesPonctuelles
-      .map((id) => financeState.entities.depensesPonctuelles[id])
+      .map((id: any) => financeState.entities.depensesPonctuelles[id])
       .filter(Boolean);
   });
   const chargesFixes = useAppSelector((state) => {
     const financeState = state.finance;
     if (!financeState?.entities?.chargesFixes || !financeState?.ids?.chargesFixes) return [];
     return financeState.ids.chargesFixes
-      .map((id) => financeState.entities.chargesFixes[id])
+      .map((id: any) => financeState.entities.chargesFixes[id])
       .filter(Boolean);
   });
   const planifications = useAppSelector((state) => state.planification?.planifications || []);
@@ -102,7 +102,7 @@ export default function GlobalSearchComponent({
   const mortalites = useAppSelector((state) => {
     const mortState = state.mortalites;
     if (!mortState?.entities?.mortalites || !mortState?.ids?.mortalites) return [];
-    return mortState.ids.mortalites.map((id) => mortState.entities.mortalites[id]).filter(Boolean);
+    return mortState.ids.mortalites.map((id: any) => mortState.entities.mortalites[id]).filter(Boolean);
   });
 
   // Charger l'historique de recherche
@@ -172,7 +172,7 @@ export default function GlobalSearchComponent({
     });
 
     // Recherche dans les stocks
-    stocks.forEach((stock) => {
+    stocks.forEach((stock: any) => {
       const matches =
         stock.nom?.toLowerCase().includes(q) || stock.categorie?.toLowerCase().includes(q);
       if (matches) {
@@ -188,7 +188,7 @@ export default function GlobalSearchComponent({
     });
 
     // Recherche dans les ingrédients
-    ingredients.forEach((ingredient) => {
+    ingredients.forEach((ingredient: any) => {
       const matches = ingredient.nom?.toLowerCase().includes(q);
       if (matches) {
         results.push({

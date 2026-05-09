@@ -270,7 +270,7 @@ export class UsersService {
       is_onboarded, onboarding_completed_at, is_active`;
     
     const result = await this.databaseService.query(
-      `SELECT ${userColumns} FROM users WHERE is_active = true ORDER BY date_creation DESC`
+      `SELECT ${userColumns} FROM users WHERE is_active = true ORDER BY date_creation DESC LIMIT 1000`
     );
     return result.rows.map((row) => this.mapRowToUser(row));
   }

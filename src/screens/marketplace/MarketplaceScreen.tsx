@@ -108,10 +108,10 @@ function MarketplaceScreen() {
     hasMore,
     notifications,
     unreadCount,
-  } = useAppSelector((state) => state.marketplace);
+  } = useAppSelector((state) => (state as any).marketplace);
 
-  const { projetActif } = useAppSelector((state) => state.projet);
-  const { user } = useAppSelector((state) => state.auth);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
+  const { user } = useAppSelector((state) => (state as any).auth);
   const allAnimaux = useAppSelector(selectAllAnimaux);
   const { getCurrentLocation } = useGeolocation();
   const {
@@ -465,7 +465,7 @@ function MarketplaceScreen() {
   // Grouper les listings par ferme après chargement (avec debouncing)
   useEffect(() => {
     // Créer une clé unique pour les listings (éviter de regrouper si rien n'a changé)
-    const listingsKey = JSON.stringify(listings.map(l => l.id).sort());
+    const listingsKey = JSON.stringify(listings.map((l: any) => l.id).sort());
     
     if (listingsKey === lastListingsRef.current) {
       return; // Pas de changement, ne pas regrouper

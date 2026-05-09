@@ -65,7 +65,7 @@ export default function BatchAddModal({
   // Charger les animaux depuis Redux si non fournis (mode individuel)
   const allAnimaux = useAppSelector(selectAllAnimaux);
   const peseesParAnimalRedux = useAppSelector(selectPeseesParAnimal);
-  const { user } = useAppSelector((state) => state.auth ?? { user: null });
+  const { user } = useAppSelector((state) => (state as any).auth ?? { user: null });
   const { getCurrentLocation } = useGeolocation();
   const [localSubjects, setLocalSubjects] = useState<ProductionAnimal[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(false);

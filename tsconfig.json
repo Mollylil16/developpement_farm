@@ -1,25 +1,75 @@
 {
-  "extends": "expo/tsconfig.base",
+  "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
-    "strict": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "jsx": "react-native",
-    "skipLibCheck": true,
-    "lib": ["ES2020"],
+    "target": "esnext",
     "module": "esnext",
-    "types": ["jest", "node"]
+    "lib": [
+      "es2019",
+      "es2020.bigint",
+      "es2020.date",
+      "es2020.number",
+      "es2020.promise",
+      "es2020.string",
+      "es2020.symbol.wellknown",
+      "es2021.promise",
+      "es2021.string",
+      "es2021.weakref",
+      "es2022.array",
+      "es2022.object",
+      "es2022.string"
+    ],
+    "allowJs": true,
+    "jsx": "react-native",
+    "noEmit": true,
+    "isolatedModules": true,
+    "strict": true,
+    "useUnknownInCatchVariables": false,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "typeRoots": [
+      "./node_modules/@types"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "src/*"
+      ],
+      "@components/*": [
+        "src/components/*"
+      ],
+      "@screens/*": [
+        "src/screens/*"
+      ],
+      "@services/*": [
+        "src/services/*"
+      ],
+      "@types/*": [
+        "src/types/*"
+      ],
+      "@utils/*": [
+        "src/utils/*"
+      ],
+      "@store/*": [
+        "src/store/*"
+      ]
+    }
   },
-  "include": ["App.tsx", "index.ts", "src/**/*.ts", "src/**/*.tsx", "e2e/**/*.ts"],
+  "include": [
+    "src/**/*",
+    "App.tsx"
+  ],
   "exclude": [
     "node_modules",
-    "backend/**",
-    "developpement_farm/**",
-    "admin-web/**",
-    "coverage/**",
-    "dist/**",
-    ".expo/**",
-    "**/store/services/**",
-    "**/services/slices/**"
-  ]
+    "babel.config.js",
+    "metro.config.js",
+    "jest.config.js",
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ],
+  "extends": "expo/tsconfig.base"
 }

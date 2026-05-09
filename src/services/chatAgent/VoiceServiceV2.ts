@@ -267,7 +267,7 @@ throw new Error("Reconnaissance vocale indisponible dans Expo Go. Crée un build
         onStopped: () => {
           logger.debug('[VoiceServiceV2] Speech stopped');
         },
-        onError: (error) => {
+        onError: (error: any) => {
           logger.error('[VoiceServiceV2] Speech error:', error);
         },
       });

@@ -14,7 +14,7 @@ export class ResetPasswordDto {
     example: 'NewSecurePassword123!',
   })
   @IsString()
-  @MinLength(8, { message: 'Le mot de passe doit contenir au moins 8 caractères' })
+  @MinLength(12, { message: 'Le mot de passe doit contenir au moins 12 caractères' })
   @MaxLength(100, { message: 'Le mot de passe ne peut pas dépasser 100 caractères' })
   @Matches(
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/,

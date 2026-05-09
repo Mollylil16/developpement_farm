@@ -20,10 +20,10 @@ import { SPACING } from '../../../constants/theme';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { PurchaseRequestMatch, PurchaseRequest } from '../../../types/marketplace';
-import apiClient from '../../../services/api/apiClient';
-import { createLoggerWithPrefix } from '../../../utils/logger';
-
-const logger = createLoggerWithPrefix('MarketplaceMatchedRequests');
+import { getDatabase } from '../../../services/database';
+import { getPurchaseRequestService } from '../../../services/PurchaseRequestService';
+import { PurchaseRequestMatchRepository } from '../../../database/repositories/PurchaseRequestRepository';
+import { PurchaseRequestRepository } from '../../../database/repositories/PurchaseRequestRepository';
 
 interface MarketplaceMatchedRequestsTabProps {
   producerId: string;
@@ -31,43 +31,32 @@ interface MarketplaceMatchedRequestsTabProps {
   onMakeOffer?: (request: PurchaseRequest, match: PurchaseRequestMatch) => void;
 }
 
-function MarketplaceMatchedRequestsTab({
+export default function MarketplaceMatchedRequestsTab({
   producerId,
   onRequestPress,
   onMakeOffer,
 }: MarketplaceMatchedRequestsTabProps) {
   const { colors } = MarketplaceTheme;
-  const [matches, setMatches] = useState<
-    Array<{ match: PurchaseRequestMatch; request: PurchaseRequest }>
-  >([]);
+  const [matches, setMatches] = useState<Array<{ match: PurchaseRequestMatch; request: PurchaseRequest }>>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadMatches = useCallback(async () => {
     try {
-      // Récupérer tous les matches du producteur depuis l'API backend
-      const allMatches = await apiClient.get<any[]>('/marketplace/purchase-request-matches');
+      const db = await getDatabase();
+      const matchRepo = new PurchaseRequestMatchRepository();
+      const requestRepo = new PurchaseRequestRepository();
 
-      // Enrichir avec les détails des demandes depuis l'API backend
-      // Optimisation: Charger en parallèle avec limite pour éviter trop de requêtes simultanées
-      const BATCH_SIZE = 5;
-      const enrichedMatches: Array<{ match: any; request: any }> = [];
-      
-      for (let i = 0; i < allMatches.length; i += BATCH_SIZE) {
-        const batch = allMatches.slice(i, i + BATCH_SIZE);
-        const batchResults = await Promise.all(
-          batch.map(async (match) => {
-            try {
-              const request = await apiClient.get<any>(`/marketplace/purchase-requests/${match.purchaseRequestId}`);
-              return { match, request };
-            } catch (error) {
-              logger.error(`Erreur chargement demande ${match.purchaseRequestId}:`, error);
-              return null;
-            }
-          })
-        );
-        enrichedMatches.push(...batchResults.filter((r): r is { match: any; request: any } => r !== null));
-      }
+      // Récupérer tous les matches du producteur
+      const allMatches = await matchRepo.findByProducerId(producerId);
+
+      // Enrichir avec les détails des demandes
+      const enrichedMatches = await Promise.all(
+        allMatches.map(async (match) => {
+          const request = await requestRepo.findById(match.purchaseRequestId);
+          return { match, request: request! };
+        })
+      );
 
       // Filtrer uniquement les demandes publiées
       const activeMatches = enrichedMatches.filter(
@@ -79,7 +68,7 @@ function MarketplaceMatchedRequestsTab({
 
       setMatches(activeMatches);
     } catch (error) {
-      logger.error('Erreur chargement matches:', error);
+      console.error('Erreur chargement matches:', error);
       Alert.alert('Erreur', 'Impossible de charger les demandes correspondantes');
     } finally {
       setLoading(false);
@@ -96,11 +85,7 @@ function MarketplaceMatchedRequestsTab({
     loadMatches();
   }, [loadMatches]);
 
-  const renderMatch = ({
-    item,
-  }: {
-    item: { match: PurchaseRequestMatch; request: PurchaseRequest };
-  }) => {
+  const renderMatch = ({ item }: { item: { match: PurchaseRequestMatch; request: PurchaseRequest } }) => {
     const { match, request } = item;
     const matchScore = match.matchScore || 0;
 
@@ -115,9 +100,7 @@ function MarketplaceMatchedRequestsTab({
             <Text style={[styles.matchTitle, { color: colors.text }]} numberOfLines={2}>
               {request.title}
             </Text>
-            <View
-              style={[styles.scoreBadge, { backgroundColor: getScoreColor(matchScore) + '20' }]}
-            >
+            <View style={[styles.scoreBadge, { backgroundColor: getScoreColor(matchScore) + '20' }]}>
               <Text style={[styles.scoreText, { color: getScoreColor(matchScore) }]}>
                 {matchScore}% match
               </Text>
@@ -173,8 +156,7 @@ function MarketplaceMatchedRequestsTab({
             <View style={styles.statItem}>
               <Ionicons name="mail" size={14} color={colors.textSecondary} />
               <Text style={[styles.statText, { color: colors.textSecondary }]}>
-                {request.offersCount} offre{request.offersCount > 1 ? 's' : ''} reçue
-                {request.offersCount > 1 ? 's' : ''}
+                {request.offersCount} offre{request.offersCount > 1 ? 's' : ''} reçue{request.offersCount > 1 ? 's' : ''}
               </Text>
             </View>
             {request.deliveryDate && (
@@ -191,11 +173,8 @@ function MarketplaceMatchedRequestsTab({
             style={[styles.offerButton, { backgroundColor: colors.primary }]}
             onPress={() => onMakeOffer?.(request, match)}
           >
-            <Ionicons name="send" size={16} color="#FFFFFF" />
-            <Text style={[styles.offerButtonText, { color: '#FFFFFF' }]}>
-              {' '}
-              Faire une offre
-            </Text>
+            <Ionicons name="send" size={16} color={colors.textInverse} />
+            <Text style={[styles.offerButtonText, { color: colors.textInverse }]}> Faire une offre</Text>
           </TouchableOpacity>
 
           <Text style={[styles.dateText, { color: colors.textSecondary }]}>
@@ -226,12 +205,9 @@ function MarketplaceMatchedRequestsTab({
     return (
       <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
         <Ionicons name="search-outline" size={64} color={colors.textSecondary} />
-        <Text style={[styles.emptyTitle, { color: colors.text }]}>
-          Aucune demande correspondante
-        </Text>
+        <Text style={[styles.emptyTitle, { color: colors.text }]}>Aucune demande correspondante</Text>
         <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-          Aucun acheteur n'a encore publié de demande correspondant à vos annonces. Vos annonces
-          seront automatiquement proposées aux acheteurs correspondants.
+          Aucun acheteur n'a encore publié de demande correspondant à vos annonces. Vos annonces seront automatiquement proposées aux acheteurs correspondants.
         </Text>
       </View>
     );
@@ -244,11 +220,6 @@ function MarketplaceMatchedRequestsTab({
       keyExtractor={(item) => item.match.id}
       contentContainerStyle={styles.listContent}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-      // Optimisations FlatList (Phase 4)
-      removeClippedSubviews={true}
-      maxToRenderPerBatch={10}
-      windowSize={5}
-      initialNumToRender={10}
     />
   );
 }
@@ -368,5 +339,3 @@ const styles = StyleSheet.create({
   },
 });
 
-// Mémoïser le composant pour éviter les re-renders inutiles
-export default React.memo(MarketplaceMatchedRequestsTab);

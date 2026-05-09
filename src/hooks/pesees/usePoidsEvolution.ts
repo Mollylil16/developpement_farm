@@ -21,7 +21,7 @@ export interface PoidsEvolution {
   }>;
 }
 
-interface UsePoidsEvolutionParams {
+export interface UsePoidsEvolutionParams {
   projetId: string | undefined;
   mode: 'individuel' | 'bande';
   periode?: '7j' | '30j' | '90j' | 'tout';
@@ -29,7 +29,7 @@ interface UsePoidsEvolutionParams {
   enabled?: boolean; // Optionnel : pour désactiver le chargement automatique
 }
 
-interface UsePoidsEvolutionReturn {
+export interface UsePoidsEvolutionReturn {
   data: PoidsEvolution | null;
   loading: boolean;
   error: string | null;

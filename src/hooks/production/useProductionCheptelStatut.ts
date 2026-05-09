@@ -10,12 +10,11 @@ import {
   loadProductionAnimaux,
   loadPeseesRecents,
 } from '../../store/slices/productionSlice';
-import {
-  createMortalite,
-  loadMortalitesParProjet,
-  loadStatistiquesMortalite,
-  deleteMortalite,
-} from '../../store/slices/mortalitesSlice';
+import mortalitesSliceModuleCheptelStatut from '../../store/slices/mortalitesSlice';
+const createMortalite: any = (mortalitesSliceModuleCheptelStatut as any).createMortalite;
+const loadMortalitesParProjet: any = (mortalitesSliceModuleCheptelStatut as any).loadMortalitesParProjet;
+const loadStatistiquesMortalite: any = (mortalitesSliceModuleCheptelStatut as any).loadStatistiquesMortalite;
+const deleteMortalite: any = (mortalitesSliceModuleCheptelStatut as any).deleteMortalite;
 import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
 import type { ProductionAnimal, StatutAnimal } from '../../types/production';

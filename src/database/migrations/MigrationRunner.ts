@@ -86,7 +86,7 @@ export async function runMigrations(db: SQLiteDatabase, migrations: Migration[])
       );
       // Arrêter le processus en cas d'erreur - les migrations doivent être idempotentes
       throw new Error(
-        `Migration ${migration.version} (${migration.name}) a échoué: ${error.message}`
+        `Migration ${migration.version} (${migration.name}) a échoué: ${(error as any).message}`
       );
     }
   }

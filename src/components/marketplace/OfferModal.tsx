@@ -70,7 +70,7 @@ export default function OfferModal({
   const [acceptedSubjectIds, setAcceptedSubjectIds] = useState<Set<string>>(new Set());
   const [loadingAcceptedSubjects, setLoadingAcceptedSubjects] = useState(false);
 
-  const { user } = useAppSelector((state) => state.auth ?? { user: null });
+  const { user } = useAppSelector((state) => (state as any).auth ?? { user: null });
 
   // Animation pour le swipe
   const pan = useRef(new Animated.ValueXY()).current;

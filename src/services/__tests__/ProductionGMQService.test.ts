@@ -74,7 +74,7 @@ describe('ProductionGMQService', () => {
       ];
 
       mockAnimalRepo.findById.mockResolvedValue(mockAnimal as any);
-      mockPeseeRepo.query.mockResolvedValue(mockPeseesSuivantes as any);
+      (mockPeseeRepo as any).query.mockResolvedValue(mockPeseesSuivantes as any);
       mockPeseeRepo.findLastBeforeDate
         .mockResolvedValueOnce(mockPeseePrecedente as any)
         .mockResolvedValueOnce(mockPeseesSuivantes[0] as any);
@@ -83,7 +83,7 @@ describe('ProductionGMQService', () => {
       await ProductionGMQService.recalculerGMQ(animalId, dateModifiee);
 
       // Vérifier que les pesées suivantes sont récupérées
-      expect(mockPeseeRepo.query).toHaveBeenCalledWith(
+      expect((mockPeseeRepo as any).query).toHaveBeenCalledWith(
         'SELECT * FROM production_pesees WHERE animal_id = ? AND date > ? ORDER BY date ASC',
         [animalId, dateModifiee]
       );
@@ -114,7 +114,7 @@ describe('ProductionGMQService', () => {
       };
 
       mockAnimalRepo.findById.mockResolvedValue(mockAnimal as any);
-      mockPeseeRepo.query.mockResolvedValue([mockPeseeSuivante] as any);
+      (mockPeseeRepo as any).query.mockResolvedValue([mockPeseeSuivante] as any);
       mockPeseeRepo.findLastBeforeDate.mockResolvedValue(null);
       mockDb.runAsync.mockResolvedValue(undefined);
 
@@ -143,7 +143,7 @@ describe('ProductionGMQService', () => {
       };
 
       mockAnimalRepo.findById.mockResolvedValue(mockAnimal as any);
-      mockPeseeRepo.query.mockResolvedValue([]);
+      (mockPeseeRepo as any).query.mockResolvedValue([]);
 
       await ProductionGMQService.recalculerGMQ(animalId, dateModifiee);
 
@@ -167,7 +167,7 @@ describe('ProductionGMQService', () => {
       };
 
       mockAnimalRepo.findById.mockResolvedValue(mockAnimal as any);
-      mockPeseeRepo.query.mockResolvedValue([mockPeseeSuivante] as any);
+      (mockPeseeRepo as any).query.mockResolvedValue([mockPeseeSuivante] as any);
       mockPeseeRepo.findLastBeforeDate.mockResolvedValue(null);
       mockDb.runAsync.mockResolvedValue(undefined);
 
@@ -194,7 +194,7 @@ describe('ProductionGMQService', () => {
       };
 
       mockAnimalRepo.findById.mockResolvedValue(mockAnimal as any);
-      mockPeseeRepo.query.mockResolvedValue([mockPeseeSuivante] as any);
+      (mockPeseeRepo as any).query.mockResolvedValue([mockPeseeSuivante] as any);
       mockPeseeRepo.findLastBeforeDate.mockResolvedValue(null);
       mockDb.runAsync.mockResolvedValue(undefined);
 

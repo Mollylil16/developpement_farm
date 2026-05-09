@@ -5,6 +5,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
+import { auditLog } from '../../utils/auditLogger';
 import { API_CONFIG } from '../../config/api.config';
 import { isLoggingEnabled } from '../../config/env';
 import { withRetry, RetryOptions } from './retryHandler';
@@ -136,9 +137,26 @@ function debugSecureStoreKey(key: string, operation: string) {
 // Système simplifié de gestion des refresh simultanés
 const activeRefreshPromises = new Map<string, Promise<string | null>>();
 let lastRefreshAttempt = 0;
-const REFRESH_COOLDOWN = 500; // 500ms entre les tentatives de refresh (optimisé - le verrouillage par activeRefreshPromises devrait suffire)
+const REFRESH_COOLDOWN = 500;
 const MAX_REFRESH_ATTEMPTS = 3;
-const DEFAULT_RATE_LIMIT_BACKOFF = 4000; // 4 secondes si le backend renvoie 429 sans header
+const DEFAULT_RATE_LIMIT_BACKOFF = 4000;
+
+// Sliding-window rate limiter: max 5 refresh cycles per 60 seconds
+const REFRESH_WINDOW_MS = 60_000;
+const REFRESH_WINDOW_MAX = 5;
+const refreshWindowTimestamps: number[] = [];
+
+function isRefreshWindowExceeded(): boolean {
+  const now = Date.now();
+  while (refreshWindowTimestamps.length > 0 && refreshWindowTimestamps[0] < now - REFRESH_WINDOW_MS) {
+    refreshWindowTimestamps.shift();
+  }
+  return refreshWindowTimestamps.length >= REFRESH_WINDOW_MAX;
+}
+
+function recordRefreshCycle(): void {
+  refreshWindowTimestamps.push(Date.now());
+}
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -411,6 +429,8 @@ async function clearTokens(): Promise<void> {
       logger.debug('Erreur lors de la suppression du fallback AsyncStorage (ignorée):', error);
     }
   }
+
+  await auditLog('auth.token_revoked');
 }
 
 /**
@@ -485,6 +505,13 @@ async function refreshAccessTokenWithReason(forceRefresh = false): Promise<Refre
     logger.warn('No refresh token available');
     return { token: null, reason: 'no_refresh_token' };
   }
+
+  // Client-side sliding-window rate limit: block if too many refresh cycles recently
+  if (isRefreshWindowExceeded()) {
+    logger.warn(`[Security] Token refresh rate limit reached (${REFRESH_WINDOW_MAX}/${REFRESH_WINDOW_MS}ms). Blocking cycle.`);
+    return { token: null, reason: 'rate_limited' };
+  }
+  recordRefreshCycle();
 
   // Vérifier si un refresh pour ce token est déjà en cours
   const existingPromise = activeRefreshPromises.get(refreshToken);
@@ -642,6 +669,9 @@ async function refreshAccessTokenWithReason(forceRefresh = false): Promise<Refre
 /**
  * Effectue une requête HTTP avec gestion automatique des tokens, retry et mode hors ligne
  */
+// Deduplication map for in-flight GET requests
+const inFlightGetRequests = new Map<string, Promise<unknown>>();
+
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const {
     timeout: customTimeout,
@@ -651,7 +681,15 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     skipQueue = false,
     ...fetchOptions
   } = options;
-  
+
+  // Deduplicate identical in-flight GET requests
+  const method = (fetchOptions.method || 'GET').toUpperCase();
+  if (method === 'GET') {
+    const dedupeKey = `${endpoint}|${JSON.stringify(fetchOptions.params ?? {})}`;
+    const existing = inFlightGetRequests.get(dedupeKey);
+    if (existing) return existing as Promise<T>;
+  }
+
   // Utiliser le timeout personnalisé, ou celui de l'endpoint, ou le défaut
   const timeout = customTimeout ?? getEndpointTimeout(endpoint, API_TIMEOUT);
 
@@ -688,11 +726,18 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   }
 
   // Déterminer la priorité de la requête
-  const method = (fetchOptions.method || 'GET').toUpperCase();
   const priority = skipQueue ? RequestPriority.HIGH : getRequestPriority(endpoint, method);
 
   // Toutes les requêtes passent par la queue (sauf auth critique) avec priorités
-  return requestQueue.enqueue(executeWithRetry, priority);
+  const promise = requestQueue.enqueue(executeWithRetry, priority);
+
+  if (method === 'GET') {
+    const dedupeKey = `${endpoint}|${JSON.stringify(fetchOptions.params ?? {})}`;
+    inFlightGetRequests.set(dedupeKey, promise);
+    promise.finally(() => inFlightGetRequests.delete(dedupeKey));
+  }
+
+  return promise;
 }
 
 /**

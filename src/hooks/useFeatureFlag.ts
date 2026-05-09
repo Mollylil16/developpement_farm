@@ -45,7 +45,7 @@ export function useFeatureFlag(
   const [error, setError] = useState<Error | null>(null);
 
   // Récupérer le contexte utilisateur depuis Redux si disponible
-  const currentUser = useAppSelector((state) => state.auth.user);
+  const currentUser = useAppSelector((state) => (state as any).auth.user);
   const { activeRole } = useRole();
 
   const loadFlag = useCallback(async () => {
@@ -107,7 +107,7 @@ export function useFeatureFlags(
   flagKeys: string[],
   options?: UseFeatureFlagOptions
 ): Record<string, UseFeatureFlagResult> {
-  const currentUser = useAppSelector((state) => state.auth.user);
+  const currentUser = useAppSelector((state) => (state as any).auth.user);
   const { activeRole } = useRole();
 
   const results: Record<string, UseFeatureFlagResult> = {};

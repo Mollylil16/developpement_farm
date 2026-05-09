@@ -22,7 +22,7 @@ const logger = createLoggerWithPrefix('useNotifications');
 export function useNotifications() {
   const gestations = useAppSelector(selectAllGestations);
   const { planifications } = useAppSelector((state) => state.planification);
-  const { stocks } = useAppSelector((state) => state.stocks);
+  const { stocks } = useAppSelector((state) => (state as any).stocks);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   // ✅ MÉMOÏSER les IDs pour éviter les re-renders inutiles (CRITIQUE !)
@@ -129,7 +129,7 @@ export function useNotifications() {
 
     const scheduleTasks = async () => {
       try {
-        const tasksAFaire = planifications.filter((p) => p.statut === 'a_faire');
+        const tasksAFaire = planifications.filter((p) => (p as any).statut === 'a_faire');
         await scheduleTaskReminders(tasksAFaire);
       } catch (error) {
         logger.error('Erreur lors de la planification des tâches:', error);
@@ -172,7 +172,7 @@ export function useNotifications() {
           ? gestations.filter((g) => g.statut === 'en_cours')
           : [];
         const tasksAFaire = Array.isArray(planifications)
-          ? planifications.filter((p) => p.statut === 'a_faire')
+          ? planifications.filter((p) => (p as any).statut === 'a_faire')
           : [];
         await cleanupObsoleteNotifications(gestationsEnCours, tasksAFaire);
       } catch (error) {

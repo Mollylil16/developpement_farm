@@ -224,13 +224,17 @@ const compositeIndexes: CompositeIndexDefinition[] = [
   },
 ];
 
-/**
- * Vérifie si un index existe déjà
- */
+function validateIdentifier(name: string): void {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+    throw new Error(`Invalid SQL identifier: ${name}`);
+  }
+}
+
 async function indexExists(db: SQLiteDatabase, indexName: string): Promise<boolean> {
   try {
     const result = await db.getFirstAsync<{ name: string } | null>(
-      `SELECT name FROM sqlite_master WHERE type='index' AND name='${indexName}'`
+      `SELECT name FROM sqlite_master WHERE type='index' AND name=?`,
+      [indexName]
     );
     return result !== null;
   } catch {
@@ -251,9 +255,14 @@ async function createCompositeIndex(
   }
 
   try {
+    validateIdentifier(index.name);
+    validateIdentifier(index.table);
+    index.columns.forEach(c => validateIdentifier(c));
+
     // Vérifier que la table existe
     const tableExists = await db.getFirstAsync<{ name: string } | null>(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name='${index.table}'`
+      `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
+      [index.table]
     );
 
     if (!tableExists) {
@@ -264,7 +273,8 @@ async function createCompositeIndex(
     // Vérifier que toutes les colonnes existent
     for (const column of index.columns) {
       const columnExists = await db.getFirstAsync<{ name: string } | null>(
-        `SELECT name FROM pragma_table_info('${index.table}') WHERE name = '${column}'`
+        `SELECT name FROM pragma_table_info('${index.table}') WHERE name = ?`,
+        [column]
       );
 
       if (!columnExists) {

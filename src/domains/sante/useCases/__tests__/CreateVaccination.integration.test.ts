@@ -5,8 +5,8 @@
  */
 
 import { CreateVaccinationUseCase, type CreateVaccinationInput } from '../CreateVaccination';
-import type { ISanteRepository } from '../repositories/ISanteRepository';
-import type { Vaccination } from '../entities/Vaccination';
+import type { ISanteRepository } from '../../repositories/ISanteRepository';
+import type { Vaccination } from '../../entities/Vaccination';
 
 // Mocks
 jest.mock('react-native-uuid', () => ({

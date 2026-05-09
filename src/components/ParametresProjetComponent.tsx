@@ -43,7 +43,7 @@ export default function ParametresProjetComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const navigation = useNavigation<NavigationProp<any>>();
-  const { projetActif, projets, loading } = useAppSelector((state) => state.projet ?? { projetActif: null });
+  const { projetActif, projets, loading } = useAppSelector((state) => (state as any).projet ?? { projetActif: null });
   const mortalites = useAppSelector(selectAllMortalites);
   const animaux = useAppSelector(selectAllAnimaux);
   const [isEditing, setIsEditing] = useState(false);
@@ -166,7 +166,7 @@ export default function ParametresProjetComponent() {
 
   // Mémoriser la liste des projets filtrés pour éviter double filtrage
   const autresProjets = useMemo(
-    () => projets.filter((p) => p.id !== projetActif?.id),
+    () => projets.filter((p: any) => p.id !== projetActif?.id),
     [projets, projetActif?.id]
   );
 
@@ -199,7 +199,7 @@ export default function ParametresProjetComponent() {
   };
 
   const handleDeleteProjet = React.useCallback(async (projetId: string) => {
-    const projet = projets.find((p) => p.id === projetId);
+    const projet = projets.find((p: any) => p.id === projetId);
     const isActive = projetActif?.id === projetId;
 
     Alert.alert(
@@ -534,7 +534,7 @@ export default function ParametresProjetComponent() {
             }
           />
         ) : (
-          autresProjets.map((projet) => {
+          autresProjets.map((projet: any) => {
             // Fonction render pour les actions de swipe
             const renderRightActions = () => {
               return (

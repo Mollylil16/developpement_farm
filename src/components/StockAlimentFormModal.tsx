@@ -13,13 +13,13 @@ import { useTheme } from '../contexts/ThemeContext';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
 import Button from './Button';
-import type {
+import {
   StockAliment,
   UniteStock,
   CreateStockAlimentInput,
   RationBudget,
-} from '../types/nutrition';
-import { getTypePorcLabel } from '../types/nutrition';
+  getTypePorcLabel,
+} from '../types';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { validateStockAliment } from '../validation/stocksSchemas';
 
@@ -105,7 +105,7 @@ export default function StockAlimentFormModal({
   const calculRationEnSacs = useMemo(() => {
     if (!useRation || !selectedRationId) return null;
 
-    const ration = rationsBudget.find((r) => r.id === selectedRationId);
+    const ration = rationsBudget.find((r: any) => r.id === selectedRationId);
     if (!ration) return null;
 
     const quantiteTotaleKg = ration.quantite_totale_kg;
@@ -130,7 +130,7 @@ export default function StockAlimentFormModal({
   // Auto-remplir le nom de l'aliment avec le nom de la ration sélectionnée
   useEffect(() => {
     if (useRation && selectedRationId) {
-      const ration = rationsBudget.find((r) => r.id === selectedRationId);
+      const ration = rationsBudget.find((r: any) => r.id === selectedRationId);
       if (ration) {
         setFormData((prev) => ({
           ...prev,
@@ -162,18 +162,19 @@ export default function StockAlimentFormModal({
       return;
     }
 
-    // Validation avec Yup
-    const { isValid, errors: validationErrors } = await validateStockAliment({
+    // Validation avec Yup - convertir undefined en null pour compatibilité
+    const validationData = {
       ...formData,
       projet_id: projetId,
       quantite_initiale: formData.quantite_initiale ?? 0,
-    });
+      categorie: formData.categorie || null,
+      seuil_alerte: formData.seuil_alerte ?? null,
+      notes: formData.notes || null,
+    };
+    const { isValid, errors: validationErrors } = await validateStockAliment(validationData as any);
     if (!isValid) {
       const firstError = Object.values(validationErrors)[0];
-      Alert.alert(
-        'Erreur de validation',
-        firstError || 'Veuillez corriger les erreurs du formulaire'
-      );
+      Alert.alert('Erreur de validation', firstError || 'Veuillez corriger les erreurs du formulaire');
       return;
     }
 
@@ -236,21 +237,20 @@ export default function StockAlimentFormModal({
           })
         ).unwrap();
       }
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error('Erreur lors de la sauvegarde du stock:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error) || 'Une erreur est survenue lors de la sauvegarde';
-      Alert.alert('Erreur', errorMessage);
+      Alert.alert('Erreur', error?.message || 'Une erreur est survenue lors de la sauvegarde');
       setLoading(false);
       return; // Ne pas appeler onSuccess en cas d'erreur
     }
-
+    
     // Réinitialiser le loading
     setLoading(false);
-
+    
     // Fermer le modal immédiatement en appelant onClose
     // Puis appeler onSuccess de manière asynchrone
     onClose();
-
+    
     // Appeler onSuccess de manière asynchrone pour laisser le modal se fermer complètement
     setTimeout(() => {
       onSuccess();
@@ -332,18 +332,18 @@ export default function StockAlimentFormModal({
                       {selectedRationId ? (
                         <>
                           <Text style={[styles.rationSelectedText, { color: colors.text }]}>
-                            {rationsBudget.find((r) => r.id === selectedRationId)?.nom}
+                            {rationsBudget.find((r: any) => r.id === selectedRationId)?.nom}
                           </Text>
                           <Text
                             style={[styles.rationSelectedSubtext, { color: colors.textSecondary }]}
                           >
                             {getTypePorcLabel(
-                              rationsBudget.find((r) => r.id === selectedRationId)?.type_porc ||
+                              rationsBudget.find((r: any) => r.id === selectedRationId)?.type_porc ||
                                 'porc_croissance'
                             )}{' '}
                             •{' '}
                             {rationsBudget
-                              .find((r) => r.id === selectedRationId)
+                              .find((r: any) => r.id === selectedRationId)
                               ?.quantite_totale_kg.toFixed(0)}{' '}
                             kg
                           </Text>
@@ -386,7 +386,7 @@ export default function StockAlimentFormModal({
                           </Text>
                         </View>
                       ) : (
-                        rationsBudget.map((ration) => (
+                        rationsBudget.map((ration: any) => (
                           <TouchableOpacity
                             key={ration.id}
                             style={[

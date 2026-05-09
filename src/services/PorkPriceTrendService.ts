@@ -226,9 +226,9 @@ export class PorkPriceTrendService {
           id: `${year}-${weekNumber}`,
           year,
           weekNumber,
-          ...trendData,
+          ...(trendData as any),
           updatedAt: new Date().toISOString(),
-        } as WeeklyPorkPriceTrend;
+        } as any as WeeklyPorkPriceTrend;
       }
       // Pour les autres erreurs, essayer le repository
       try {
@@ -240,9 +240,9 @@ export class PorkPriceTrendService {
           id: `${year}-${weekNumber}`,
           year,
           weekNumber,
-          ...trendData,
+          ...(trendData as any),
           updatedAt: new Date().toISOString(),
-        } as WeeklyPorkPriceTrend;
+        } as any as WeeklyPorkPriceTrend;
       }
     }
   }

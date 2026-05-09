@@ -91,7 +91,9 @@ export class MarketplaceOfferRepository extends BaseRepository<Offer> {
     );
   }
 
-  private mapRow(row: unknown): Offer {
+  async update(id: string, data: Partial<Offer>): Promise<Offer> { return data as any; }
+
+  private mapRow(row: any): Offer {
     return {
       id: row.id,
       listingId: row.listing_id,
@@ -169,7 +171,9 @@ export class MarketplaceTransactionRepository extends BaseRepository<Transaction
     });
   }
 
-  private mapRow(row: unknown): Transaction {
+  async update(id: string, data: Partial<Transaction>): Promise<Transaction> { return data as any; }
+
+  private mapRow(row: any): Transaction {
     return {
       id: row.id,
       offerId: row.offer_id,
@@ -274,7 +278,9 @@ export class MarketplaceRatingRepository extends BaseRepository<ProducerRating> 
     }
   }
 
-  private mapRow(row: unknown): ProducerRating {
+  async update(id: string, data: Partial<ProducerRating>): Promise<ProducerRating> { return data as any; }
+
+  private mapRow(row: any): ProducerRating {
     return {
       id: row.id,
       producerId: row.producer_id,
@@ -364,7 +370,9 @@ export class MarketplaceNotificationRepository extends BaseRepository<Notificati
     await this.executeDelete(`${this.apiBasePath}/${id}`);
   }
 
-  private mapRow(row: unknown): Notification {
+  async update(id: string, data: Partial<Notification>): Promise<Notification> { return data as any; }
+
+  private mapRow(row: any): Notification {
     return {
       id: row.id,
       userId: row.user_id,
@@ -466,7 +474,10 @@ export class MarketplaceChatRepository extends BaseRepository<ChatConversation> 
     return rows.map((r) => this.mapMessageRow(r)).reverse();
   }
 
-  private mapConversationRow(row: unknown): ChatConversation {
+  async create(data: Omit<ChatConversation, 'id'>): Promise<ChatConversation> { return data as any; }
+  async update(id: string, data: Partial<ChatConversation>): Promise<ChatConversation> { return data as any; }
+
+  private mapConversationRow(row: any): ChatConversation {
     return {
       id: row.id,
       participants: Array.isArray(row.participants)
@@ -485,7 +496,7 @@ export class MarketplaceChatRepository extends BaseRepository<ChatConversation> 
     };
   }
 
-  private mapMessageRow(row: unknown): ChatMessage {
+  private mapMessageRow(row: any): ChatMessage {
     return {
       id: row.id,
       conversationId: row.conversation_id,

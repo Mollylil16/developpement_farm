@@ -12,8 +12,8 @@ import { useRole } from '../contexts/RoleContext';
  */
 export function usePreloadScreens() {
   const { activeRole } = useRole();
-  const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
-  const projetActif = useAppSelector((state) => state.projet.projetActif);
+  const isAuthenticated = useAppSelector((state) => (state as any).auth.isAuthenticated);
+  const projetActif = useAppSelector((state) => (state as any).projet.projetActif);
 
   useEffect(() => {
     if (!isAuthenticated) {

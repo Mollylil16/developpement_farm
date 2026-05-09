@@ -13,12 +13,11 @@ import {
   updateProductionAnimal,
   loadPeseesRecents,
 } from '../../store/slices/productionSlice';
-import {
-  createMortalite,
-  loadMortalitesParProjet,
-  loadStatistiquesMortalite,
-  deleteMortalite,
-} from '../../store/slices/mortalitesSlice';
+import mortalitesSliceModuleCheptelLogic from '../../store/slices/mortalitesSlice';
+const createMortalite: any = (mortalitesSliceModuleCheptelLogic as any).createMortalite;
+const loadMortalitesParProjet: any = (mortalitesSliceModuleCheptelLogic as any).loadMortalitesParProjet;
+const loadStatistiquesMortalite: any = (mortalitesSliceModuleCheptelLogic as any).loadStatistiquesMortalite;
+const deleteMortalite: any = (mortalitesSliceModuleCheptelLogic as any).deleteMortalite;
 import { createListing } from '../../store/slices/marketplaceSlice';
 import { selectAllAnimaux } from '../../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../../store/selectors/mortalitesSelectors';
@@ -32,8 +31,8 @@ import type { Location } from '../../types/marketplace';
 
 export function useProductionCheptelLogic() {
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
-  const { user } = useAppSelector((state) => state.auth);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
+  const { user } = useAppSelector((state) => (state as any).auth);
   const allAnimaux = useAppSelector(selectAllAnimaux);
   const mortalites = useAppSelector(selectAllMortalites);
   const { canCreate, canUpdate, canDelete } = useActionPermissions();

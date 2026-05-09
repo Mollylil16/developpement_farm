@@ -25,7 +25,7 @@ function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
   const projetActif = useProjetEffectif();
   const { gestations } = useAppSelector((state) => state.reproduction);
   const { chargesFixes, depensesPonctuelles } = useAppSelector((state) => state.finance);
-  const { indicateursPerformance } = useAppSelector((state) => state.reports);
+  const { indicateursPerformance } = useAppSelector((state) => (state as any).reports);
   const animaux = useAppSelector(selectAllAnimaux);
   const updateCounter = useAppSelector(selectProductionUpdateCounter);
   const [batchOverview, setBatchOverview] = useState<{
@@ -106,7 +106,7 @@ function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
     const dans7Jours = new Date();
     dans7Jours.setDate(aujourdhui.getDate() + 7);
 
-    return gestations.filter((g) => {
+    return gestations.filter((g: any) => {
       if (g.statut !== 'en_cours') return false;
       const dateMiseBas = new Date(g.date_mise_bas_prevue);
       return dateMiseBas >= aujourdhui && dateMiseBas <= dans7Jours;
@@ -115,15 +115,15 @@ function WidgetVueEnsemble({ onPress }: WidgetVueEnsembleProps) {
 
   // Calculer le budget restant
   const budgetInfo = useMemo(() => {
-    const chargesFixesActives = chargesFixes.filter((cf) => cf.statut === 'actif');
-    const chargesFixesMensuelles = chargesFixesActives.reduce((sum, cf) => {
+    const chargesFixesActives = chargesFixes.filter((cf: any) => cf.statut === 'actif');
+    const chargesFixesMensuelles = chargesFixesActives.reduce((sum: any, cf: any) => {
       if (cf.frequence === 'mensuel') return sum + cf.montant;
       if (cf.frequence === 'trimestriel') return sum + cf.montant / 3;
       if (cf.frequence === 'annuel') return sum + cf.montant / 12;
       return sum;
     }, 0);
 
-    const depensesMois = depensesPonctuelles.reduce((sum, dp) => {
+    const depensesMois = depensesPonctuelles.reduce((sum: any, dp: any) => {
       const dateDepense = new Date(dp.date);
       const maintenant = new Date();
       if (

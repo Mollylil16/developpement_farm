@@ -6,8 +6,9 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { useProjetEffectif } from '../useProjetEffectif';
-import { selectDepensesPonctuelles, selectFinanceLoading, selectFinanceError } from '../../store/selectors/financeSelectors';
-import { loadDepensesPonctuelles } from '../../store/slices/financeSlice';
+import { selectAllDepensesPonctuelles as selectDepensesPonctuelles, selectFinanceLoading, selectFinanceError } from '../../store/selectors/financeSelectors';
+import financeSliceModule from '../../store/slices/financeSlice';
+const loadDepensesPonctuelles: any = (financeSliceModule as any).loadDepensesPonctuelles;
 import { createLoggerWithPrefix } from '../../utils/logger';
 
 const logger = createLoggerWithPrefix('useFinanceData');
@@ -52,7 +53,7 @@ export function useFinanceData(options: UseFinanceDataOptions = {}) {
   const dispatch = useAppDispatch();
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();
-  const depenses = useAppSelector(selectDepensesPonctuelles);
+  const depenses = useAppSelector(selectDepensesPonctuelles) as any[];
   const loading = useAppSelector(selectFinanceLoading);
   const error = useAppSelector(selectFinanceError);
 

@@ -363,6 +363,7 @@ export interface CreateStockMouvementInput {
   origine?: string;
   commentaire?: string;
   cree_par?: string;
+  stock_id?: string;
 }
 
 /**

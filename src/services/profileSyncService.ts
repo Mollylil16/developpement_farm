@@ -3,7 +3,7 @@
  * Permet de synchroniser la photo de profil et les données utilisateur entre appareils
  */
 
-import { AppDispatch } from '../store/hooks';
+import { AppDispatch } from '../store/store';
 import { loadUserFromStorageThunk, updateUser } from '../store/slices/authSlice';
 import apiClient, { APIError } from './api/apiClient';
 import { logger } from '../utils/logger';

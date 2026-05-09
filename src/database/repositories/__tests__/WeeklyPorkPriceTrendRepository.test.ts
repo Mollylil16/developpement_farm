@@ -27,7 +27,7 @@ describe('WeeklyPorkPriceTrendRepository', () => {
       getFirstAsync: jest.fn(),
       getAllAsync: jest.fn(),
     };
-    repository = new WeeklyPorkPriceTrendRepository(mockDb);
+    repository = new WeeklyPorkPriceTrendRepository();
   });
 
   describe('constructor', () => {

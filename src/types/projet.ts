@@ -25,6 +25,7 @@ export interface Projet {
 
   // ✨ Paramètres OPEX/CAPEX
   duree_amortissement_par_defaut_mois?: number; // Durée d'amortissement pour CAPEX (défaut: 36 mois)
+  type?: string;
 }
 
 export type ProjetStatut = 'actif' | 'archive' | 'suspendu';

@@ -5,11 +5,12 @@
 
 import React, { createContext, useContext, useMemo, useCallback, useEffect, useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import type { User } from '../types/auth';
-import type { RoleType } from '../types/roles';
+import { User, RoleType } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { updateUser } from '../store/slices/authSlice';
-import apiClient from '../services/api/apiClient';
+import { updateUser, signOut } from '../store/slices/authSlice';
+import { getDatabase } from '../services/database';
+import { UserRepository } from '../database/repositories/UserRepository';
+import { UserDataService } from '../services/UserDataService';
 
 const AUTH_STORAGE_KEY = '@fermier_pro:auth';
 
@@ -19,6 +20,8 @@ interface RoleContextType {
   availableRoles: RoleType[];
   switchRole: (role: RoleType) => Promise<void>;
   hasRole: (role: RoleType) => boolean;
+  logoutRole: () => Promise<void>;
+  deleteProfile: (role: RoleType) => Promise<void>;
   isProducer: boolean;
   isBuyer: boolean;
   isVeterinarian: boolean;
@@ -32,7 +35,7 @@ const RoleContext = createContext<RoleContextType | undefined>(undefined);
  */
 export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const dispatch = useAppDispatch();
-  const userFromRedux = useAppSelector((state) => state.auth.user);
+  const userFromRedux = useAppSelector((state) => (state as any).auth.user);
   const [activeRole, setActiveRole] = useState<RoleType>('producer');
 
   // Charger le rôle actif depuis l'utilisateur
@@ -53,34 +56,25 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * Détermine le rôle par défaut pour un utilisateur
    */
   const determineDefaultRole = useCallback((user: User): RoleType => {
-    // Si l'utilisateur a un activeRole défini, l'utiliser
-    if (user.activeRole) {
-      return user.activeRole;
-    }
-
     // Si l'utilisateur a des rôles définis, prendre le premier disponible
-    // Ordre de priorité : buyer > veterinarian > technician > producer
-    // (pour éviter de forcer producer par défaut)
     if (user.roles) {
+      if (user.roles.producer) return 'producer';
       if (user.roles.buyer) return 'buyer';
       if (user.roles.veterinarian) return 'veterinarian';
       if (user.roles.technician) return 'technician';
-      if (user.roles.producer) return 'producer';
     }
-
-    // Par défaut, retourner buyer (plus neutre que producer)
-    // L'utilisateur pourra ajouter d'autres profils plus tard
-    return 'buyer';
+    
+    // Par défaut, tous les utilisateurs existants sont producteurs
+    return 'producer';
   }, []);
 
   /**
    * Rôles disponibles pour l'utilisateur actuel
    */
-  const availableRoles = useMemo((): RoleType[] => {
+  const availableRoles = useMemo(() => {
     if (!userFromRedux?.roles) {
-      // Si pas de rôles définis, retourner tableau vide
-      // L'utilisateur devra sélectionner un profil lors de l'onboarding
-      return [];
+      // Si pas de rôles définis, considérer comme producteur (compatibilité)
+      return ['producer'];
     }
 
     const roles: RoleType[] = [];
@@ -89,8 +83,8 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (userFromRedux.roles.veterinarian) roles.push('veterinarian');
     if (userFromRedux.roles.technician) roles.push('technician');
 
-    // Si aucun rôle, retourner tableau vide
-    return roles;
+    // Si aucun rôle, retourner producteur par défaut
+    return roles.length > 0 ? roles : ['producer'];
   }, [userFromRedux]);
 
   /**
@@ -116,59 +110,126 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('Aucun utilisateur connecté');
       }
 
-      // Mettre à jour le rôle actif localement (optimistic update)
+      // Mettre à jour le rôle actif
       setActiveRole(role);
 
-      // Mettre à jour l'utilisateur dans Redux (optimistic update)
-      const optimisticUser: User = {
+      // Mettre à jour l'utilisateur dans Redux
+      const updatedUser: User = {
         ...userFromRedux,
         activeRole: role,
       };
 
-      dispatch(updateUser(optimisticUser));
+      dispatch(updateUser(updatedUser));
 
-      // Persister dans AsyncStorage (optimistic update)
+      // Persister dans AsyncStorage
       try {
-        await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(optimisticUser));
+        await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
       } catch (error) {
-        console.error('Erreur lors de la sauvegarde du rôle dans AsyncStorage:', error);
+        console.error('Erreur lors de la sauvegarde du rôle:', error);
       }
 
-      // Persister dans le backend
-      try {
-        const updatedUser = await apiClient.patch<User>(`/users/${userFromRedux.id}`, {
-          activeRole: role,
-        });
+      // TODO: Persister dans la base de données SQLite
+      // await updateUserActiveRole(userFromRedux.id, role);
+    },
+    [hasRole, userFromRedux, dispatch]
+  );
 
-        // Mettre à jour Redux avec la réponse du backend (source de vérité)
-        if (updatedUser) {
-          dispatch(updateUser(updatedUser));
-          // Persister également dans AsyncStorage avec les données du backend
-          try {
-            await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
-          } catch (error) {
-            console.error('Erreur lors de la sauvegarde du rôle mis à jour dans AsyncStorage:', error);
+  /**
+   * Déconnecte uniquement le profil actuel (retourne à l'écran de sélection de profil)
+   * Les données du profil sont préservées pour permettre une reconnexion ultérieure
+   * 
+   * 🔧 CORRECTION: Ne supprime pas les données, juste déconnecte la session actuelle
+   * L'utilisateur sera redirigé vers l'écran de sélection de profil où il pourra
+   * choisir un autre profil ou se reconnecter avec le même compte
+   */
+  const logoutRole = useCallback(async () => {
+    if (!userFromRedux) {
+      throw new Error('Aucun utilisateur connecté');
+    }
+
+    // Ne pas supprimer les données de la base de données, juste déconnecter la session
+    // L'utilisateur sera redirigé vers l'écran de sélection de profil
+    // Les données restent dans la base de données pour permettre une reconnexion
+    
+    // Utiliser signOut() qui réinitialise l'état d'authentification
+    // Cela déclenchera la redirection vers l'écran de sélection de profil via AppNavigator
+    await dispatch(signOut()).unwrap();
+  }, [userFromRedux, dispatch]);
+
+  /**
+   * Supprime un profil spécifique et toutes ses données associées
+   * ⚠️ ATTENTION: Cette opération est irréversible
+   */
+  const deleteProfile = useCallback(
+    async (role: RoleType) => {
+      if (!userFromRedux) {
+        throw new Error('Aucun utilisateur connecté');
+      }
+
+      if (!hasRole(role)) {
+        throw new Error(`Vous n'avez pas le rôle ${role}`);
+      }
+
+      // Si c'est le seul profil, on ne peut pas le supprimer
+      if (availableRoles.length === 1) {
+        throw new Error('Impossible de supprimer le dernier profil. Vous devez avoir au moins un profil.');
+      }
+
+      try {
+        const db = await getDatabase();
+        const userRepo = new UserRepository();
+
+        // Supprimer les données associées au rôle
+        if (role === 'producer') {
+          // Supprimer tous les projets et données associées du producteur
+          await UserDataService.clearUserData(userFromRedux.id);
+        }
+        // Pour les autres rôles (buyer, veterinarian, technician), 
+        // on pourrait ajouter une logique spécifique ici si nécessaire
+        // (ex: supprimer les commandes, consultations, etc.)
+
+        // Mettre à jour l'utilisateur : supprimer le rôle
+        const updatedRoles = { ...userFromRedux.roles };
+        delete updatedRoles[role];
+
+        // Si le rôle supprimé était le rôle actif, basculer vers un autre rôle disponible
+        let newActiveRole = activeRole;
+        if (activeRole === role) {
+          const remainingRoles = availableRoles.filter((r) => r !== role);
+          if (remainingRoles.length > 0) {
+            newActiveRole = remainingRoles[0] as any;
           }
         }
+
+        // Mettre à jour dans la base de données
+        // 🔧 CORRECTION: userRepo.update() attend (id, updates) et non un objet User complet
+        await userRepo.update(userFromRedux.id, {
+          roles: updatedRoles,
+          activeRole: newActiveRole !== role ? newActiveRole : undefined,
+        });
+
+        // Récupérer l'utilisateur mis à jour depuis la base de données
+        const updatedUser = await userRepo.findById(userFromRedux.id);
+        if (!updatedUser) {
+          throw new Error('Impossible de récupérer l\'utilisateur mis à jour');
+        }
+
+        // Mettre à jour dans Redux
+        dispatch(updateUser(updatedUser));
+
+        // Mettre à jour dans AsyncStorage
+        await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+
+        // Mettre à jour le rôle actif local
+        if (newActiveRole !== role) {
+          setActiveRole(newActiveRole);
+        }
       } catch (error) {
-        // En cas d'erreur, annuler l'optimistic update
-        console.error('Erreur lors de la sauvegarde du rôle dans le backend:', error);
-        // Revenir au rôle précédent (userFromRedux contient l'ancien état)
-        if (userFromRedux.activeRole) {
-          setActiveRole(userFromRedux.activeRole);
-        }
-        dispatch(updateUser(userFromRedux));
-        // Persister également dans AsyncStorage avec l'ancien état
-        try {
-          await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(userFromRedux));
-        } catch (storageError) {
-          console.error('Erreur lors de la restauration du rôle dans AsyncStorage:', storageError);
-        }
-        // Relancer l'erreur pour que l'appelant puisse la gérer
+        console.error('Erreur lors de la suppression du profil:', error);
         throw error;
       }
     },
-    [hasRole, userFromRedux, dispatch]
+    [userFromRedux, hasRole, availableRoles, activeRole, dispatch]
   );
 
   // Valeurs calculées pour faciliter l'utilisation
@@ -185,25 +246,17 @@ export const RoleProvider: React.FC<{ children: React.ReactNode }> = ({ children
       availableRoles,
       switchRole,
       hasRole,
+      logoutRole,
+      deleteProfile,
       isProducer,
       isBuyer,
       isVeterinarian,
       isTechnician,
     }),
-    [
-      userFromRedux,
-      activeRole,
-      availableRoles,
-      switchRole,
-      hasRole,
-      isProducer,
-      isBuyer,
-      isVeterinarian,
-      isTechnician,
-    ]
+    [userFromRedux, activeRole, availableRoles, switchRole, hasRole, logoutRole, deleteProfile, isProducer, isBuyer, isVeterinarian, isTechnician]
   );
 
-  return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
+  return <RoleContext.Provider value={value as any}>{children}</RoleContext.Provider>;
 };
 
 /**
@@ -221,17 +274,24 @@ export const useRole = (): RoleContextType => {
     }
     return {
       currentUser: null,
-      activeRole: 'buyer',
-      availableRoles: [],
+      activeRole: 'producer',
+      availableRoles: ['producer'],
       switchRole: async () => {
         throw new Error('RoleProvider non disponible');
       },
       hasRole: () => false,
-      isProducer: false,
-      isBuyer: true,
+      logoutRole: async () => {
+        throw new Error('RoleProvider non disponible');
+      },
+      deleteProfile: async () => {
+        throw new Error('RoleProvider non disponible');
+      },
+      isProducer: true,
+      isBuyer: false,
       isVeterinarian: false,
       isTechnician: false,
     };
   }
   return context;
 };
+

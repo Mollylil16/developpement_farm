@@ -157,7 +157,7 @@ export default function SaleScreen() {
   const route = useRoute<RouteProp<{ params: SaleRouteParams }, 'params'>>();
   const mode = useModeElevage();
   const dispatch = useAppDispatch();
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   
   // Paramètres batch (si navigation depuis une bande)
   const batch = route.params?.batch;

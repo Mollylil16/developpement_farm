@@ -4,38 +4,19 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-  Alert,
-  TextInput,
-  FlatList,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, TextInput, FlatList } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import {
-  createRevenu,
-  updateRevenu,
-  calculateAndSaveMargesVente,
-} from '../store/slices/financeSlice';
-import type { Revenu, CreateRevenuInput, CategorieRevenu } from '../types/finance';
-import type { ProductionAnimal } from '../types/production';
+import { createRevenu, updateRevenu, calculateAndSaveMargesVente } from '../store/slices/financeSlice';
+import { Revenu, CreateRevenuInput, CategorieRevenu, ProductionAnimal } from '../types';
 import { selectAllAnimaux, selectPeseesRecents } from '../store/selectors/productionSelectors';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
-import apiClient from '../services/api/apiClient';
-import type { Batch } from '../types/batch';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
-import DatePickerField from './DatePickerField';
 import { SPACING, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
-import { logger } from '../utils/logger';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { revenuSchema, validateWithSchema, validateField } from '../validation/financeSchemas';
-import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface RevenuFormModalProps {
   visible: boolean;
@@ -58,28 +39,17 @@ export default function RevenuFormModal({
 }: RevenuFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
-  const projetActif = useProjetEffectif();
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   const animaux = useAppSelector(selectAllAnimaux);
   const peseesRecents = useAppSelector(selectPeseesRecents);
   const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
   const [poidsKg, setPoidsKg] = useState<string>('');
   const [selectedAnimalId, setSelectedAnimalId] = useState<string | undefined>(animalId);
-  const [selectedAnimalIds, setSelectedAnimalIds] = useState<string[]>(animalId ? [animalId] : []); // Multi-sélection pour mode individuel
   const [searchAnimalQuery, setSearchAnimalQuery] = useState('');
   const [showAnimalSearch, setShowAnimalSearch] = useState(false);
-  // Mode bande
-  const [selectedBatchId, setSelectedBatchId] = useState<string | undefined>(undefined);
-  const [batchQuantite, setBatchQuantite] = useState<string>('');
-  const [batches, setBatches] = useState<Batch[]>([]);
-  const [loadingBatches, setLoadingBatches] = useState(false);
-  const [showBatchPicker, setShowBatchPicker] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-  
-  // Détecter le mode de gestion
-  const isModeBatch = projetActif?.management_method === 'batch';
   const [formData, setFormData] = useState<
     Omit<CreateRevenuInput, 'projet_id'> & { photos: string[] }
   >({
@@ -133,12 +103,14 @@ export default function RevenuFormModal({
    * Validation d'un champ individuel (temps réel)
    */
   const validateSingleField = useCallback(
-    async (fieldName: keyof typeof formData, value: unknown) => {
+    async (fieldName: keyof typeof formData, value: any) => {
       try {
-        const error = await validateField(revenuSchema, fieldName, value, {
-          ...formData,
-          poids_kg: poidsKg ? parseFloat(poidsKg) : null,
-        });
+        const error = await validateField(
+          revenuSchema,
+          fieldName,
+          value,
+          { ...formData, poids_kg: poidsKg ? parseFloat(poidsKg) : undefined }
+        );
 
         setValidationErrors((prev) => {
           const newErrors = { ...prev };
@@ -150,7 +122,7 @@ export default function RevenuFormModal({
           return newErrors;
         });
       } catch (err) {
-        logger.error('Erreur validation champ:', err);
+        console.error('Erreur validation champ:', err);
       }
     },
     [formData, poidsKg]
@@ -170,47 +142,24 @@ export default function RevenuFormModal({
     }
   }, [visible, projetActif?.id, animalId, dispatch]);
 
-  // Charger les batches en mode bande
-  useEffect(() => {
-    if (visible && projetActif && isModeBatch && formData.categorie === 'vente_porc') {
-      const loadBatches = async () => {
-        try {
-          setLoadingBatches(true);
-          const batchesData = await apiClient.get<Batch[]>(`/batch-pigs/projet/${projetActif.id}`);
-          // Filtrer les batches non reproducteurs (disponibles pour la vente)
-          const batchesVendables = batchesData.filter(
-            (b) => b.category !== 'truie_reproductrice' && b.category !== 'verrat_reproducteur'
-          );
-          setBatches(batchesVendables);
-        } catch (error) {
-          logger.error('Erreur chargement batches:', error);
-        } finally {
-          setLoadingBatches(false);
-        }
-      };
-      loadBatches();
-    }
-  }, [visible, projetActif?.id, isModeBatch, formData.categorie]);
-
-  // Filtrer les animaux pour la recherche (uniquement actifs pour les ventes)
+  // Filtrer les animaux pour la recherche
   const animauxFiltres = useMemo(() => {
-    // Pour les ventes, on ne veut que les animaux actifs (pas vendus)
-    const animauxActifs = animaux.filter((a) => a.statut === 'actif' && a.projet_id === projetActif?.id);
     if (!searchAnimalQuery.trim()) {
-      return animauxActifs;
+      return animaux.filter((a) => a.statut === 'actif' || a.statut === 'vendu');
     }
     const query = searchAnimalQuery.toLowerCase();
-    return animauxActifs.filter(
+    return animaux.filter(
       (a) =>
-        a.code?.toLowerCase().includes(query) ||
-        a.nom?.toLowerCase().includes(query) ||
-        a.race?.toLowerCase().includes(query)
+        (a.statut === 'actif' || a.statut === 'vendu') &&
+        (a.code?.toLowerCase().includes(query) ||
+          a.nom?.toLowerCase().includes(query) ||
+          a.race?.toLowerCase().includes(query))
     );
-  }, [animaux, searchAnimalQuery, projetActif?.id]);
+  }, [animaux, searchAnimalQuery]);
 
   // Trouver l'animal sélectionné
   const selectedAnimal = useMemo(() => {
-    return selectedAnimalId ? animaux.find((a) => a.id === selectedAnimalId) : null;
+    return selectedAnimalId ? animaux.find((a) => a.id === selectedAnimalId) : undefined;
   }, [animaux, selectedAnimalId]);
 
   const requestImagePermission = async () => {
@@ -307,14 +256,17 @@ export default function RevenuFormModal({
     // Validation Yup complète
     const dataToValidate = {
       ...formData,
-      poids_kg: poidsKg ? parseFloat(poidsKg) : null,
+      poids_kg: poidsKg ? parseFloat(poidsKg) : undefined,
     };
 
     const { isValid, errors } = await validateWithSchema(revenuSchema, dataToValidate);
 
     if (!isValid) {
       // Marquer tous les champs comme touchés pour afficher les erreurs
-      const allTouched = Object.keys(errors).reduce((acc, key) => ({ ...acc, [key]: true }), {});
+      const allTouched = Object.keys(errors).reduce(
+        (acc, key) => ({ ...acc, [key]: true }),
+        {}
+      );
       setTouched(allTouched);
       setValidationErrors(errors);
 
@@ -322,54 +274,6 @@ export default function RevenuFormModal({
       const firstError = Object.values(errors)[0];
       Alert.alert('Erreur de validation', firstError);
       return;
-    }
-
-    // Validation stricte pour les ventes de porcs : identification obligatoire des sujets
-    if (formData.categorie === 'vente_porc' && !isEditing) {
-      if (isModeBatch) {
-        // Mode bande : batch_id et quantite_vendue obligatoires
-        if (!selectedBatchId || !batchQuantite || parseInt(batchQuantite) <= 0) {
-          Alert.alert(
-            'Identification obligatoire',
-            'Pour enregistrer une vente, vous devez obligatoirement identifier les porcs vendus (loge/bande + quantité).'
-          );
-          setValidationErrors((prev) => ({
-            ...prev,
-            batch_id: 'La loge/bande est obligatoire',
-            quantite_vendue: 'La quantité est obligatoire',
-          }));
-          setTouched((prev) => ({ ...prev, batch_id: true, quantite_vendue: true }));
-          return;
-        }
-        // Vérifier que la quantité ne dépasse pas le nombre disponible dans la batch
-        const selectedBatch = batches.find((b) => b.id === selectedBatchId);
-        if (selectedBatch && parseInt(batchQuantite) > selectedBatch.total_count) {
-          Alert.alert(
-            'Erreur',
-            `La quantité demandée (${batchQuantite}) dépasse le nombre disponible dans cette loge (${selectedBatch.total_count}).`
-          );
-          setValidationErrors((prev) => ({
-            ...prev,
-            quantite_vendue: `Quantité maximale: ${selectedBatch.total_count}`,
-          }));
-          setTouched((prev) => ({ ...prev, quantite_vendue: true }));
-          return;
-        }
-      } else {
-        // Mode individuel : animal_ids obligatoires
-        if (!selectedAnimalIds || selectedAnimalIds.length === 0) {
-          Alert.alert(
-            'Identification obligatoire',
-            'Pour enregistrer une vente, vous devez obligatoirement identifier les porcs vendus (ID ou IDs des porcs).'
-          );
-          setValidationErrors((prev) => ({
-            ...prev,
-            animal_ids: 'Au moins un porc doit être sélectionné',
-          }));
-          setTouched((prev) => ({ ...prev, animal_ids: true }));
-          return;
-        }
-      }
     }
 
     // Validation poids pour vente de porc (règle métier supplémentaire)
@@ -404,7 +308,7 @@ export default function RevenuFormModal({
             },
           })
         ).unwrap();
-
+        
         // Si vente de porc avec poids, calculer les marges
         if (formData.categorie === 'vente_porc' && poidsKg && parseFloat(poidsKg) > 0) {
           await dispatch(
@@ -420,75 +324,39 @@ export default function RevenuFormModal({
           setLoading(false);
           return;
         }
-
-        // Pour les ventes de porcs, utiliser le nouvel endpoint dédié
-        if (formData.categorie === 'vente_porc') {
-          try {
-            const venteData: any = {
-              projet_id: projetActif.id,
-              montant: formData.montant,
-              date: formData.date,
-              description: formData.description || undefined,
-              commentaire: formData.commentaire || undefined,
-              poids_kg: poidsKg ? parseFloat(poidsKg) : undefined,
-            };
-
-            if (isModeBatch) {
-              venteData.batch_id = selectedBatchId;
-              venteData.quantite = parseInt(batchQuantite); // Correction: le DTO attend "quantite", pas "quantite_vendue"
-            } else {
-              venteData.animal_ids = selectedAnimalIds;
-            }
-
-            await apiClient.post('/finance/ventes-porcs', venteData);
-
-            Alert.alert(
-              'Succès',
-              `Vente enregistrée avec succès. Le cheptel a été mis à jour : ${isModeBatch ? `${batchQuantite} porc(s) retirés de la loge` : `${selectedAnimalIds.length} porc(s) marqués comme vendus`}.`
-            );
-          } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : String(error) || "Erreur lors de l'enregistrement";
-            Alert.alert('Erreur', errorMessage);
-            setLoading(false);
-            return;
-          }
-        } else {
-          // Pour les autres catégories, utiliser l'endpoint classique
-          const result = await dispatch(
-            createRevenu({
-              ...formData,
-              projet_id: projetActif.id,
-              animal_id: selectedAnimalId || animalId,
-              poids_kg: poidsKg ? parseFloat(poidsKg) : undefined,
+        const result = await dispatch(
+          createRevenu({ 
+            ...formData, 
+            projet_id: projetActif.id, 
+            animal_id: selectedAnimalId || animalId,
+            poids_kg: poidsKg ? parseFloat(poidsKg) : undefined
+          })
+        ).unwrap();
+        
+        // Si vente de porc avec poids, calculer les marges
+        if (formData.categorie === 'vente_porc' && poidsKg && parseFloat(poidsKg) > 0) {
+          await dispatch(
+            calculateAndSaveMargesVente({
+              venteId: result.id,
+              poidsKg: parseFloat(poidsKg),
             })
           ).unwrap();
-
-          // Si vente de porc avec poids, calculer les marges
-          if (formData.categorie === 'vente_porc' && poidsKg && parseFloat(poidsKg) > 0) {
-            await dispatch(
-              calculateAndSaveMargesVente({
-                venteId: result.id,
-                poidsKg: parseFloat(poidsKg),
-              })
-            ).unwrap();
-          }
         }
       }
-
+      
       // Réinitialiser le loading avant d'appeler onSuccess
       setLoading(false);
-
+      
       // Fermer le modal immédiatement
       onClose();
-
+      
       // Appeler onSuccess de manière asynchrone pour laisser le modal se fermer complètement
       setTimeout(() => {
         onSuccess();
       }, 100);
-    } catch (error: unknown) {
+    } catch (error: any) {
       setLoading(false);
-      const errorMessage = error instanceof Error ? error.message : String(error) || "Erreur lors de l'enregistrement";
-      Alert.alert('Erreur', errorMessage);
+      Alert.alert('Erreur', error?.message || error || "Erreur lors de l'enregistrement");
     }
   };
 
@@ -584,210 +452,108 @@ export default function RevenuFormModal({
 
         {formData.categorie === 'vente_porc' && (
           <View>
-            {/* Sélection des sujets vendus - OBLIGATOIRE */}
+            {/* Sélection de porc (uniquement si pas d'animalId fourni) */}
             {!animalId && (
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                  Sujets vendus *
-                  {touched.animal_ids || touched.batch_id ? (
-                    <Text style={{ color: colors.error, fontSize: 12 }}>
-                      {' '}
-                      {validationErrors.animal_ids || validationErrors.batch_id}
-                    </Text>
-                  ) : null}
+                  Porc vendu (optionnel)
                 </Text>
-                <Text style={[styles.helperText, { color: colors.textSecondary, marginBottom: SPACING.sm }]}>
-                  {isModeBatch
-                    ? 'Sélectionnez la loge/bande et la quantité de porcs vendus'
-                    : 'Sélectionnez un ou plusieurs porcs vendus'}
-                </Text>
-                {isModeBatch ? (
-                  // MODE BANDE : Sélection batch + quantité
-                  <>
-                    <TouchableOpacity
+                <TouchableOpacity
+                  style={[
+                    styles.animalSelector,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.background,
+                    },
+                  ]}
+                  onPress={() => setShowAnimalSearch(!showAnimalSearch)}
+                >
+                  <Text
+                    style={[
+                      styles.animalSelectorText,
+                      { color: selectedAnimal ? colors.text : colors.textSecondary },
+                    ]}
+                  >
+                    {selectedAnimal
+                      ? `${selectedAnimal.code}${selectedAnimal.nom ? ` - ${selectedAnimal.nom}` : ''}`
+                      : 'Rechercher un porc...'}
+                  </Text>
+                  <Text style={[styles.animalSelectorIcon, { color: colors.textSecondary }]}>
+                    {showAnimalSearch ? '▲' : '▼'}
+                  </Text>
+                </TouchableOpacity>
+                {showAnimalSearch && (
+                  <View
+                    style={[
+                      styles.animalSearchContainer,
+                      { backgroundColor: colors.surface, borderColor: colors.border },
+                    ]}
+                  >
+                    <TextInput
                       style={[
-                        styles.animalSelector,
-                        {
-                          borderColor: touched.batch_id && validationErrors.batch_id ? colors.error : colors.border,
-                          backgroundColor: colors.background,
-                        },
+                        styles.animalSearchInput,
+                        { color: colors.text, borderColor: colors.border },
                       ]}
-                      onPress={() => setShowBatchPicker(!showBatchPicker)}
-                    >
-                      <Text
-                        style={[
-                          styles.animalSelectorText,
-                          {
-                            color: selectedBatchId
-                              ? colors.text
-                              : colors.textSecondary,
-                          }]
-                        }
-                      >
-                        {selectedBatchId
-                          ? batches.find((b) => b.id === selectedBatchId)?.pen_name || 'Bande sélectionnée'
-                          : 'Sélectionner une loge/bande...'}
-                      </Text>
-                      <Text style={[styles.animalSelectorIcon, { color: colors.textSecondary }]}>
-                        {showBatchPicker ? '▲' : '▼'}
-                      </Text>
-                    </TouchableOpacity>
-                    {showBatchPicker && (
-                      <View
-                        style={[
-                          styles.animalSearchContainer,
-                          { backgroundColor: colors.surface, borderColor: colors.border },
-                        ]}
-                      >
-                        <View style={[styles.animalList, { maxHeight: 200 }]}>
-                          <FlatList
-                            data={batches}
-                            keyExtractor={(item) => item.id}
-                            renderItem={({ item }) => (
-                              <TouchableOpacity
-                                style={[
-                                  styles.animalOption,
-                                  {
-                                    backgroundColor:
-                                      selectedBatchId === item.id ? colors.primary : colors.background,
-                                  },
-                                ]}
-                                onPress={() => {
-                                  setSelectedBatchId(item.id);
-                                  setShowBatchPicker(false);
-                                }}
-                              >
-                                <Text
-                                  style={[
-                                    styles.animalOptionText,
-                                    {
-                                      color:
-                                        selectedBatchId === item.id ? colors.textOnPrimary : colors.text,
-                                    },
-                                  ]}
-                                >
-                                  {item.pen_name} ({item.category}) - {item.total_count} porc(s)
-                                </Text>
-                              </TouchableOpacity>
-                            )}
-                          />
-                        </View>
-                      </View>
-                    )}
-                    {selectedBatchId && (
-                      <FormField
-                        label="Quantité vendue"
-                        value={batchQuantite}
-                        onChangeText={setBatchQuantite}
-                        keyboardType="numeric"
-                        placeholder="Ex: 5"
-                        required
-                        error={touched.quantite_vendue ? validationErrors.quantite_vendue : undefined}
-                        onBlur={() => handleFieldBlur('quantite_vendue')}
-                      />
-                    )}
-                  </>
-                ) : (
-                  // MODE INDIVIDUEL : Sélection multi-ID
-                  <>
-                    <TouchableOpacity
-                      style={[
-                        styles.animalSelector,
-                        {
-                          borderColor: touched.animal_ids && validationErrors.animal_ids ? colors.error : colors.border,
-                          backgroundColor: colors.background,
-                        },
-                      ]}
-                      onPress={() => setShowAnimalSearch(!showAnimalSearch)}
-                    >
-                      <Text
-                        style={[
-                          styles.animalSelectorText,
-                          {
-                            color: selectedAnimalIds.length > 0 ? colors.text : colors.textSecondary,
-                          }]
-                        }
-                      >
-                        {selectedAnimalIds.length > 0
-                          ? `${selectedAnimalIds.length} porc(s) sélectionné(s)`
-                          : 'Rechercher et sélectionner des porcs...'}
-                      </Text>
-                      <Text style={[styles.animalSelectorIcon, { color: colors.textSecondary }]}>
-                        {showAnimalSearch ? '▲' : '▼'}
-                      </Text>
-                    </TouchableOpacity>
-                    {showAnimalSearch && (
-                      <View
-                        style={[
-                          styles.animalSearchContainer,
-                          { backgroundColor: colors.surface, borderColor: colors.border },
-                        ]}
-                      >
-                        <TextInput
+                      placeholder="Rechercher par code, nom ou race..."
+                      placeholderTextColor={colors.textSecondary}
+                      value={searchAnimalQuery}
+                      onChangeText={setSearchAnimalQuery}
+                    />
+                    <FlatList
+                      data={animauxFiltres}
+                      keyExtractor={(item) => item.id}
+                      renderItem={({ item }) => (
+                        <TouchableOpacity
                           style={[
-                            styles.animalSearchInput,
-                            { color: colors.text, borderColor: colors.border },
+                            styles.animalOption,
+                            {
+                              backgroundColor:
+                                selectedAnimalId === item.id ? colors.primary : colors.background,
+                            },
                           ]}
-                          placeholder="Rechercher par code, nom ou race..."
-                          placeholderTextColor={colors.textSecondary}
-                          value={searchAnimalQuery}
-                          onChangeText={setSearchAnimalQuery}
-                        />
-                        <View style={[styles.animalList, { maxHeight: 200 }]}>
-                          <FlatList
-                            data={animauxFiltres}
-                            keyExtractor={(item) => item.id}
-                            renderItem={({ item }) => {
-                              const isSelected = selectedAnimalIds.includes(item.id);
-                              return (
-                                <TouchableOpacity
-                                  style={[
-                                    styles.animalOption,
-                                    {
-                                      backgroundColor: isSelected ? colors.primary : colors.background,
-                                    },
-                                  ]}
-                                  onPress={() => {
-                                    if (isSelected) {
-                                      setSelectedAnimalIds(selectedAnimalIds.filter((id) => id !== item.id));
-                                    } else {
-                                      setSelectedAnimalIds([...selectedAnimalIds, item.id]);
-                                    }
-                                  }}
-                                >
-                                  <Text
-                                    style={[
-                                      styles.animalOptionText,
-                                      {
-                                        color: isSelected ? colors.textOnPrimary : colors.text,
-                                      },
-                                    ]}
-                                  >
-                                    {isSelected ? '✓ ' : '  '}
-                                    {item.code}
-                                    {item.nom ? ` - ${item.nom}` : ''}
-                                    {item.race ? ` (${item.race})` : ''}
-                                    {(() => {
-                                      const poidsActuel =
-                                        peseesRecents.find((p) => p.animal_id === item.id)?.poids_kg ||
-                                        item.poids_initial ||
-                                        0;
-                                      return poidsActuel > 0 ? ` - ${poidsActuel} kg` : '';
-                                    })()}
-                                  </Text>
-                                </TouchableOpacity>
-                              );
-                            }}
-                          />
-                        </View>
-                      </View>
-                    )}
-                    {selectedAnimalIds.length > 0 && (
-                      <Text style={[styles.helperText, { color: colors.textSecondary, marginTop: 4 }]}>
-                        {selectedAnimalIds.length} porc(s) sélectionné(s)
-                      </Text>
-                    )}
-                  </>
+                          onPress={() => {
+                            setSelectedAnimalId(item.id);
+                            const poidsActuel = peseesRecents.find(p => p.animal_id === item.id)?.poids_kg || item.poids_initial || 0;
+                            setPoidsKg(poidsActuel.toString());
+                            setShowAnimalSearch(false);
+                            setSearchAnimalQuery('');
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.animalOptionText,
+                              {
+                                color:
+                                  selectedAnimalId === item.id
+                                    ? colors.textOnPrimary
+                                    : colors.text,
+                              },
+                            ]}
+                          >
+                            {item.code}
+                            {item.nom ? ` - ${item.nom}` : ''}
+                            {item.race ? ` (${item.race})` : ''}
+                            {(() => {
+                              const poidsActuel = peseesRecents.find(p => p.animal_id === item.id)?.poids_kg || item.poids_initial || 0;
+                              return poidsActuel > 0 ? ` - ${poidsActuel} kg` : '';
+                            })()}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                      style={styles.animalList}
+                      maxHeight={200}
+                    />
+                  </View>
+                )}
+                {selectedAnimal && (
+                  <Text style={[styles.helperText, { color: colors.textSecondary, marginTop: 4 }]}>
+                    Porc sélectionné: {selectedAnimal.code}
+                    {selectedAnimal.nom ? ` (${selectedAnimal.nom})` : ''}
+                    {(() => {
+                      const poidsActuel = peseesRecents.find(p => p.animal_id === selectedAnimal.id)?.poids_kg || selectedAnimal.poids_initial || 0;
+                      return poidsActuel > 0 ? ` - Poids actuel: ${poidsActuel} kg` : '';
+                    })()}
+                  </Text>
                 )}
               </View>
             )}
@@ -805,27 +571,24 @@ export default function RevenuFormModal({
               onChangeText={setPoidsKg}
               keyboardType="numeric"
               placeholder="120"
+              helper="Nécessaire pour calculer automatiquement la marge de production"
             />
-            <Text style={[styles.helperText, { color: colors.textSecondary, marginTop: -8, marginBottom: 8 }]}>
-              Nécessaire pour calculer automatiquement la marge de production
-            </Text>
             <Text
               style={[
                 styles.helperText,
                 { color: colors.textSecondary, marginTop: -8, marginBottom: 12 },
               ]}
             >
-              💡 Le système calculera automatiquement le coût réel et la marge en comparant avec vos
-              coûts de production (OPEX + CAPEX amorti).
+              💡 Le système calculera automatiquement le coût réel et la marge en comparant avec vos coûts de production (OPEX + CAPEX amorti).
             </Text>
           </View>
         )}
 
-        <DatePickerField
+        <FormField
           label="Date"
           value={formData.date}
-          onChange={(date) => setFormData({ ...formData, date })}
-          maximumDate={new Date()}
+          onChangeText={(text) => setFormData({ ...formData, date: text })}
+          placeholder="YYYY-MM-DD"
         />
 
         <FormField

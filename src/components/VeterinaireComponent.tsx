@@ -82,7 +82,7 @@ const PERIODICITE_JOURS: Record<Periodicite, number> = {
 function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  const navigation = useNavigation<unknown>();
+  const navigation = useNavigation<any>();
 
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();
@@ -348,8 +348,8 @@ function VeterinaireComponent({ refreshControl }: VeterinaireComponentProps) {
       >
         <View style={styles.vetoHeader}>
           <View style={styles.vetoAvatar}>
-            {veterinaire.photo ? (
-              <Image source={{ uri: veterinaire.photo }} style={styles.vetoAvatarImage} />
+            {(veterinaire as any).photo ? (
+              <Image source={{ uri: (veterinaire as any).photo }} style={styles.vetoAvatarImage} />
             ) : (
               <View style={[styles.vetoAvatarPlaceholder, { backgroundColor: colors.primary }]}>
                 <Text style={styles.vetoAvatarInitiales}>

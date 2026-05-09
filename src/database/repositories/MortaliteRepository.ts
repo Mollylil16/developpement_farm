@@ -11,7 +11,7 @@
  */
 
 import { BaseRepository } from './BaseRepository';
-import { Mortalite } from '../../types/mortalite';
+import { Mortalite } from '../../types/mortalites';
 import { ProductionAnimal } from '../../types/production';
 import { AnimalRepository } from './AnimalRepository';
 

@@ -310,11 +310,11 @@ export function useOptimizedMarketplace(
           },
           listings: data.listings,
           representativeListing: firstListing,
-        });
+        } as any);
       }
 
       // Trier par nombre de sujets décroissant
-      farms.sort((a, b) => b.subjectCount - a.subjectCount);
+      farms.sort((a, b) => (b as any).subjectCount - (a as any).subjectCount);
 
       // Mettre en cache
       if (enableCache) {

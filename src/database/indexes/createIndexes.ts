@@ -107,13 +107,17 @@ const indexes: IndexDefinition[] = [
   },
 ];
 
-/**
- * Vérifie si un index existe déjà
- */
+function validateIdentifier(name: string): void {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+    throw new Error(`Invalid SQL identifier: ${name}`);
+  }
+}
+
 async function indexExists(db: SQLiteDatabase, indexName: string): Promise<boolean> {
   try {
     const result = await db.getFirstAsync<{ name: string } | null>(
-      `SELECT name FROM sqlite_master WHERE type='index' AND name='${indexName}'`
+      `SELECT name FROM sqlite_master WHERE type='index' AND name=?`,
+      [indexName]
     );
     return result !== null;
   } catch {
@@ -136,9 +140,17 @@ async function createIndexWithRetry(
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
+      validateIdentifier(index.name);
+      validateIdentifier(index.table);
+      validateIdentifier(index.column);
+      if (index.additionalColumns) {
+        index.additionalColumns.split(',').forEach(c => validateIdentifier(c.trim()));
+      }
+
       // Vérifier que la table existe
       const tableExists = await db.getFirstAsync<{ name: string } | null>(
-        `SELECT name FROM sqlite_master WHERE type='table' AND name='${index.table}'`
+        `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
+        [index.table]
       );
 
       if (!tableExists) {
@@ -146,9 +158,10 @@ async function createIndexWithRetry(
         return false;
       }
 
-      // Vérifier que la colonne projet_id existe
+      // Vérifier que la colonne existe
       const columnExists = await db.getFirstAsync<{ name: string } | null>(
-        `SELECT name FROM pragma_table_info('${index.table}') WHERE name = '${index.column}'`
+        `SELECT name FROM pragma_table_info('${index.table}') WHERE name = ?`,
+        [index.column]
       );
 
       if (!columnExists) {

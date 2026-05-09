@@ -9,7 +9,7 @@
  */
 
 import { BaseRepository } from './BaseRepository';
-import { StockAliment, MouvementStock, CreateStockAlimentInput } from '../../types/nutrition';
+import { StockAliment, TypeMouvementStock as MouvementStock, CreateStockAlimentInput } from '../../types/nutrition';
 
 export class StockRepository extends BaseRepository<StockAliment> {
   constructor() {
@@ -19,7 +19,7 @@ export class StockRepository extends BaseRepository<StockAliment> {
   async create(data: CreateStockAlimentInput | Partial<StockAliment>): Promise<StockAliment> {
     // Mapper quantite_initiale vers quantite_actuelle si c'est un CreateStockAlimentInput
     const quantiteActuelle =
-      'quantite_initiale' in data ? (data.quantite_initiale ?? 0) : (data.quantite_actuelle ?? 0);
+      'quantite_initiale' in data ? (data.quantite_initiale ?? 0) : ((data as any).quantite_actuelle ?? 0);
 
     // Activer l'alerte par défaut si seuil défini
     const seuilAlerte = data.seuil_alerte;
@@ -66,7 +66,7 @@ export class StockRepository extends BaseRepository<StockAliment> {
   /**
    * Mapper une ligne de la base de données vers StockAliment
    */
-  private mapRowToStockAliment(row: unknown): StockAliment {
+  private mapRowToStockAliment(row: any): StockAliment {
     // S'assurer que quantite_actuelle est toujours un nombre
     const quantiteActuelle =
       typeof row.quantite_actuelle === 'number'

@@ -2,7 +2,7 @@
  * Actions liées aux graphiques financiers
  */
 
-import { AgentActionResult, AgentContext } from '../../../types/chatAgent';
+import { AgentActionResult, AgentContext } from '../../../../types/chatAgent';
 import { format, subMonths, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import apiClient from '../../../api/apiClient';

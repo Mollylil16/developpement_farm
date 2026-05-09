@@ -30,6 +30,7 @@ import Button from '../components/Button';
 import FormField from '../components/FormField';
 import GoogleLogo from '../components/GoogleLogo';
 import AppleLogo from '../components/AppleLogo';
+// @ts-ignore
 import { databaseService } from '../services/database';
 import { validateEmail, validatePhone } from '../utils/validation';
 
@@ -37,7 +38,7 @@ export default function AuthScreen() {
   const { colors } = useTheme();
   const navigation = useNavigation<unknown>();
   const dispatch = useAppDispatch();
-  const { isLoading, error, isAuthenticated } = useAppSelector((state) => state.auth);
+  const { isLoading, error, isAuthenticated } = useAppSelector((state) => (state as any).auth);
 
   const [isSignUp, setIsSignUp] = useState(false);
   const [identifier, setIdentifier] = useState(''); // email ou téléphone

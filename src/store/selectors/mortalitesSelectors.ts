@@ -15,12 +15,12 @@ const selectMortalitesState = (state: RootState) => state.mortalites;
 // Sélecteurs intermédiaires pour éviter les nouvelles références
 const selectMortalitesIds = createSelector(
   [selectMortalitesState],
-  (mortalitesState) => mortalitesState.ids.mortalites
+  (mortalitesState) => (mortalitesState as any).ids?.mortalites
 );
 
 const selectMortalitesEntities = createSelector(
   [selectMortalitesState],
-  (mortalitesState) => mortalitesState.entities.mortalites
+  (mortalitesState) => (mortalitesState as any).entities?.mortalites
 );
 
 // Sélecteurs pour les mortalités
@@ -39,7 +39,7 @@ export const selectAllMortalites = createSelector(
 export const selectMortaliteById = createSelector(
   [selectMortalitesState, (_: RootState, mortaliteId: string) => mortaliteId],
   (mortalitesState, mortaliteId): Mortalite | undefined => {
-    const { entities } = mortalitesState;
+    const { entities } = mortalitesState as any;
     if (!entities.mortalites || !mortaliteId) return undefined;
     const normalized = denormalize([mortaliteId], mortalitesSchema, {
       mortalites: entities.mortalites,
@@ -51,7 +51,7 @@ export const selectMortaliteById = createSelector(
 // Sélecteur pour les statistiques
 export const selectStatistiquesMortalite = createSelector(
   [selectMortalitesState],
-  (mortalitesState) => mortalitesState.statistiques
+  (mortalitesState) => (mortalitesState as any).statistiques
 );
 
 // Sélecteur pour le nombre total de mortalités

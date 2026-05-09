@@ -107,61 +107,51 @@ export class AdminService {
   // ==================== DASHBOARD STATS ====================
 
   async getDashboardStats(period?: string) {
-    // Déterminer l'intervalle selon la période
-    let dateFilter = ''
-    if (period === '7j') {
-      dateFilter = "WHERE date_creation >= NOW() - INTERVAL '7 days'"
-    } else if (period === '1m') {
-      dateFilter = "WHERE date_creation >= NOW() - INTERVAL '30 days'"
-    } else if (period === '1a') {
-      dateFilter = "WHERE date_creation >= NOW() - INTERVAL '365 days'"
-    }
-    // 'Tout' = pas de filtre
+    const VALID_PERIODS: Record<string, string> = {
+      '7j': '7 days',
+      '1m': '30 days',
+      '1a': '365 days',
+    };
+    const safeInterval: string | null = (period && VALID_PERIODS[period]) ? VALID_PERIODS[period] : null;
+    const intervalParam = safeInterval ? [safeInterval] : [];
+    const dateWhere = safeInterval ? `WHERE date_creation >= NOW() - $1::INTERVAL` : '';
+    const dateAnd = safeInterval ? `AND date_creation >= NOW() - $1::INTERVAL` : '';
 
     // Stats utilisateurs
     const usersStats = await this.db.query(`
-      SELECT 
+      SELECT
         COUNT(*) as total_users,
         COUNT(*) FILTER (WHERE is_active = TRUE) as active_users,
         COUNT(*) FILTER (WHERE is_active = FALSE) as inactive_users,
         COUNT(*) FILTER (WHERE date_creation >= NOW() - INTERVAL '30 days') as new_users_30d,
         COUNT(*) FILTER (WHERE date_creation >= NOW() - INTERVAL '7 days') as new_users_7d
       FROM users
-      ${dateFilter}
-    `);
+      ${dateWhere}
+    `, intervalParam);
 
-    // Stats par rôle (producteur, acheteur, vétérinaire, technicien)
-    let rolesStatsQuery = `
-      SELECT 
+    // Stats par rôle
+    const rolesStats = await this.db.query(`
+      SELECT
         active_role,
         COUNT(*) as count
       FROM users
       WHERE active_role IS NOT NULL
-    `
-    if (dateFilter) {
-      // Remplacer WHERE par AND car on a déjà un WHERE
-      rolesStatsQuery += ` ${dateFilter.replace('WHERE ', 'AND ')}`
-    }
-    rolesStatsQuery += ` GROUP BY active_role`
-    const rolesStats = await this.db.query(rolesStatsQuery);
+      ${dateAnd}
+      GROUP BY active_role
+    `, intervalParam);
 
     // Stats détaillées par rôle
-    let rolesDetailedQuery = `
-      SELECT 
+    const rolesDetailed = await this.db.query(`
+      SELECT
         active_role,
         COUNT(*) FILTER (WHERE is_active = TRUE) as active_count,
         COUNT(*) FILTER (WHERE is_active = FALSE) as inactive_count,
         COUNT(*) FILTER (WHERE date_creation >= NOW() - INTERVAL '30 days') as new_30d
       FROM users
       WHERE active_role IS NOT NULL
-    `
-    if (dateFilter) {
-      // Remplacer WHERE par AND car on a déjà un WHERE
-      rolesDetailedQuery += ` ${dateFilter.replace('WHERE ', 'AND ')}`
-    }
-    rolesDetailedQuery += ` GROUP BY active_role`
-    
-    const rolesDetailed = await this.db.query(rolesDetailedQuery);
+      ${dateAnd}
+      GROUP BY active_role
+    `, intervalParam);
 
     // Stats projets
     const projectsStats = await this.db.query(`
@@ -279,37 +269,29 @@ export class AdminService {
   // ==================== FINANCE ====================
 
   async getFinanceStats(period: 'day' | 'week' | 'month' = 'month') {
-    let interval: string;
-    switch (period) {
-      case 'day':
-        interval = '1 day';
-        break;
-      case 'week':
-        interval = '7 days';
-        break;
-      case 'month':
-        interval = '30 days';
-        break;
-      default:
-        interval = '30 days';
-    }
+    const PERIOD_INTERVALS: Record<string, string> = {
+      day: '1 day',
+      week: '7 days',
+      month: '30 days',
+    };
+    const interval = PERIOD_INTERVALS[period] ?? '30 days';
 
     // Revenus par période
     const revenueByPeriod = await this.db.query(`
-      SELECT 
+      SELECT
         DATE_TRUNC('day', created_at) as date,
         SUM(amount) as revenue,
         COUNT(*) as transaction_count
       FROM transactions
       WHERE status = 'completed'
-        AND created_at >= NOW() - INTERVAL '${interval}'
+        AND created_at >= NOW() - $1::INTERVAL
       GROUP BY DATE_TRUNC('day', created_at)
       ORDER BY date ASC
-    `);
+    `, [interval]);
 
     // Revenus par plan
     const revenueByPlan = await this.db.query(`
-      SELECT 
+      SELECT
         sp.name as plan_name,
         sp.display_name,
         COUNT(t.id) as transaction_count,
@@ -317,23 +299,23 @@ export class AdminService {
       FROM transactions t
       JOIN subscription_plans sp ON t.plan_id = sp.id
       WHERE t.status = 'completed'
-        AND t.created_at >= NOW() - INTERVAL '${interval}'
+        AND t.created_at >= NOW() - $1::INTERVAL
       GROUP BY sp.id, sp.name, sp.display_name
       ORDER BY total_revenue DESC
-    `);
+    `, [interval]);
 
     // Revenus par méthode de paiement
     const revenueByPaymentMethod = await this.db.query(`
-      SELECT 
+      SELECT
         payment_method,
         COUNT(*) as transaction_count,
         SUM(amount) as total_revenue
       FROM transactions
       WHERE status = 'completed'
-        AND created_at >= NOW() - INTERVAL '${interval}'
+        AND created_at >= NOW() - $1::INTERVAL
       GROUP BY payment_method
       ORDER BY total_revenue DESC
-    `);
+    `, [interval]);
 
     return {
       revenue_by_period: revenueByPeriod.rows,
@@ -693,16 +675,16 @@ export class AdminService {
 
   async getRevenueTrend(months: number = 6) {
     const revenueTrend = await this.db.query(`
-      SELECT 
+      SELECT
         DATE_TRUNC('month', created_at) as month,
         SUM(amount) as revenue,
         COUNT(*) as transaction_count
       FROM transactions
       WHERE status = 'completed'
-        AND created_at >= NOW() - INTERVAL '${months} months'
+        AND created_at >= NOW() - $1 * INTERVAL '1 month'
       GROUP BY DATE_TRUNC('month', created_at)
       ORDER BY month ASC
-    `);
+    `, [months]);
 
     return revenueTrend.rows;
   }

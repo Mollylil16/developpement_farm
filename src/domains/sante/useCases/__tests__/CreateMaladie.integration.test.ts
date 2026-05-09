@@ -3,8 +3,8 @@
  */
 
 import { CreateMaladieUseCase, type CreateMaladieInput } from '../CreateMaladie';
-import type { ISanteRepository } from '../repositories/ISanteRepository';
-import type { Maladie } from '../entities/Maladie';
+import type { ISanteRepository } from '../../repositories/ISanteRepository';
+import type { Maladie } from '../../entities/Maladie';
 
 // Mocks
 jest.mock('react-native-uuid', () => ({

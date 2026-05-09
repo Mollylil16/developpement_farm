@@ -721,7 +721,7 @@ const styles = StyleSheet.create({
 });
 
 // Composant Card pour les consultations
-const ConsultationCard: React.FC<{ consultation: VisiteVeterinaire; colors: unknown }> = ({
+const ConsultationCard: React.FC<{ consultation: VisiteVeterinaire; colors: any }> = ({
   consultation,
   colors,
 }) => {

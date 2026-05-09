@@ -338,7 +338,7 @@ export class UserRepository extends BaseRepository<User> {
   async uploadPhoto(userId: string, fileUri: string): Promise<string> {
     try {
       // Vérifier que le fichier existe
-      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      const fileInfo = await (FileSystem as any).getInfoAsync(fileUri);
       
       if (!fileInfo.exists) {
         throw new Error('Le fichier sélectionné n\'existe plus');
@@ -367,9 +367,9 @@ export class UserRepository extends BaseRepository<User> {
       const uploadUrl = `${API_CONFIG.baseURL}/users/${userId}/photo`;
 
       // Utiliser FileSystem.uploadAsync (plus fiable dans Expo Go que fetch+FormData)
-      const uploadResult = await FileSystem.uploadAsync(uploadUrl, fileUri, {
+      const uploadResult = await (FileSystem as any).uploadAsync(uploadUrl, fileUri, {
         httpMethod: 'POST',
-        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        uploadType: (FileSystem as any).FileSystemUploadType.MULTIPART,
         fieldName: 'photo',
         mimeType,
         headers: {
@@ -472,7 +472,7 @@ export class UserRepository extends BaseRepository<User> {
         retry: {
           attempts: 2,
           delay: 1000,
-        },
+        } as any,
       });
     } catch (error) {
       console.error('Erreur lors de la suppression de la photo de profil:', error);

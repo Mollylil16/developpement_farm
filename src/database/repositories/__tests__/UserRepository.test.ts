@@ -46,7 +46,7 @@ describe('UserRepository', () => {
       getAllAsync: jest.fn(),
     } as any;
 
-    repository = new UserRepository(mockDb);
+    repository = new UserRepository();
   });
 
   describe('constructor', () => {

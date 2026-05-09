@@ -2,7 +2,7 @@
  * Actions liées à la gestion des loges en mode bande
  */
 
-import { AgentActionResult, AgentContext } from '../../../types/chatAgent';
+import { AgentActionResult, AgentContext } from '../../../../types/chatAgent';
 import apiClient from '../../../api/apiClient';
 
 export class BatchActions {
@@ -46,8 +46,8 @@ export class BatchActions {
         success: true,
         data: result,
         message: totalCount > 0
-          ? `Loge ${result.pen_name} créée avec ${totalCount} sujets`
-          : `Loge ${result.pen_name} créée (vide)`,
+          ? `Loge ${(result as any).pen_name} créée avec ${totalCount} sujets`
+          : `Loge ${(result as any).pen_name} créée (vide)`,
       };
     } catch (error: any) {
       return {

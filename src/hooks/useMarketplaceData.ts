@@ -54,7 +54,7 @@ export function useMarketplaceData(options: MarketplaceDataOptions = {}) {
   } = options;
 
   const dispatch = useAppDispatch();
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => (state as any).auth);
   
   // États
   const [listings, setListings] = useState<any[]>([]);
@@ -109,7 +109,7 @@ export function useMarketplaceData(options: MarketplaceDataOptions = {}) {
       if (filters.region) params.region = filters.region;
       if (filters.sortBy) params.sort = filters.sortBy;
       
-      const data = await marketplaceService.getListings(params);
+      const data = await (marketplaceService as any).getListings(params);
       
       if (!mountedRef.current) return [];
       

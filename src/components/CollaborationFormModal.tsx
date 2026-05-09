@@ -41,7 +41,7 @@ export default function CollaborationFormModal({
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();
   const { activeRole } = useRole();
-  const currentUser = useAppSelector((state) => state.auth?.user);
+  const currentUser = useAppSelector((state) => (state as any).auth?.user);
 
   // Vérifier si l'utilisateur est propriétaire du projet actif
   const isProprietaire =
@@ -118,8 +118,15 @@ export default function CollaborationFormModal({
       return;
     }
 
-    // Validation avec Yup
-    const { isValid, errors: validationErrors } = await validateCollaborateur(formData);
+    // Validation avec Yup - convertir undefined en null pour compatibilité
+    const validationData = {
+      ...formData,
+      telephone: formData.telephone ?? null,
+      notes: formData.notes ?? null,
+      permissions: formData.permissions ?? null,
+      statut: formData.statut ?? 'actif',
+    };
+    const { isValid, errors: validationErrors } = await validateCollaborateur(validationData as any);
     if (!isValid) {
       const firstError = Object.values(validationErrors)[0];
       Alert.alert(
@@ -136,7 +143,7 @@ export default function CollaborationFormModal({
         const { projet_id, ...updates } = formData;
         // ✅ Ne pas envoyer l'email s'il est vide ou invalide
         if (!updates.email || updates.email.trim() === '') {
-          delete updates.email;
+          delete (updates as any).email;
         }
         await dispatch(
           updateCollaborateur({

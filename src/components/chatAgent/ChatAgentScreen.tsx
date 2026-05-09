@@ -21,16 +21,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/theme';
 import { useChatAgent } from '../../hooks/useChatAgent';
-import { ChatMessage, SujetDisponible } from '../../types/chatAgent';
+import { ChatMessage } from '../../types/chatAgent';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useAppSelector } from '../../store/hooks';
-import { VoiceService } from '../../services/chatAgent';
-import ProfilePhoto from '../ProfilePhoto';
-import { VoiceInputButton } from '../chat/VoiceInputButton';
-import { VoiceServiceV2 } from '../../services/chatAgent/VoiceServiceV2';
-import { logger } from '../../utils/logger';
-import TypingIndicator from './TypingIndicator';
+import { Image } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { DiagnosticService, DiagnosticResult } from '../../services/chatAgent/DiagnosticService';
+import DiagnosticModal from './DiagnosticModal';
 
 interface ChatAgentScreenProps {
   onClose?: () => void;
@@ -40,7 +38,6 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
   const {
     messages,
     isLoading,
-    isThinking,
     isInitialized,
     reminders,
     voiceEnabled,
@@ -50,25 +47,26 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
     voiceService,
   } = useChatAgent();
 
-  const { user } = useAppSelector((state) => state.auth ?? { user: null });
+  const { user } = useAppSelector((state) => (state as any).auth);
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const flatListRef = useRef<FlatList>(null);
-  const voiceServiceRef = useRef<VoiceService | null>(null);
-  const voiceServiceV2Ref = useRef<VoiceServiceV2 | null>(null);
-  const lastReadMessageIdRef = useRef<string | null>(null); // Suivre le dernier message lu
+  const voiceServiceRef = useRef<any>(null);
   
-  // Initialiser VoiceServiceV2
-  useEffect(() => {
-    voiceServiceV2Ref.current = new VoiceServiceV2();
-    return () => {
-      voiceServiceV2Ref.current?.destroy().catch((error) => logger.error('[ChatAgentScreen] Destroy error:', error));
-    };
-  }, []);
+  // État pour le diagnostic
+  const [diagnosticService] = useState(() => new DiagnosticService());
+  const [diagnosticResult, setDiagnosticResult] = useState<DiagnosticResult | null>(null);
+  const [showDiagnosticModal, setShowDiagnosticModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Générer les initiales de l'utilisateur
   const userInitials = user?.prenom?.[0] || user?.nom?.[0] || 'U';
+
+  // Initialiser le service de diagnostic
+  useEffect(() => {
+    diagnosticService.initialize();
+  }, []);
 
   // Stocker la référence du service vocal
   useEffect(() => {
@@ -77,41 +75,107 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
     }
   }, [voiceService]);
 
-  // Auto-scroll au dernier message et faire parler Kouakou si nécessaire
+  // Auto-scroll au dernier message
   useEffect(() => {
     if (messages.length > 0) {
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
-      
-      // Faire parler Kouakou si la voix est activée et qu'on vient de recevoir une nouvelle réponse
-      if (voiceEnabled && voiceServiceV2Ref.current) {
-        const lastMessage = messages[messages.length - 1];
-        
-        // Ne lire que si c'est un nouveau message assistant (pas déjà lu)
-        if (
-          lastMessage.role === 'assistant' && 
-          lastMessage.content &&
-          lastMessage.id !== lastReadMessageIdRef.current
-        ) {
-          // Marquer ce message comme lu
-          lastReadMessageIdRef.current = lastMessage.id;
-          
-          // Arrêter toute lecture en cours avant de lire le nouveau message
-          voiceServiceV2Ref.current.stopSpeaking().catch((error) => {
-            logger.warn('[ChatAgentScreen] Erreur arrêt lecture:', error);
-          });
-          
-          // Attendre un peu pour que l'utilisateur voie le message
-          setTimeout(() => {
-            if (voiceServiceV2Ref.current && lastReadMessageIdRef.current === lastMessage.id) {
-              voiceServiceV2Ref.current.speak(lastMessage.content);
-            }
-          }, 800);
-        }
+    }
+  }, [messages.length]);
+
+  /**
+   * Analyse les symptômes dans un message et détecte les maladies possibles
+   */
+  const analyzeSymptomsInMessage = (message: string): DiagnosticResult | null => {
+    // Mots-clés qui indiquent une description de symptômes
+    const symptomKeywords = [
+      'symptome', 'symptomes', 'malade', 'maladie', 'probleme',
+      'fièvre', 'fievre', 'diarrhée', 'diarrhee', 'vomir', 'tousse',
+      'plaques', 'rouge', 'lésion', 'lesion', 'grattait', 'boite',
+      'avorte', 'mort', 'meurt', 'saigne', 'hémorragie', 'hemorragie'
+    ];
+
+    const lowerMessage = message.toLowerCase();
+    const hasSymptomKeywords = symptomKeywords.some(keyword => lowerMessage.includes(keyword));
+
+    if (hasSymptomKeywords) {
+      const diagnostic = diagnosticService.analyzeSymptoms(message);
+      if (diagnostic.disease && diagnostic.confidence > 0.3) {
+        return diagnostic;
       }
     }
-  }, [messages.length, voiceEnabled]);
+
+    return null;
+  };
+
+  /**
+   * Gère la sélection d'une photo pour analyse
+   */
+  const handlePickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission requise', 'Nous avons besoin de l\'accès à vos photos pour analyser les images.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+        setSelectedImage(imageUri);
+        
+        // Analyser l'image (pour l'instant, on demande à l'utilisateur de décrire)
+        Alert.alert(
+          'Analyse d\'image',
+          'Pour une analyse précise, peux-tu décrire ce que tu vois sur la photo ? (plaques rouges, lésions, diarrhée visible, etc.)',
+          [
+            { text: 'Annuler', style: 'cancel' },
+            {
+              text: 'Décrire',
+              onPress: () => {
+                // L'utilisateur pourra décrire dans le message
+                setInputText(prev => prev + ' [Photo jointe] ');
+              },
+            },
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Erreur sélection image:', error);
+      Alert.alert('Erreur', 'Impossible de sélectionner une image.');
+    }
+  };
+
+  /**
+   * Gère la confirmation du diagnostic et l'enregistrement
+   */
+  const handleConfirmDiagnostic = async (diagnostic: DiagnosticResult) => {
+    if (!diagnostic.disease) return;
+
+    try {
+      // Envoyer un message pour enregistrer la maladie
+      const message = `Enregistre une maladie : ${diagnostic.disease.name}. Symptômes : ${diagnostic.matchedSymptoms.join(', ')}. Gravité : ${diagnostic.disease.gravity}.`;
+      await sendMessage(message);
+
+      // Si urgence critique, alerter
+      if (diagnostic.urgency === 'critique' || diagnostic.requiresVetAlert) {
+        Alert.alert(
+          '⚠️ URGENCE VÉTÉRINAIRE',
+          `Maladie grave détectée : ${diagnostic.disease.name}\n\nContacte un vétérinaire en urgence !`,
+          [{ text: 'Compris' }]
+        );
+      }
+    } catch (error) {
+      console.error('Erreur enregistrement diagnostic:', error);
+      Alert.alert('Erreur', 'Impossible d\'enregistrer le diagnostic.');
+    }
+  };
 
   const handleSend = async () => {
     const content = inputText.trim();
@@ -119,41 +183,51 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
 
     try {
       setSending(true);
+      
+      // Analyser les symptômes avant d'envoyer
+      const diagnostic = analyzeSymptomsInMessage(content);
+      
+      if (diagnostic && diagnostic.disease) {
+        // Afficher le modal de diagnostic
+        setDiagnosticResult(diagnostic);
+        setShowDiagnosticModal(true);
+        setInputText(''); // Vider l'input mais ne pas envoyer encore
+        setSending(false);
+        return;
+      }
+
+      // Si pas de diagnostic, envoyer normalement
       setInputText('');
       await sendMessage(content);
-      // La lecture de la réponse sera gérée par le useEffect qui surveille messages.length
-      // Pas besoin de lire ici pour éviter les doublons
     } catch (error) {
-      logger.error('Erreur envoi message:', error);
-      Alert.alert('Erreur', "Impossible d'envoyer le message. Réessayez.");
+      console.error('Erreur envoi message:', error);
+      Alert.alert('Erreur', 'Impossible d\'envoyer le message. Réessayez.');
     } finally {
       setSending(false);
     }
   };
 
   const handleClear = () => {
-    Alert.alert('Effacer la conversation', 'Voulez-vous vraiment effacer toute la conversation ?', [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Effacer',
-        style: 'destructive',
-        onPress: () => {
-          // Arrêter toute lecture en cours
-          voiceServiceV2Ref.current?.stopSpeaking().catch((error) => {
-            logger.warn('[ChatAgentScreen] Erreur arrêt lecture lors effacement:', error);
-          });
-          // Réinitialiser le ref du dernier message lu
-          lastReadMessageIdRef.current = null;
-          clearConversation();
-          setInputText('');
+    Alert.alert(
+      'Effacer la conversation',
+      'Voulez-vous vraiment effacer toute la conversation ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Effacer',
+          style: 'destructive',
+          onPress: () => {
+            clearConversation();
+            setInputText('');
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   const handleVoiceInput = async () => {
     if (!voiceServiceRef.current || !isInitialized) {
-      Alert.alert('Erreur', "Le service vocal n'est pas disponible");
+      Alert.alert('Erreur', 'Le service vocal n\'est pas disponible');
       return;
     }
 
@@ -165,8 +239,8 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
         if (transcript && transcript.trim()) {
           setInputText(transcript.trim());
         }
-      } catch (error: unknown) {
-        logger.error('Erreur arrêt écoute:', error);
+      } catch (error: any) {
+        console.error('Erreur arrêt écoute:', error);
         setIsListening(false);
       }
     } else {
@@ -176,19 +250,15 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
         if (voiceServiceRef.current) {
           voiceServiceRef.current.setSpeechToTextEnabled(true);
         }
-
+        
         // Mettre à jour l'état avant l'appel asynchrone pour un feedback immédiat
         setIsListening(true);
-
+        
         // Utiliser un timeout pour éviter que l'opération bloque trop longtemps
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(
-            () =>
-              reject(new Error('Timeout: La reconnaissance vocale prend trop de temps à démarrer')),
-            5000
-          );
+          setTimeout(() => reject(new Error('Timeout: La reconnaissance vocale prend trop de temps à démarrer')), 5000);
         });
-
+        
         await Promise.race([
           voiceServiceRef.current.startListening((transcript: string) => {
             // Mise à jour en temps réel du texte transcrit (déjà optimisé dans VoiceService)
@@ -198,58 +268,28 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
           }),
           timeoutPromise,
         ]);
-      } catch (error: unknown) {
-        logger.error('Erreur démarrage écoute:', error);
+      } catch (error: any) {
+        console.error('Erreur démarrage écoute:', error);
         setIsListening(false);
-
+        
         // Message d'erreur plus informatif
-        let errorMessage =
-          (error instanceof Error ? error.message : String(error)) || 'Impossible de démarrer la reconnaissance vocale.';
+        let errorMessage = error.message || 'Impossible de démarrer la reconnaissance vocale.';
         if (errorMessage.includes('Timeout')) {
-          errorMessage =
-            'La reconnaissance vocale prend trop de temps. Essayez de nouveau ou utilisez la saisie texte.';
+          errorMessage = 'La reconnaissance vocale prend trop de temps. Essayez de nouveau ou utilisez la saisie texte.';
         } else if (errorMessage.includes('Permission')) {
-          errorMessage =
-            "Permission microphone requise. Activez-la dans les paramètres de l'application.";
-        } else if (errorMessage.includes("n'est pas disponible")) {
-          errorMessage =
-            "La reconnaissance vocale n'est pas disponible sur cette plateforme. Utilisez la saisie texte.";
+          errorMessage = 'Permission microphone requise. Activez-la dans les paramètres de l\'application.';
+        } else if (errorMessage.includes('n\'est pas disponible')) {
+          errorMessage = 'La reconnaissance vocale n\'est pas disponible sur cette plateforme. Utilisez la saisie texte.';
         }
-
+        
         Alert.alert('Erreur', errorMessage);
       }
     }
   };
 
-  // État pour la sélection des sujets
-  const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
-
-  const handleSubjectIdClick = (subjectId: string) => {
-    setSelectedSubjectIds((prev) => {
-      if (prev.includes(subjectId)) {
-        // Désélectionner
-        return prev.filter((id) => id !== subjectId);
-      } else {
-        // Sélectionner
-        return [...prev, subjectId];
-      }
-    });
-  };
-
-  const handleConfirmSelection = () => {
-    if (selectedSubjectIds.length === 0) {
-      Alert.alert('Sélection requise', 'Veuillez sélectionner au moins un porc.');
-      return;
-    }
-    // Envoyer les IDs sélectionnés comme message
-    sendMessage(`IDs sélectionnés : ${selectedSubjectIds.join(', ')}`);
-    setSelectedSubjectIds([]);
-  };
-
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     const isUser = item.role === 'user';
     const isSystem = item.role === 'system';
-    const sujetsDisponibles = item.metadata?.sujetsDisponibles as SujetDisponible[] | undefined;
 
     if (isSystem) {
       return (
@@ -258,74 +298,6 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
         </View>
       );
     }
-
-    // Extraire les IDs du message pour les rendre cliquables
-    const renderMessageWithClickableIds = (content: string) => {
-      if (!sujetsDisponibles || sujetsDisponibles.length === 0) {
-        return <Text style={[styles.messageText, { color: isUser ? COLORS.textOnPrimary : COLORS.text }]}>{content}</Text>;
-      }
-
-      // Créer une regex pour trouver les IDs dans le format [ID: 1024]
-      const parts: Array<string | { id: string; isButton: true }> = [];
-      let lastIndex = 0;
-      const idRegex = /\[ID:\s*(\d+)\]/g;
-      let match;
-
-      while ((match = idRegex.exec(content)) !== null) {
-        // Ajouter le texte avant l'ID
-        if (match.index > lastIndex) {
-          parts.push(content.substring(lastIndex, match.index));
-        }
-        // Ajouter l'ID comme bouton
-        parts.push({ id: match[1], isButton: true });
-        lastIndex = match.index + match[0].length;
-      }
-
-      // Ajouter le texte restant
-      if (lastIndex < content.length) {
-        parts.push(content.substring(lastIndex));
-      }
-
-      return (
-        <View>
-          {parts.map((part, index) => {
-            if (typeof part === 'object' && part.isButton) {
-              const isSelected = selectedSubjectIds.includes(part.id);
-              return (
-                <TouchableOpacity
-                  key={`id-${part.id}-${index}`}
-                  style={[
-                    styles.subjectIdButton,
-                    {
-                      backgroundColor: isSelected ? COLORS.primary : COLORS.surface,
-                      borderColor: COLORS.primary,
-                    },
-                  ]}
-                  onPress={() => handleSubjectIdClick(part.id)}
-                >
-                  <Text
-                    style={[
-                      styles.subjectIdButtonText,
-                      { color: isSelected ? COLORS.textOnPrimary : COLORS.primary },
-                    ]}
-                  >
-                    ID: {part.id}
-                  </Text>
-                </TouchableOpacity>
-              );
-            }
-            return (
-              <Text
-                key={`text-${index}`}
-                style={[styles.messageText, { color: isUser ? COLORS.textOnPrimary : COLORS.text }]}
-              >
-                {typeof part === 'string' ? part : ''}
-              </Text>
-            );
-          })}
-        </View>
-      );
-    };
 
     return (
       <View
@@ -349,24 +321,9 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
                 { backgroundColor: COLORS.surface, marginRight: 8 },
               ]}
             >
-              {renderMessageWithClickableIds(item.content)}
-
-              {/* Afficher les boutons de confirmation si des sujets sont sélectionnés */}
-              {sujetsDisponibles && sujetsDisponibles.length > 0 && selectedSubjectIds.length > 0 && (
-                <View style={styles.selectionActions}>
-                  <Text style={[styles.selectionText, { color: COLORS.textSecondary }]}>
-                    {selectedSubjectIds.length} porc(s) sélectionné(s)
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.confirmButton, { backgroundColor: COLORS.primary }]}
-                    onPress={handleConfirmSelection}
-                  >
-                    <Text style={[styles.confirmButtonText, { color: COLORS.textOnPrimary }]}>
-                      Confirmer
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+              <Text style={[styles.messageText, { color: COLORS.text }]}>
+                {item.content}
+              </Text>
 
               {item.metadata?.actionExecuted && (
                 <View style={styles.actionBadge}>
@@ -401,28 +358,33 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
 
               {item.metadata?.actionExecuted && (
                 <View style={styles.actionBadge}>
-                  <Ionicons name="checkmark-circle" size={12} color={COLORS.textOnPrimary} />
-                  <Text style={[styles.actionBadgeText, { color: COLORS.textOnPrimary }]}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={12}
+                    color={COLORS.textOnPrimary}
+                  />
+                  <Text
+                    style={[styles.actionBadgeText, { color: COLORS.textOnPrimary }]}
+                  >
                     Action exécutée
                   </Text>
                 </View>
               )}
 
-              <Text style={[styles.timestamp, { color: COLORS.textOnPrimary + '80' }]}>
+              <Text
+                style={[styles.timestamp, { color: COLORS.textOnPrimary + '80' }]}
+              >
                 {format(new Date(item.timestamp), 'HH:mm', { locale: fr })}
               </Text>
             </View>
             <View style={styles.avatarContainer}>
-              <ProfilePhoto
-                uri={user?.photo || null}
-                size={32}
-                style={styles.userAvatar}
-                placeholder={
-                  <View style={[styles.userAvatar, styles.userAvatarPlaceholder]}>
-                    <Text style={styles.userAvatarInitials}>{userInitials}</Text>
-                  </View>
-                }
-              />
+              {user?.photo ? (
+                <Image source={{ uri: user.photo }} style={styles.userAvatar} />
+              ) : (
+                <View style={[styles.userAvatar, styles.userAvatarPlaceholder]}>
+                  <Text style={styles.userAvatarInitials}>{userInitials}</Text>
+                </View>
+              )}
             </View>
           </>
         )}
@@ -500,87 +462,103 @@ export default function ChatAgentScreen({ onClose }: ChatAgentScreenProps) {
         {renderHeader()}
         {renderReminders()}
 
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={renderMessage}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.messagesList}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="chatbubbles-outline" size={48} color={COLORS.textSecondary} />
-              <Text style={styles.emptyText}>Commencez à discuter avec votre assistant !</Text>
-            </View>
-          }
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        renderItem={renderMessage}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.messagesList}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Ionicons name="chatbubbles-outline" size={48} color={COLORS.textSecondary} />
+            <Text style={styles.emptyText}>
+              Commencez à discuter avec votre assistant !
+            </Text>
+          </View>
+        }
+      />
+
+      {isLoading && (
+        <View style={styles.typingIndicator}>
+          <ActivityIndicator size="small" color={COLORS.primary} />
+          <Text style={styles.typingText}>L'assistant écrit...</Text>
+        </View>
+      )}
+
+      <View style={styles.inputContainer}>
+        <TouchableOpacity
+          style={[
+            styles.voiceButton,
+            isListening && styles.voiceButtonActive,
+          ]}
+          onPress={handleVoiceInput}
+          disabled={sending || !isInitialized}
+        >
+          {isListening ? (
+            <ActivityIndicator size="small" color={COLORS.error} />
+          ) : (
+            <Ionicons
+              name="mic"
+              size={24}
+              color={COLORS.primary}
+            />
+          )}
+        </TouchableOpacity>
+
+        {/* Bouton photo pour diagnostic */}
+        <TouchableOpacity
+          style={styles.photoButton}
+          onPress={handlePickImage}
+          disabled={sending || !isInitialized}
+        >
+          <Ionicons
+            name="camera"
+            size={24}
+            color={COLORS.primary}
+          />
+        </TouchableOpacity>
+
+        <TextInput
+          style={styles.textInput}
+          placeholder="Tapez votre message..."
+          placeholderTextColor={COLORS.textSecondary}
+          value={inputText}
+          onChangeText={setInputText}
+          multiline
+          maxLength={1000}
+          editable={!sending && isInitialized}
+          onSubmitEditing={handleSend}
         />
 
-        {/* Indicateur animé: Kouakou réfléchit ou écrit */}
-        {(isThinking || isLoading) && (
-          <TypingIndicator 
-            message={isThinking ? 'Kouakou réfléchit' : 'Kouakou écrit'} 
-          />
-        )}
-
-        <View style={styles.inputContainer}>
-          {/* Bouton vocal amélioré */}
-          {voiceEnabled && voiceServiceV2Ref.current ? (
-            <VoiceInputButton
-              onTranscription={(text) => {
-                setInputText(text);
-                // Optionnel : envoyer automatiquement après transcription
-                // handleSend();
-              }}
-              onError={(message) => {
-                Alert.alert('Erreur vocale', message);
-              }}
-              disabled={sending || !isInitialized}
-              voiceService={voiceServiceV2Ref.current}
-            />
+        <TouchableOpacity
+          style={[
+            styles.sendButton,
+            {
+              backgroundColor: inputText.trim() && !sending ? COLORS.primary : COLORS.textSecondary,
+            },
+          ]}
+          onPress={handleSend}
+          disabled={!inputText.trim() || sending || !isInitialized}
+        >
+          {sending ? (
+            <ActivityIndicator size="small" color={COLORS.textOnPrimary} />
           ) : (
-            <TouchableOpacity
-              style={[styles.voiceButton, isListening && styles.voiceButtonActive]}
-              onPress={handleVoiceInput}
-              disabled={sending || !isInitialized}
-            >
-              {isListening ? (
-                <ActivityIndicator size="small" color={COLORS.error} />
-              ) : (
-                <Ionicons name="mic" size={24} color={COLORS.primary} />
-              )}
-            </TouchableOpacity>
+            <Ionicons name="send" size={20} color={COLORS.textOnPrimary} />
           )}
+        </TouchableOpacity>
+      </View>
 
-          <TextInput
-            style={styles.textInput}
-            placeholder="Tapez votre message..."
-            placeholderTextColor={COLORS.textSecondary}
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-            maxLength={1000}
-            editable={!sending && isInitialized}
-            onSubmitEditing={handleSend}
-          />
-
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              {
-                backgroundColor:
-                  inputText.trim() && !sending && !isThinking ? COLORS.primary : COLORS.textSecondary,
-              },
-            ]}
-            onPress={handleSend}
-            disabled={!inputText.trim() || sending || isThinking || !isInitialized}
-          >
-            {sending || isThinking ? (
-              <ActivityIndicator size="small" color={COLORS.textOnPrimary} />
-            ) : (
-              <Ionicons name="send" size={20} color={COLORS.textOnPrimary} />
-            )}
-          </TouchableOpacity>
-        </View>
+      {/* Modal de diagnostic */}
+      <DiagnosticModal
+        visible={showDiagnosticModal}
+        diagnostic={diagnosticResult}
+        onClose={() => {
+          setShowDiagnosticModal(false);
+          setDiagnosticResult(null);
+        }}
+        onConfirm={handleConfirmDiagnostic}
+      />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -678,7 +656,7 @@ const styles = StyleSheet.create({
   },
   messagesList: {
     padding: 12,
-    paddingBottom: 100, // ✅ Espace pour voir le dernier message
+    paddingBottom: 8,
   },
   messageContainer: {
     flexDirection: 'row',
@@ -785,9 +763,20 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
   },
-  inputContainer: {
+  typingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  typingText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
     padding: 12,
     backgroundColor: COLORS.surface,
     borderTopWidth: 1,
@@ -795,14 +784,19 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   voiceButton: {
-    width: 40,
-    height: 40,
+    padding: 8,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 20,
   },
   voiceButtonActive: {
     backgroundColor: COLORS.error + '20',
+  },
+  photoButton: {
+    padding: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
   },
   textInput: {
     flex: 1,
@@ -814,7 +808,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     fontSize: 15,
     color: COLORS.text,
-    textAlignVertical: 'center',
   },
   sendButton: {
     width: 40,
@@ -823,39 +816,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  subjectIdButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    marginVertical: 4,
-    marginRight: 8,
-    alignSelf: 'flex-start',
-  },
-  subjectIdButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  selectionActions: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  selectionText: {
-    fontSize: 12,
-    flex: 1,
-  },
-  confirmButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  confirmButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
 });
+

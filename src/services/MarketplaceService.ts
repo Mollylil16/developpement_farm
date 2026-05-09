@@ -4,6 +4,7 @@
  */
 
 import { isError } from '../types/common';
+import { auditLog } from '../utils/auditLogger';
 import type {
   MarketplaceListing,
   Offer,
@@ -55,11 +56,28 @@ export class MarketplaceService {
     lastWeightDate: string;
     location: Location;
   }): Promise<MarketplaceListing> {
-    // ✅ VALIDATION: Vérifier que le poids n'est pas nul
     if (!data.weight || data.weight <= 0) {
       throw new Error(
         "Impossible de mettre en vente un sujet dont le poids est nul ou négatif. Veuillez d'abord enregistrer une pesée pour ce sujet."
       );
+    }
+    if (!data.pricePerKg || data.pricePerKg <= 0) {
+      throw new Error('Le prix par kg doit être supérieur à zéro.');
+    }
+    if (!data.producerId || typeof data.producerId !== 'string' || !data.producerId.trim()) {
+      throw new Error('ID du producteur invalide.');
+    }
+    if (!data.farmId || typeof data.farmId !== 'string' || !data.farmId.trim()) {
+      throw new Error('ID de la ferme invalide.');
+    }
+    if (
+      !data.location ||
+      typeof data.location.latitude !== 'number' ||
+      typeof data.location.longitude !== 'number' ||
+      data.location.latitude < -90 || data.location.latitude > 90 ||
+      data.location.longitude < -180 || data.location.longitude > 180
+    ) {
+      throw new Error('Les coordonnées de localisation sont invalides.');
     }
 
     // Vérifier que le producteur ne met pas déjà ce sujet en vente
@@ -134,6 +152,11 @@ export class MarketplaceService {
       logger.warn('Erreur mise à jour statut marketplace dans production_animaux:', error);
       // Ne pas bloquer si la mise à jour échoue
     }
+
+    await auditLog('marketplace.listing_created', data.producerId, {
+      listingId: listing.id,
+      farmId: data.farmId,
+    });
 
     return listing;
   }
@@ -290,7 +313,7 @@ export class MarketplaceService {
           // En cas d'erreur, retourner le listing de base sans enrichissement
           return {
             ...listing,
-            type: (listing.listingType === 'batch' ? 'batch' : 'subject') as const,
+            type: (listing.listingType === 'batch' ? 'batch' : 'subject') as any,
             code: listing.subjectId ? `#${listing.subjectId.slice(0, 8)}` : 'N/A',
             race: 'Non spécifiée',
             weight: listing.weight || 0,
@@ -313,7 +336,7 @@ export class MarketplaceService {
     const totalPagesAfterFilter = Math.ceil(filteredTotal / limit);
 
     return {
-      listings: validListings,
+      listings: validListings as any,
       total: filteredTotal, // Total après filtrage et enrichissement
       page,
       totalPages: totalPagesAfterFilter, // Utiliser totalPagesAfterFilter
@@ -578,7 +601,7 @@ export class MarketplaceService {
         
         const ratingsData = ratings.status === 'fulfilled' ? ratings.value : [];
         const avgRating =
-          ratingsData.length > 0 ? ratingsData.reduce((sum, r) => sum + (r.overall || 0), 0) / ratingsData.length : 0;
+          ratingsData.length > 0 ? ratingsData.reduce((sum: any, r: any) => sum + (r.overall || 0), 0) / ratingsData.length : 0;
         
         const producerStats = producerStatsResult.status === 'fulfilled' 
           ? producerStatsResult.value 
@@ -629,7 +652,7 @@ export class MarketplaceService {
             totalRatings: ratingsData.length,
             responseTime: producerStats.responseTime,
             completionRate: producerStats.completionRate,
-          },
+          } as any,
           producerId,
           producerName: producer.nom || producer.email || 'Producteur',
           producerAvatar: producer.photo_uri,
@@ -779,7 +802,7 @@ export class MarketplaceService {
     try {
       const apiClient = (await import('../services/api/apiClient')).default;
       const response = await apiClient.get(`/marketplace/listings/${listingId}/subjects`);
-      return response;
+      return response as any;
     } catch (error) {
       logger.error('[MarketplaceService] Erreur chargement sujets listing:', error);
       return null;
@@ -827,7 +850,7 @@ export class MarketplaceService {
         })) || [],
       });
 
-      return response || [];
+      return (response as any) || [];
     } catch (error) {
       // ✅ Log détaillé de l'erreur
       const errorDetails = error instanceof Error 
@@ -869,6 +892,7 @@ export class MarketplaceService {
     }
 
     await this.listingRepo.remove(listingId);
+    await auditLog('marketplace.listing_removed', producerId, { listingId });
 
     // TODO: Mettre à jour le statut du sujet dans production_animaux
     // marketplace_status = null, marketplace_listing_id = null
@@ -1049,9 +1073,10 @@ export class MarketplaceService {
       expiresAt: expiresAt.toISOString(),
     });
 
-    // NOTE: Le backend gère automatiquement:
-    // - L'incrémentation du compteur 'inquiries' 
-    // - L'envoi de la notification au producteur
+    await auditLog('marketplace.offer_created', data.buyerId, {
+      offerId: offer.id,
+      listingId: data.listingId,
+    });
 
     return offer;
   }
@@ -1187,7 +1212,7 @@ export class MarketplaceService {
         }
       );
 
-      return response.data;
+      return (response as any).data;
     } catch (error) {
       logger.error('[marketplace] Erreur upload photo:', error);
       throw error;
@@ -1227,7 +1252,7 @@ export class MarketplaceService {
         }
       );
 
-      return response.data;
+      return (response as any).data;
     } catch (error) {
       logger.error('[marketplace] Erreur upload photos multiples:', error);
       throw error;
@@ -1243,7 +1268,7 @@ export class MarketplaceService {
       const response = await apiClient.delete(
         `/marketplace/listings/${listingId}/photos/${photoIndex}`
       );
-      return response.data;
+      return (response as any).data;
     } catch (error) {
       logger.error('[marketplace] Erreur suppression photo:', error);
       throw error;

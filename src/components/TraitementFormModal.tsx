@@ -28,7 +28,6 @@ import {
   VOIE_ADMINISTRATION_LABELS,
 } from '../types/sante';
 import { formatLocalDate, parseLocalDate } from '../utils/dateUtils';
-import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface Props {
   visible: boolean;
@@ -47,8 +46,7 @@ export default function TraitementFormModal({
 }: Props) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
-  const projetActif = useProjetEffectif();
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   const maladies = useAppSelector(selectAllMaladies);
 
   const isEditing = !!traitement;
@@ -123,7 +121,7 @@ export default function TraitementFormModal({
     }
   }, [traitement]);
 
-  const handleDatePickerChange = (event: unknown, selectedDate?: Date) => {
+  const handleDatePickerChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
     if (selectedDate) {
       const dateString = formatLocalDate(selectedDate.toISOString());
@@ -182,7 +180,7 @@ export default function TraitementFormModal({
               veterinaire: formData.veterinaire || undefined,
               cout: formData.cout ? parseFloat(formData.cout) : undefined,
               termine: formData.termine,
-              efficace: formData.efficace ? Boolean(formData.efficace) : undefined,
+              efficace: formData.efficace ? (parseInt(formData.efficace) > 0) : undefined,
               effets_secondaires: formData.effets_secondaires || undefined,
               notes: formData.notes || undefined,
             },
@@ -208,7 +206,7 @@ export default function TraitementFormModal({
           veterinaire: formData.veterinaire || undefined,
           cout: formData.cout ? parseFloat(formData.cout) : undefined,
           termine: formData.termine,
-          efficace: formData.efficace ? Boolean(formData.efficace) : undefined,
+          efficace: formData.efficace ? (parseInt(formData.efficace) > 0) : undefined,
           effets_secondaires: formData.effets_secondaires || undefined,
           notes: formData.notes || undefined,
         };
@@ -217,9 +215,8 @@ export default function TraitementFormModal({
       }
 
       onClose();
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : String(err) || "Erreur lors de l'enregistrement";
-      setError(errorMessage);
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de l'enregistrement");
     } finally {
       setLoading(false);
     }

@@ -17,9 +17,7 @@ import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { createGestation, updateGestation } from '../store/slices/reproductionSlice';
 import { loadProductionAnimaux } from '../store/slices/productionSlice';
 import { loadMortalitesParProjet } from '../store/slices/mortalitesSlice';
-import type { Gestation, CreateGestationInput } from '../types/reproduction';
-import type { ProductionAnimal } from '../types/production';
-import type { Mortalite } from '../types/mortalites';
+import { Gestation, CreateGestationInput, ProductionAnimal, Mortalite } from '../types';
 import { calculerDateMiseBasPrevue } from '../types/reproduction';
 import CustomModal from './CustomModal';
 import FormField from './FormField';
@@ -28,7 +26,6 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useActionPermissions } from '../hooks/useActionPermissions';
 import { selectAllAnimaux } from '../store/selectors/productionSelectors';
 import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
-import { logger } from '../utils/logger';
 import {
   detecterConsanguinite,
   getCouleurRisque,
@@ -39,7 +36,6 @@ import {
   RisqueConsanguinite,
 } from '../utils/consanguiniteUtils';
 import { validateGestation } from '../validation/reproductionSchemas';
-import { useProjetEffectif } from '../hooks/useProjetEffectif';
 
 interface GestationFormModalProps {
   visible: boolean;
@@ -71,7 +67,7 @@ const getTodayLocalDate = () => {
   return `${year}-${month}-${day}`;
 };
 
-function GestationFormModal({
+export default function GestationFormModal({
   visible,
   onClose,
   onSuccess,
@@ -80,23 +76,11 @@ function GestationFormModal({
 }: GestationFormModalProps) {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
-  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
-  const projetActif = useProjetEffectif();
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   const animaux: ProductionAnimal[] = useAppSelector(selectAllAnimaux);
   const mortalites: Mortalite[] = useAppSelector(selectAllMortalites);
   const { canCreate, canUpdate } = useActionPermissions();
   const [loading, setLoading] = useState(false);
-  
-  // Détecter le mode de gestion (individuel ou bande)
-  const isModeBatch = projetActif?.management_method === 'batch';
-  
-  // État pour les bandes (mode bande uniquement)
-  const [batches, setBatches] = useState<any[]>([]);
-  const [loadingBatches, setLoadingBatches] = useState(false);
-  // État pour les verrats batch (mode bande uniquement)
-  const [verratsBatch, setVerratsBatch] = useState<any[]>([]);
-  // État pour les truies batch individuelles (mode bande uniquement)
-  const [truiesBatch, setTruiesBatch] = useState<any[]>([]);
   const [formData, setFormData] = useState<CreateGestationInput>({
     projet_id: projetActif?.id ?? '',
     truie_id: '',
@@ -117,147 +101,42 @@ function GestationFormModal({
     null
   );
 
-  // Charger les bandes en mode batch
-  useEffect(() => {
-    if (!projetActif?.id || !isModeBatch || !visible) return;
-
-    const loadBatches = async () => {
-      setLoadingBatches(true);
-      try {
-        const apiClient = (await import('../services/api/apiClient')).default;
-        const batchesData = await apiClient.get<any[]>(`/batch-pigs/projet/${projetActif.id}`);
-        // Filtrer uniquement les bandes de truies reproductrices
-        const truiesBatches = batchesData.filter((b) => b.category === 'truie_reproductrice');
-        setBatches(truiesBatches);
-        
-        // Charger les truies batch individuelles (batch_pigs dans chaque bande de truies)
-        const allTruiesBatch: any[] = [];
-        for (const batch of truiesBatches) {
-          try {
-            const batchPigs = await apiClient.get<any[]>(`/batch-pigs/batch/${batch.id}`);
-            // Convertir les batch_pigs en format TruieOption
-            // Note: batch_pigs utilise 'sex' (pas 'sexe') et 'health_status' (pas 'statut')
-            const truiesFromBatch = batchPigs
-              .filter((pig) => 
-                (pig.sex === 'femelle' || pig.sexe === 'femelle') && 
-                (pig.health_status !== 'dead' && pig.health_status !== 'removed')
-              )
-              .map((pig) => ({
-                id: pig.id,
-                nom: pig.name || pig.pig_code || pig.code || `Truie ${pig.id.slice(0, 8)}`,
-                numero: parseInt((pig.pig_code || pig.code || pig.name || pig.id.slice(-4)).replace(/\D/g, '') || '0') || 0,
-                batch: batch, // Garder la référence à la bande
-                batch_id: batch.id,
-                batch_name: batch.pen_name,
-                code: pig.pig_code || pig.code || pig.name || `TRU-${pig.id.slice(0, 8)}`,
-                race: pig.race,
-              }));
-            allTruiesBatch.push(...truiesFromBatch);
-          } catch (error) {
-            console.warn(`Erreur chargement batch_pigs pour batch truie ${batch.id}:`, error);
-          }
-        }
-        setTruiesBatch(allTruiesBatch);
-        
-        // Charger les verrats batch (catégorie 'verrat_reproducteur')
-        const verratsBatches = batchesData.filter((b) => b.category === 'verrat_reproducteur');
-        const allVerratsBatch: any[] = [];
-        for (const batch of verratsBatches) {
-          try {
-            const batchPigs = await apiClient.get<any[]>(`/batch-pigs/batch/${batch.id}`);
-            // Convertir les batch_pigs en format VerratOption
-            // Note: batch_pigs utilise 'sex' (pas 'sexe') et 'health_status' (pas 'statut')
-            // Les batch_pigs sont actifs tant qu'ils existent (pas de champ statut actif/inactif)
-            const verratsFromBatch = batchPigs
-              .filter((pig) => 
-                (pig.sex === 'male' || pig.sexe === 'male') && 
-                (pig.health_status !== 'dead' && pig.health_status !== 'removed')
-              )
-              .map((pig) => ({
-                id: pig.id,
-                code: pig.pig_code || pig.code || pig.name || `VER-${pig.id.slice(0, 8)}`,
-                nom: pig.name || pig.pig_code || pig.code || `Verrat ${pig.id.slice(0, 8)}`,
-                sexe: 'male' as const,
-                statut: 'actif' as const,
-                reproducteur: true,
-                numero: parseInt((pig.pig_code || pig.code || pig.name || pig.id.slice(-4)).replace(/\D/g, '') || '0') || 0,
-                race: pig.race,
-                projet_id: projetActif.id,
-                batch_id: batch.id,
-                batch_name: batch.pen_name,
-              }));
-            allVerratsBatch.push(...verratsFromBatch);
-          } catch (error) {
-            console.warn(`Erreur chargement batch_pigs pour batch verrat ${batch.id}:`, error);
-          }
-        }
-        setVerratsBatch(allVerratsBatch);
-      } catch (error) {
-        console.error('Erreur lors du chargement des bandes:', error);
-        setBatches([]);
-        setVerratsBatch([]);
-      } finally {
-        setLoadingBatches(false);
-      }
-    };
-
-    loadBatches();
-  }, [projetActif?.id, isModeBatch, visible]);
-
   // Charger les animaux et mortalités au montage du composant
-  // En mode batch, on charge aussi pour la détection de consanguinité
   useEffect(() => {
     if (projetActif && visible) {
-      // Toujours charger les animaux pour la détection de consanguinité
       dispatch(loadProductionAnimaux({ projetId: projetActif.id }));
-      if (!isModeBatch) {
-        dispatch(loadMortalitesParProjet(projetActif.id));
-      }
+      dispatch(loadMortalitesParProjet(projetActif.id));
     }
-  }, [dispatch, projetActif?.id, visible, isModeBatch]);
+  }, [dispatch, projetActif?.id, visible]);
 
-  // D'abord filtrer les animaux du projet (doit être AVANT truies qui l'utilise)
-  const animauxProjet = useMemo(() => {
-    if (!projetActif || !animaux) return [];
-    return animaux.filter((a: ProductionAnimal) => a.projet_id === projetActif.id);
-  }, [animaux, projetActif?.id]);
-
-  // Générer une liste de truies basée sur les animaux enregistrés
-  // En mode batch, utiliser les truies individuelles des bandes de truies reproductrices
+  // Générer une liste de truies basée sur le projet actif (en soustrayant les mortalités)
   const truies = useMemo(() => {
     if (!projetActif) return [];
-    
-    // Mode bande : utiliser les truies individuelles des bandes
-    if (isModeBatch) {
-      return truiesBatch;
+
+    // Calculer le nombre de truies mortes
+    const mortalitesProjet = mortalites.filter((m: Mortalite) => m.projet_id === projetActif.id);
+    const mortalitesTruies = mortalitesProjet
+      .filter((m: Mortalite) => m.categorie === 'truie')
+      .reduce((sum: number, m: Mortalite) => sum + (m.nombre_porcs || 0), 0);
+
+    // Nombre de truies actives = nombre initial - mortalités
+    const nombreTruiesActives = Math.max(0, projetActif.nombre_truies - mortalitesTruies);
+
+    const truiesList = [];
+    for (let i = 1; i <= nombreTruiesActives; i++) {
+      truiesList.push({
+        id: `truie_${i}`,
+        nom: `Truie ${i}`,
+        numero: i,
+      });
     }
+    return truiesList;
+  }, [projetActif?.id, mortalites]);
 
-    // Mode individuel : Récupérer uniquement les truies réellement enregistrées dans le cheptel
-    // Filtrer : femelles actives ET reproductrices
-    if (!animauxProjet || animauxProjet.length === 0) return [];
-    
-    const truiesEnregistrees = animauxProjet.filter(
-      (a: ProductionAnimal) =>
-        a.sexe === 'femelle' &&
-        a.statut?.toLowerCase() === 'actif' &&
-        (a.reproducteur === true ||
-          (typeof a.reproducteur === 'number' && a.reproducteur === 1) ||
-          (typeof a.reproducteur === 'string' && a.reproducteur === '1')) &&
-        a.projet_id === projetActif.id
-    );
-
-    // Convertir en format TruieOption
-    return truiesEnregistrees.map((truie: ProductionAnimal) => {
-      const numero = parseInt(truie.code?.replace(/\D/g, '') || '0') || 0;
-      return {
-        id: truie.id,
-        nom: truie.nom || truie.code || `Truie ${numero}`,
-        numero: numero,
-        code: truie.code,
-        race: truie.race,
-      };
-    });
-  }, [projetActif?.id, animauxProjet, isModeBatch, truiesBatch]);
+  const animauxProjet = useMemo(() => {
+    if (!projetActif) return [];
+    return animaux.filter((a: ProductionAnimal) => a.projet_id === projetActif.id);
+  }, [animaux, projetActif?.id]);
 
   // Générer une liste de verrats basée uniquement sur les verrats réellement enregistrés dans le cheptel
   // Ne plus créer de verrats virtuels pour éviter les verrats fantômes
@@ -266,30 +145,13 @@ function GestationFormModal({
       return [];
     }
 
-    // Mode batch : utiliser les verrats batch
-    if (isModeBatch) {
-      return verratsBatch.map((v) => ({
-        id: v.id,
-        code: v.code,
-        nom: v.nom,
-        sexe: v.sexe as 'male',
-        statut: v.statut as 'actif' | 'mort' | 'vendu' | 'offert',
-        reproducteur: v.reproducteur ?? true,
-        numero: v.numero,
-        race: v.race,
-        projet_id: v.projet_id,
-      }));
-    }
-
-    // Mode individuel : Récupérer uniquement les verrats réellement enregistrés dans le cheptel
+    // Récupérer uniquement les verrats réellement enregistrés dans le cheptel
     // Filtrer : mâles actifs ET reproducteurs
     const verratsEnregistres = animauxProjet.filter(
       (a: ProductionAnimal) =>
         a.sexe === 'male' &&
         a.statut?.toLowerCase() === 'actif' &&
-        (a.reproducteur === true ||
-          (typeof a.reproducteur === 'number' && a.reproducteur === 1) ||
-          (typeof a.reproducteur === 'string' && a.reproducteur === '1')) &&
+        (a.reproducteur === true || (typeof a.reproducteur === 'number' && a.reproducteur === 1) || (typeof a.reproducteur === 'string' && a.reproducteur === '1')) &&
         a.projet_id === projetActif.id
     );
 
@@ -311,9 +173,7 @@ function GestationFormModal({
 
     // Si un verrat est déjà sélectionné dans le formulaire mais n'est plus actif, l'ajouter quand même
     if (formData.verrat_id) {
-      const verratSelectionne = animauxProjet.find(
-        (a: ProductionAnimal) => a.id === formData.verrat_id
-      );
+      const verratSelectionne = animauxProjet.find((a: ProductionAnimal) => a.id === formData.verrat_id);
       if (verratSelectionne && !verratsOptions.find((v) => v.id === formData.verrat_id)) {
         const numero = parseInt(verratSelectionne.code?.replace(/\D/g, '') || '0') || 0;
         verratsOptions.push({
@@ -345,7 +205,7 @@ function GestationFormModal({
     });
 
     return verratsTries;
-  }, [animauxProjet, projetActif?.id, formData.verrat_id, isModeBatch, verratsBatch]);
+  }, [animauxProjet, projetActif?.id, formData.verrat_id]);
 
   // Filtrer les verrats selon la recherche
   const verratsFiltres = useMemo(() => {
@@ -362,22 +222,7 @@ function GestationFormModal({
 
   // Filtrer les truies selon la recherche ou la saisie directe
   const truiesFiltrees = useMemo(() => {
-    // Mode batch : filtrer par recherche textuelle (nom, numéro ou loge)
-    if (isModeBatch) {
-      const query = searchQuery.toLowerCase().trim();
-      if (!query) {
-        return truies; // Afficher toutes les truies si pas de recherche
-      }
-
-      return truies.filter((truie) => {
-        const nomLower = truie.nom.toLowerCase();
-        const numeroStr = truie.numero.toString();
-        const batchNameLower = (truie.batch_name || '').toLowerCase();
-        return nomLower.includes(query) || numeroStr.includes(query) || batchNameLower.includes(query);
-      });
-    }
-
-    // Mode individuel : Si un numéro direct est saisi et valide, retourner uniquement cette truie
+    // Si un numéro direct est saisi et valide, retourner uniquement cette truie
     if (directInput.trim()) {
       const numero = parseInt(directInput.trim());
       if (!isNaN(numero) && numero > 0 && numero <= truies.length) {
@@ -401,7 +246,7 @@ function GestationFormModal({
     });
 
     return filtrees.slice(0, 50); // Limiter à 50 résultats
-  }, [truies, searchQuery, directInput, isModeBatch]);
+  }, [truies, searchQuery, directInput]);
 
   // Gérer la sélection directe par numéro
   useEffect(() => {
@@ -454,14 +299,14 @@ function GestationFormModal({
 
   useEffect(() => {
     if (gestation && isEditing) {
-      const truieNumero = parseInt(gestation.truie_id.replace('truie_', ''));
+      const truieNumero = parseInt((gestation.truie_id || '').replace('truie_', ''));
       setFormData({
         projet_id: gestation.projet_id,
         truie_id: gestation.truie_id,
         truie_nom: gestation.truie_nom || '',
         verrat_id: gestation.verrat_id || '',
         verrat_nom: gestation.verrat_nom || '',
-        date_sautage: gestation.date_sautage.split('T')[0],
+        date_sautage: (gestation.date_sautage || '').split('T')[0],
         nombre_porcelets_prevu: gestation.nombre_porcelets_prevu,
         notes: gestation.notes || '',
       });
@@ -501,23 +346,21 @@ function GestationFormModal({
       return;
     }
 
-    // Validation avec Yup
-    // S'assurer que verrat_id est une string (même vide) pour la validation
+    // Validation avec Yup - convertir undefined en null pour compatibilité
     const validationData = {
       ...formData,
-      verrat_id: formData.verrat_id || '',
+      truie_nom: formData.truie_nom ?? null,
+      verrat_nom: formData.verrat_nom ?? null,
+      notes: formData.notes ?? null,
     };
-    const { isValid, errors: validationErrors } = await validateGestation(validationData);
+    const { isValid, errors: validationErrors } = await validateGestation(validationData as any);
     if (!isValid) {
       // Afficher la première erreur trouvée
       const firstError = Object.values(validationErrors)[0];
-      Alert.alert(
-        'Erreur de validation',
-        firstError || 'Veuillez corriger les erreurs du formulaire'
-      );
+      Alert.alert('Erreur de validation', firstError || 'Veuillez corriger les erreurs du formulaire');
       return;
     }
-
+    
     // Validation supplémentaire pour truie et verrat (peuvent être virtuels)
     if (!formData.truie_id && !formData.truie_nom?.trim()) {
       Alert.alert('Erreur', 'Veuillez sélectionner ou saisir le nom de la truie');
@@ -593,9 +436,8 @@ function GestationFormModal({
         ).unwrap();
       }
       onSuccess();
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Erreur lors de l'enregistrement";
-      Alert.alert('Erreur', errorMessage);
+    } catch (error: any) {
+      Alert.alert('Erreur', error || "Erreur lors de l'enregistrement");
     } finally {
       setLoading(false);
     }
@@ -622,21 +464,13 @@ function GestationFormModal({
       >
         <>
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Truie *
-            </Text>
-            {isModeBatch && (
-              <Text style={[styles.helperText, { color: colors.textSecondary }]}>
-                Sélectionnez une truie individuelle dans une loge de truies reproductrices
-              </Text>
-            )}
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Truie *</Text>
 
-            {/* Champ de saisie directe du numéro (mode individuel uniquement) */}
-            {!isModeBatch && (
-              <View style={styles.inputContainer}>
-                <Text style={[styles.inputLabel, { color: colors.text }]}>
-                  Numéro de la truie (saisie rapide)
-                </Text>
+            {/* Champ de saisie directe du numéro */}
+            <View style={styles.inputContainer}>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>
+                Numéro de la truie (saisie rapide)
+              </Text>
               <TextInput
                 style={[
                   styles.directInput,
@@ -669,11 +503,10 @@ function GestationFormModal({
                   })()}
                 </Text>
               )}
-              </View>
-            )}
+            </View>
 
             {/* Barre de recherche (si pas de saisie directe valide) */}
-            {!isModeBatch && (!directInput.trim() ||
+            {(!directInput.trim() ||
               parseInt(directInput.trim()) > truies.length ||
               isNaN(parseInt(directInput.trim()))) && (
               <View style={styles.inputContainer}>
@@ -697,29 +530,6 @@ function GestationFormModal({
               </View>
             )}
 
-            {/* Barre de recherche pour les truies (mode batch) */}
-            {isModeBatch && (
-              <View style={styles.inputContainer}>
-                <Text style={[styles.inputLabel, { color: colors.text }]}>
-                  Rechercher une truie
-                </Text>
-                <TextInput
-                  style={[
-                    styles.searchInput,
-                    {
-                      borderColor: colors.border,
-                      backgroundColor: colors.background,
-                      color: colors.text,
-                    },
-                  ]}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  placeholder="Rechercher par nom, numéro ou loge..."
-                  placeholderTextColor={colors.textSecondary}
-                />
-              </View>
-            )}
-
             {/* Affichage de la truie sélectionnée */}
             {formData.truie_id && (
               <View
@@ -734,14 +544,6 @@ function GestationFormModal({
                 <Text style={[styles.selectedTruieValue, { color: colors.primary }]}>
                   {formData.truie_nom}
                 </Text>
-                {isModeBatch && (() => {
-                  const selectedTruie = truiesBatch.find((t) => t.id === formData.truie_id);
-                  return selectedTruie && selectedTruie.batch_name ? (
-                    <Text style={[styles.selectedTruieLabel, { color: colors.textSecondary, marginTop: 4 }]}>
-                      Loge: {selectedTruie.batch_name}
-                    </Text>
-                  ) : null;
-                })()}
               </View>
             )}
 
@@ -752,10 +554,10 @@ function GestationFormModal({
                   <>
                     <View style={styles.resultsHeader}>
                       <Text style={[styles.resultsCount, { color: colors.textSecondary }]}>
-                        {truiesFiltrees.length} {isModeBatch ? 'truie' : 'résultat'}{truiesFiltrees.length > 1 ? 's' : ''}
+                        {truiesFiltrees.length} résultat{truiesFiltrees.length > 1 ? 's' : ''}
                         {!showFullList && truiesFiltrees.length === 50 && ` (sur ${truies.length})`}
                       </Text>
-                      {!showFullList && truies.length > 50 && !isModeBatch && (
+                      {!showFullList && truies.length > 50 && (
                         <TouchableOpacity
                           style={[styles.showAllButton, { backgroundColor: colors.primary }]}
                           onPress={() => setShowFullList(true)}
@@ -785,9 +587,7 @@ function GestationFormModal({
                               truie_id: item.id,
                               truie_nom: item.nom,
                             });
-                            if (!isModeBatch) {
-                              setDirectInput(item.numero.toString());
-                            }
+                            setDirectInput(item.numero.toString());
                             setSearchQuery('');
                           }}
                         >
@@ -804,11 +604,6 @@ function GestationFormModal({
                             ]}
                           >
                             {item.nom}
-                            {isModeBatch && item.batch_name && (
-                              <Text style={{ fontSize: 12, opacity: 0.8 }}>
-                                {' '}(Loge: {item.batch_name})
-                              </Text>
-                            )}
                           </Text>
                         </TouchableOpacity>
                       ))}
@@ -819,8 +614,6 @@ function GestationFormModal({
                     <Text style={[styles.noResultsText, { color: colors.textSecondary }]}>
                       {searchQuery.trim()
                         ? 'Aucun résultat trouvé'
-                        : isModeBatch
-                        ? 'Aucune truie disponible dans les loges de truies reproductrices'
                         : 'Commencez à rechercher ou saisissez un numéro'}
                     </Text>
                   </View>
@@ -828,13 +621,13 @@ function GestationFormModal({
               </View>
             )}
 
-            {/* Option de saisie manuelle si aucune truie/bande */}
+            {/* Option de saisie manuelle si aucune truie */}
             {truies.length === 0 && (
               <FormField
-                label={isModeBatch ? "Nom de la bande" : "Nom de la truie"}
+                label="Nom de la truie"
                 value={formData.truie_nom || ''}
                 onChangeText={(text) => setFormData({ ...formData, truie_nom: text })}
-                placeholder={isModeBatch ? "Ex: Loge A - Truies" : "Ex: TRU015"}
+                placeholder="Ex: TRU015"
                 required
               />
             )}
@@ -925,7 +718,7 @@ function GestationFormModal({
                             },
                           ]}
                           onPress={() => {
-                            logger.debug('Verrat sélectionné:', verrat);
+                            console.log('Verrat sélectionné:', verrat);
                             setFormData((prev) => ({
                               ...prev,
                               verrat_id: verrat.id,
@@ -999,10 +792,9 @@ function GestationFormModal({
                 ]}
               >
                 <Text style={[styles.warningText, { color: colors.warning }]}>
-                  ⚠️ Aucun verrat disponible.{' '}
-                  {isModeBatch
-                    ? 'Vérifiez que vous avez créé une loge de verrats reproducteurs dans le module Production avec des verrats actifs.'
-                    : `Nombre de verrats dans le projet: ${projetActif?.nombre_verrats ?? 0}. Vérifiez les paramètres du projet ou ajoutez des verrats dans le module Production.`}
+                  ⚠️ Aucun verrat disponible. Nombre de verrats dans le projet:{' '}
+                  {projetActif?.nombre_verrats ?? 0}. Vérifiez les paramètres du projet ou ajoutez
+                  des verrats dans le module Production.
                 </Text>
               </View>
             )}
@@ -1445,6 +1237,3 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
 });
-
-// Mémoïser le composant pour éviter les re-renders inutiles
-export default React.memo(GestationFormModal);

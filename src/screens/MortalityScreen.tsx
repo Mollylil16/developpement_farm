@@ -333,7 +333,7 @@ export default function MortalityScreen() {
   const { colors } = useTheme();
   const route = useRoute<RouteProp<{ params: MortalityRouteParams }, 'params'>>();
   const mode = useModeElevage();
-  const projetActif = useAppSelector((state) => state.projet?.projetActif ?? null);
+  const projetActif = useAppSelector((state) => (state as any).projet?.projetActif ?? null);
 
   // Paramètres batch (si navigation depuis une bande)
   const batch = route.params?.batch;

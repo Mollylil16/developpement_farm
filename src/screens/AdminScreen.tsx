@@ -17,7 +17,7 @@ import { getErrorMessage } from '../types/common';
 
 export default function AdminScreen() {
   const { colors } = useTheme();
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state) => (state as any).auth);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({

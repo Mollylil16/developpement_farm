@@ -20,10 +20,9 @@ import { SPACING } from '../../../constants/theme';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { PurchaseRequest, PurchaseRequestOffer } from '../../../types/marketplace';
-import apiClient from '../../../services/api/apiClient';
-import { createLoggerWithPrefix } from '../../../utils/logger';
-
-const logger = createLoggerWithPrefix('MarketplaceMyPurchaseRequests');
+import { getDatabase } from '../../../services/database';
+import { getPurchaseRequestService } from '../../../services/PurchaseRequestService';
+import { PurchaseRequestRepository } from '../../../database/repositories/PurchaseRequestRepository';
 
 interface MarketplaceMyPurchaseRequestsTabProps {
   buyerId: string;
@@ -59,14 +58,13 @@ export default function MarketplaceMyPurchaseRequestsTab({
 
   const loadRequests = useCallback(async () => {
     try {
-      // Charger les demandes d'achat depuis l'API backend
-      const allRequests = await apiClient.get<PurchaseRequest[]>('/marketplace/purchase-requests', {
-        params: { buyer_id: buyerId },
-      });
+      const db = await getDatabase();
+      const repo = new PurchaseRequestRepository();
+      const allRequests = await repo.findByBuyerId(buyerId, false);
       setRequests(allRequests);
     } catch (error) {
-      logger.error('Erreur chargement demandes:', error);
-      Alert.alert('Erreur', "Impossible de charger vos demandes d'achat");
+      console.error('Erreur chargement demandes:', error);
+      Alert.alert('Erreur', 'Impossible de charger vos demandes d\'achat');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -82,62 +80,59 @@ export default function MarketplaceMyPurchaseRequestsTab({
     loadRequests();
   }, [loadRequests]);
 
-  const handleArchive = useCallback(
-    async (requestId: string) => {
-      Alert.alert('Archiver la demande', 'Êtes-vous sûr de vouloir archiver cette demande ?', [
+  const handleArchive = useCallback(async (requestId: string) => {
+    Alert.alert(
+      'Archiver la demande',
+      'Êtes-vous sûr de vouloir archiver cette demande ?',
+      [
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Archiver',
           style: 'destructive',
           onPress: async () => {
             try {
-              // Archiver la demande via l'API backend
-              await apiClient.patch(`/marketplace/purchase-requests/${requestId}/archive`);
+              const db = await getDatabase();
+              const repo = new PurchaseRequestRepository();
+              await repo.archive(requestId);
               loadRequests();
             } catch (error) {
-              Alert.alert('Erreur', "Impossible d'archiver la demande");
+              Alert.alert('Erreur', 'Impossible d\'archiver la demande');
             }
           },
         },
-      ]);
-    },
-    [loadRequests]
-  );
+      ]
+    );
+  }, [loadRequests]);
 
-  const handleRestore = useCallback(
-    async (requestId: string) => {
-      try {
-        // Restaurer la demande via l'API backend
-        await apiClient.patch(`/marketplace/purchase-requests/${requestId}/restore`);
-        loadRequests();
-      } catch (error) {
-        Alert.alert('Erreur', 'Impossible de restaurer la demande');
-      }
-    },
-    [loadRequests]
-  );
+  const handleRestore = useCallback(async (requestId: string) => {
+    try {
+      const db = await getDatabase();
+      const repo = new PurchaseRequestRepository();
+      await repo.restore(requestId);
+      loadRequests();
+    } catch (error) {
+      Alert.alert('Erreur', 'Impossible de restaurer la demande');
+    }
+  }, [loadRequests]);
 
-  const handleEdit = useCallback(
-    (request: PurchaseRequest) => {
-      logger.debug('handleEdit appelé pour:', request.id);
-      if (onEditRequest) {
-        logger.debug('Appel de onEditRequest');
-        onEditRequest(request);
-      } else {
-        logger.warn("onEditRequest n'est pas défini");
-        Alert.alert('Modifier', `Modification de la demande: ${request.title}`, [
-          { text: 'Annuler', style: 'cancel' },
-          {
-            text: 'Modifier',
-            onPress: () => {
-              Alert.alert('Info', 'La fonctionnalité de modification sera bientôt disponible');
-            },
+  const handleEdit = useCallback((request: PurchaseRequest) => {
+    console.log('🔄 [MarketplaceMyPurchaseRequestsTab] handleEdit appelé pour:', request.id);
+    if (onEditRequest) {
+      console.log('✅ [MarketplaceMyPurchaseRequestsTab] Appel de onEditRequest');
+      onEditRequest(request);
+    } else {
+      console.warn('⚠️ [MarketplaceMyPurchaseRequestsTab] onEditRequest n\'est pas défini');
+      Alert.alert('Modifier', `Modification de la demande: ${request.title}`, [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Modifier',
+          onPress: () => {
+            Alert.alert('Info', 'La fonctionnalité de modification sera bientôt disponible');
           },
-        ]);
-      }
-    },
-    [onEditRequest]
-  );
+        },
+      ]);
+    }
+  }, [onEditRequest]);
 
   const renderRequest = ({ item }: { item: PurchaseRequest }) => {
     const statusColor = STATUS_COLORS[item.status] || colors.textSecondary;
@@ -145,10 +140,7 @@ export default function MarketplaceMyPurchaseRequestsTab({
 
     return (
       <TouchableOpacity
-        style={[
-          styles.requestCard,
-          { backgroundColor: colors.surface, borderColor: colors.border },
-        ]}
+        style={[styles.requestCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
         onPress={() => onRequestPress?.(item)}
         activeOpacity={0.7}
       >
@@ -225,7 +217,7 @@ export default function MarketplaceMyPurchaseRequestsTab({
                 style={[styles.actionButton, { backgroundColor: colors.primary }]}
                 onPress={() => onRequestPress?.(item)}
               >
-                <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>
+                <Text style={[styles.actionButtonText, { color: colors.textInverse }]}>
                   Voir les offres ({item.offersCount})
                 </Text>
               </TouchableOpacity>
@@ -235,11 +227,8 @@ export default function MarketplaceMyPurchaseRequestsTab({
                 style={[styles.actionButton, { backgroundColor: colors.primary }]}
                 onPress={() => handleEdit(item)}
               >
-                <Ionicons name="create" size={16} color="#FFFFFF" />
-                <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>
-                  {' '}
-                  Modifier
-                </Text>
+                <Ionicons name="create" size={16} color={colors.textInverse} />
+                <Text style={[styles.actionButtonText, { color: colors.textInverse }]}> Modifier</Text>
               </TouchableOpacity>
             )}
             {item.status === 'archived' ? (
@@ -247,22 +236,16 @@ export default function MarketplaceMyPurchaseRequestsTab({
                 style={[styles.actionButton, { backgroundColor: colors.success }]}
                 onPress={() => handleRestore(item.id)}
               >
-                <Ionicons name="refresh" size={16} color="#FFFFFF" />
-                <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>
-                  {' '}
-                  Restaurer
-                </Text>
+                <Ionicons name="refresh" size={16} color={colors.textInverse} />
+                <Text style={[styles.actionButtonText, { color: colors.textInverse }]}> Restaurer</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: colors.error }]}
                 onPress={() => handleArchive(item.id)}
               >
-                <Ionicons name="archive" size={16} color="#FFFFFF" />
-                <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>
-                  {' '}
-                  Archiver
-                </Text>
+                <Ionicons name="archive" size={16} color={colors.textInverse} />
+                <Text style={[styles.actionButtonText, { color: colors.textInverse }]}> Archiver</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -309,11 +292,6 @@ export default function MarketplaceMyPurchaseRequestsTab({
           <Text style={[styles.emptyTitle, { color: colors.text }]}>Aucune demande d'achat</Text>
         </View>
       }
-      // Optimisations FlatList (Phase 4)
-      removeClippedSubviews={true}
-      maxToRenderPerBatch={10}
-      windowSize={5}
-      initialNumToRender={10}
     />
   );
 }
@@ -428,5 +406,3 @@ const styles = StyleSheet.create({
   },
 });
 
-// Mémoïser le composant pour éviter les re-renders inutiles
-export default React.memo(MarketplaceMyPurchaseRequestsTab);

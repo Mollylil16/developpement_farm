@@ -56,7 +56,7 @@ export default function VaccinationFormModalNew({
   // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
   const projetActif = useProjetEffectif();
   const animaux = useAppSelector((state) => selectAllAnimaux(state));
-  const loading = useAppSelector((state) => state.sante.loading.vaccinations);
+  const loading = useAppSelector((state) => (state as any).sante.loading.vaccinations);
 
   // États du formulaire
   const [dateAdministration, setDateAdministration] = useState(getCurrentLocalDate());
@@ -113,8 +113,8 @@ export default function VaccinationFormModalNew({
     if (rechercheTexte.trim()) {
       const search = rechercheTexte.toLowerCase();
       filtered = filtered.filter((a) => {
-        const nom = a.nom_personnalise?.toLowerCase() || '';
-        const code = a.code_identification?.toLowerCase() || '';
+        const nom = a.nom?.toLowerCase() || '';
+        const code = a.code?.toLowerCase() || '';
         return nom.includes(search) || code.includes(search);
       });
     }
@@ -262,7 +262,7 @@ export default function VaccinationFormModalNew({
     }
   };
 
-  const renderAnimalItem = ({ item }: { item: unknown }) => {
+  const renderAnimalItem = ({ item, index }: { item: any; index?: number }) => {
     const isSelected = animauxSelectionnes.includes(item.id);
     const categorie = getCategorieAnimal(item);
 
@@ -285,10 +285,10 @@ export default function VaccinationFormModalNew({
           </View>
           <View style={styles.animalInfo}>
             <Text style={[styles.animalNom, { color: colors.text }]}>
-              {item.nom || item.code || 'Sans nom'}
+              {item.nom || (item as any).code  || 'Sans nom'}
             </Text>
             <Text style={[styles.animalDetails, { color: colors.textSecondary }]}>
-              {categorie} • {item.code || 'Pas de code'}
+              {categorie} • {(item as any).code  || 'Pas de code'}
             </Text>
           </View>
         </View>

@@ -41,11 +41,11 @@ const TAB_WIDTH = SCREEN_WIDTH / 5;
 function MainTabs() {
   const { activeRole, availableRoles } = useRole();
   const rolePermissions = useRolePermissions();
-  const projetActif = useAppSelector((state) => state.projet?.projetActif);
-  const currentUser = useAppSelector((state) => state.auth?.user);
-  const collaborateurActuel = useAppSelector((state) => state.collaboration?.collaborateurActuel);
+  const projetActif = useAppSelector((state) => (state as any).projet?.projetActif);
+  const currentUser = useAppSelector((state) => (state as any).auth?.user);
+  const collaborateurActuel = useAppSelector((state) => (state as any).collaboration?.collaborateurActuel);
   // 🆕 Projet collaboratif pour vétérinaires/techniciens
-  const projetCollaboratifActif = useAppSelector((state) => state.collaboration?.projetCollaboratifActif);
+  const projetCollaboratifActif = useAppSelector((state) => (state as any).collaboration?.projetCollaboratifActif);
 
   // Pour vétérinaires/techniciens, utiliser le projet collaboratif s'il est sélectionné
   const projetEffectif = (activeRole === 'veterinarian' || activeRole === 'technician')
@@ -398,11 +398,11 @@ function MainTabs() {
 // Navigation principale avec stack pour gestion du projet
 export default function AppNavigator() {
   const dispatch = useAppDispatch();
-  const projetActif = useAppSelector((state) => state.projet?.projetActif);
-  const isAuthenticated = useAppSelector((state) => state.auth?.isAuthenticated);
-  const authLoading = useAppSelector((state) => state.auth?.isLoading);
-  const user = useAppSelector((state) => state.auth?.user);
-  const invitationsEnAttente = useAppSelector((state) => state.collaboration?.invitationsEnAttente || []);
+  const projetActif = useAppSelector((state) => (state as any).projet?.projetActif);
+  const isAuthenticated = useAppSelector((state) => (state as any).auth?.isAuthenticated);
+  const authLoading = useAppSelector((state) => (state as any).auth?.isLoading);
+  const user = useAppSelector((state) => (state as any).auth?.user);
+  const invitationsEnAttente = useAppSelector((state) => (state as any).collaboration?.invitationsEnAttente || []);
   const navigationRef = React.useRef<NavigationContainerRef<ParamListBase> | null>(null);
   const lastRouteRef = React.useRef<string | null>(null);
 
@@ -676,7 +676,7 @@ export default function AppNavigator() {
           name={SCREENS.SCAN_QR_COLLABORATEUR} 
           options={{ 
             headerShown: false, // Fullscreen pour la caméra
-            presentation: 'fullScreenModal', // Plein écran sur iOS
+            presentation: 'fullScreenModal' as any, // Plein écran sur iOS
             gestureEnabled: false, // Désactiver le swipe back pour éviter de fermer la caméra
           }}
         >
@@ -696,6 +696,12 @@ export default function AppNavigator() {
         </Stack.Screen>
         <Stack.Screen name={SCREENS.LOGIN_LOGS}>
           {() => <LazyScreens.LoginLogsScreen />}
+        </Stack.Screen>
+        {/* Écran de Formation - Navigation directe depuis le menu profil */}
+        <Stack.Screen name={SCREENS.TRAINING} options={{ headerShown: false }}>
+          {() => (
+            <LazyScreens.TrainingScreen />
+          )}
         </Stack.Screen>
         <Stack.Screen name={SCREENS.ADMIN} options={{ headerShown: false }}>
           {() => <LazyScreens.AdminScreen />}

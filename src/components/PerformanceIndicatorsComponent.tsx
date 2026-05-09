@@ -14,11 +14,7 @@ import {
   Alert,
 } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import {
-  setIndicateursPerformance,
-  setRecommandations,
-  loadIndicateursPerformance,
-} from '../store/slices/reportsSlice';
+import { setIndicateursPerformance, setRecommandations } from '../store/slices/reportsSlice';
 import { loadProductionAnimaux, loadPeseesParAnimal } from '../store/slices/productionSlice';
 import { loadMortalites } from '../store/slices/mortalitesSlice';
 import { selectAllAnimaux, selectPeseesParAnimal } from '../store/selectors/productionSelectors';
@@ -29,23 +25,25 @@ import {
 } from '../store/selectors/financeSelectors';
 import { selectAllGestations, selectAllSevrages } from '../store/selectors/reproductionSelectors';
 import { selectAllMortalites } from '../store/selectors/mortalitesSelectors';
-import type { IndicateursPerformance, Recommandation } from '../types/rapports';
-import type { ChargeFixe, DepensePonctuelle } from '../types/finance';
-import type { Gestation, Sevrage } from '../types/reproduction';
-import type { Mortalite } from '../types/mortalites';
+import {
+  IndicateursPerformance,
+  Recommandation,
+  ChargeFixe,
+  DepensePonctuelle,
+  Gestation,
+  Sevrage,
+  Mortalite,
+} from '../types';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
 import { useTheme } from '../contexts/ThemeContext';
 import StatCard from './StatCard';
 import LoadingSpinner from './LoadingSpinner';
-import { parseISO, differenceInMonths, differenceInDays, isAfter, isBefore, subMonths, startOfMonth, endOfMonth, format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { parseISO, differenceInMonths, differenceInDays, isAfter, isBefore } from 'date-fns';
 import { calculatePoidsTotalAnimauxActifs } from '../utils/animalUtils';
 import { exportRapportCompletPDF } from '../services/pdf/rapportCompletPDF';
-import { TAUX_CARCASSE } from '../config/finance.config';
-import PerformanceGlobaleService, {
-  PerformanceGlobale,
-} from '../services/PerformanceGlobaleService';
-import { useProjetEffectif } from '../hooks/useProjetEffectif';
+import { getDatabase } from '../services/database';
+import PerformanceGlobaleService from '../services/PerformanceGlobaleService';
+import { Ration, IngredientRation } from '../types/nutrition';
 
 const areIndicatorsEqual = (
   a: IndicateursPerformance | null | undefined,
@@ -81,13 +79,12 @@ const areRecommandationsEqual = (a: Recommandation[], b: Recommandation[]) => {
   });
 };
 
-function PerformanceIndicatorsComponent() {
+export default function PerformanceIndicatorsComponent() {
   const { colors } = useTheme();
   const dispatch = useAppDispatch();
   const [exportingPDF, setExportingPDF] = useState(false);
-  const [performanceGlobale, setPerformanceGlobale] = useState<PerformanceGlobale | null>(null);
-  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
-  const projetActif = useProjetEffectif();
+  const [performanceGlobale, setPerformanceGlobale] = useState<any>(null);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   const chargesFixes: ChargeFixe[] = useAppSelector(selectAllChargesFixes);
   const depensesPonctuelles: DepensePonctuelle[] = useAppSelector(selectAllDepensesPonctuelles);
   const revenus = useAppSelector(selectAllRevenus);
@@ -97,22 +94,13 @@ function PerformanceIndicatorsComponent() {
   const animaux = useAppSelector(selectAllAnimaux);
   const peseesParAnimal = useAppSelector(selectPeseesParAnimal);
   const mortalites: Mortalite[] = useAppSelector(selectAllMortalites);
-  const { indicateursPerformance, recommandations, loading: loadingIndicateurs } = useAppSelector(
-    (state) => state.reports
-  );
+  const { indicateursPerformance, recommandations } = useAppSelector((state) => (state as any).reports);
 
   // Utiliser useRef pour tracker les chargements et éviter les boucles
   const aChargeRef = useRef<string | null>(null);
   const animauxChargesRef = useRef<Set<string>>(new Set());
 
-  // Charger les indicateurs de performance depuis le backend
-  useEffect(() => {
-    if (!projetActif) return;
-
-    dispatch(loadIndicateursPerformance({ projetId: projetActif.id, periodeJours: 30 }));
-  }, [dispatch, projetActif?.id]);
-
-  // Charger la performance globale (coût de production global) depuis le backend
+  // Charger la performance globale (coût de production global)
   useEffect(() => {
     if (!projetActif) {
       setPerformanceGlobale(null);
@@ -121,6 +109,8 @@ function PerformanceIndicatorsComponent() {
 
     const loadPerformance = async () => {
       try {
+        const db = await getDatabase();
+        PerformanceGlobaleService.setDatabase(db);
         const result = await PerformanceGlobaleService.calculatePerformanceGlobale(
           projetActif.id,
           projetActif
@@ -128,7 +118,6 @@ function PerformanceIndicatorsComponent() {
         setPerformanceGlobale(result);
       } catch (error) {
         console.error('Erreur chargement performance globale:', error);
-        setPerformanceGlobale(null);
       }
     };
 
@@ -260,24 +249,174 @@ function PerformanceIndicatorsComponent() {
         ? (sevrages.length / gestationsTerminees.length) * 100
         : 0;
 
-    // Calculer l'efficacité alimentaire (ratio poids_gain / alimentation_consommee)
-    // On utilise le poids réel basé sur les pesées si disponible
-    const alimentationTotale = coutAlimentationTotal; // En CFA, à convertir en kg si nécessaire
+    // ============================================
+    // CALCUL AMÉLIORÉ DE L'EFFICACITÉ ALIMENTAIRE
+    // ============================================
+    // Basé sur les améliorations du document CALCUL_EFFICACITE_ALIMENTAIRE.md
+    // 
+    // Formule idéale : Efficacité = Gain de poids (kg) / Aliment consommé (kg)
+    // Au lieu de : Poids actuel / (Coût / 1000) (approximation)
 
-    // Calculer le poids réel pour l'efficacité alimentaire (dernières pesées des animaux actifs)
-    let poidsReelPourEfficacite = calculatePoidsTotalAnimauxActifs(
-      animauxProjet,
-      peseesParAnimal,
-      projetActif.poids_moyen_actuel || 0
-    );
+    /**
+     * Convertit une quantité d'ingrédient en kg selon son unité
+     */
+    const convertToKg = (quantite: number, unite?: string): number => {
+      if (!unite) return quantite; // Par défaut, supposer que c'est déjà en kg
+      
+      switch (unite.toLowerCase()) {
+        case 'kg':
+          return quantite;
+        case 'g':
+          return quantite / 1000;
+        case 'l':
+        case 'ml':
+          // Pour les liquides, on suppose 1L = 1kg (approximation pour l'eau et la plupart des liquides)
+          return unite.toLowerCase() === 'ml' ? quantite / 1000 : quantite;
+        case 'sac':
+          // Un sac standard = 50 kg
+          return quantite * 50;
+        default:
+          return quantite; // Par défaut, supposer kg
+      }
+    };
 
-    // Si pas de pesées, utiliser l'approximation
-    if (poidsReelPourEfficacite === 0) {
-      poidsReelPourEfficacite = poidsTotal;
+    // 1. Calculer la quantité totale d'aliment en kg depuis les rations
+    let quantiteAlimentTotaleKg = 0;
+    
+    rations.forEach((ration: Ration) => {
+      if (ration.ingredients && ration.ingredients.length > 0) {
+        ration.ingredients.forEach((ingRation: IngredientRation) => {
+          const unite = ingRation.ingredient?.unite || 'kg';
+          const quantiteKg = convertToKg(ingRation.quantite, unite);
+          quantiteAlimentTotaleKg += quantiteKg;
+        });
+      }
+    });
+
+    // 2. Inclure les dépenses ponctuelles "alimentation" si disponibles
+    // On estime la quantité en utilisant un prix moyen d'aliment
+    // Accepter toutes les variantes : "alimentation", "aliment", "alimentations"
+    // Vérifier aussi dans le libellé de catégorie pour les cas "autre"
+    const depensesAlimentation = depensesPonctuelles.filter((dp: DepensePonctuelle) => {
+      const categorieNormalisee = dp.categorie?.toLowerCase().trim() || '';
+      const libelleNormalise = dp.libelle_categorie?.toLowerCase().trim() || '';
+      
+      // Vérifier la catégorie exacte ou les variantes
+      const estCategorieAliment = 
+        categorieNormalisee === 'alimentation' ||
+        categorieNormalisee === 'aliment' ||
+        categorieNormalisee === 'alimentations';
+      
+      // Vérifier aussi dans le libellé si la catégorie est "autre" ou si le libellé contient "aliment"
+      const estLibelleAliment = 
+        (categorieNormalisee === 'autre' && libelleNormalise && /aliment/i.test(libelleNormalise)) ||
+        (libelleNormalise && /^(aliment|alimentation|alimentations)$/i.test(libelleNormalise));
+      
+      return estCategorieAliment || estLibelleAliment;
+    });
+    
+    if (depensesAlimentation.length > 0 && quantiteAlimentTotaleKg > 0 && coutAlimentationTotal > 0) {
+      // Calculer le prix moyen par kg d'aliment depuis les rations
+      const prixMoyenAlimentKg = coutAlimentationTotal / quantiteAlimentTotaleKg;
+      
+      // Estimer la quantité d'aliment depuis les dépenses ponctuelles
+      const quantiteDepensesKg = depensesAlimentation.reduce(
+        (sum: number, dep: DepensePonctuelle) => {
+          // Utiliser le prix moyen calculé, avec un fallback de 200 FCFA/kg si pas de rations
+          const prixEstime = prixMoyenAlimentKg > 0 ? prixMoyenAlimentKg : 200;
+          return sum + (dep.montant / prixEstime);
+        },
+        0
+      );
+      
+      quantiteAlimentTotaleKg += quantiteDepensesKg;
+    } else if (depensesAlimentation.length > 0 && quantiteAlimentTotaleKg === 0) {
+      // Si pas de rations mais des dépenses, utiliser un prix moyen par défaut
+      const prixMoyenParDefaut = 200; // FCFA/kg (prix moyen estimé)
+      const quantiteDepensesKg = depensesAlimentation.reduce(
+        (sum: number, dep: DepensePonctuelle) => sum + (dep.montant / prixMoyenParDefaut),
+        0
+      );
+      quantiteAlimentTotaleKg = quantiteDepensesKg;
     }
 
-    const efficaciteAlimentaire =
-      alimentationTotale > 0 ? poidsReelPourEfficacite / (alimentationTotale / 1000) : 0; // Approximation
+    // 3. Calculer le gain de poids réel (poids actuel - poids initial)
+    let gainPoidsTotal = 0;
+    const animauxActifs = animauxProjet.filter(
+      (animal) => animal.statut?.toLowerCase() === 'actif'
+    );
+
+    animauxActifs.forEach((animal) => {
+      // Poids actuel : dernière pesée ou poids moyen du projet
+      const pesees = peseesParAnimal[animal.id] || [];
+      let poidsActuel = 0;
+      
+      if (pesees.length > 0) {
+        // Trier les pesées par date (la plus récente en premier)
+        const peseesTriees = [...pesees].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+        poidsActuel = peseesTriees[0].poids_kg;
+      } else if (animal.poids_initial) {
+        poidsActuel = animal.poids_initial;
+      } else {
+        poidsActuel = projetActif.poids_moyen_actuel || 0;
+      }
+
+      // Poids initial
+      const poidsInitial = animal.poids_initial || 0;
+
+      // Gain de poids (ne peut pas être négatif)
+      const gain = Math.max(0, poidsActuel - poidsInitial);
+      gainPoidsTotal += gain;
+    });
+
+    // 4. Calculer l'efficacité alimentaire améliorée
+    // Efficacité = Gain de poids (kg) / Aliment consommé (kg)
+    // Si pas de gain de poids calculable, utiliser le poids actuel comme approximation
+    let efficaciteAlimentaire = 0;
+    
+    if (quantiteAlimentTotaleKg > 0) {
+      if (gainPoidsTotal > 0) {
+        // Utiliser le gain de poids réel
+        efficaciteAlimentaire = gainPoidsTotal / quantiteAlimentTotaleKg;
+      } else {
+        // Fallback : utiliser le poids actuel si pas de gain calculable
+        // (cas où les animaux n'ont pas de poids initial enregistré)
+        let poidsActuelTotal = calculatePoidsTotalAnimauxActifs(
+          animauxProjet,
+          peseesParAnimal,
+          projetActif.poids_moyen_actuel || 0
+        );
+        
+        if (poidsActuelTotal === 0) {
+          poidsActuelTotal = poidsTotal;
+        }
+        
+        efficaciteAlimentaire = poidsActuelTotal / quantiteAlimentTotaleKg;
+      }
+    } else if (coutAlimentationTotal > 0) {
+      // Fallback : si pas de quantité en kg calculable, utiliser l'ancienne méthode
+      // mais avec un commentaire explicite
+      let poidsReelPourEfficacite = calculatePoidsTotalAnimauxActifs(
+        animauxProjet,
+        peseesParAnimal,
+        projetActif.poids_moyen_actuel || 0
+      );
+      
+      if (poidsReelPourEfficacite === 0) {
+        poidsReelPourEfficacite = poidsTotal;
+      }
+      
+      // Approximation : supposant 1 kg = 1000 FCFA (ancienne méthode)
+      efficaciteAlimentaire = poidsReelPourEfficacite / (coutAlimentationTotal / 1000);
+    }
+
+    // Stocker la quantité totale d'aliment pour l'affichage
+    // Si on a calculé en kg, utiliser ça, sinon convertir le coût en kg estimé
+    const alimentationTotale = quantiteAlimentTotaleKg > 0 
+      ? quantiteAlimentTotaleKg 
+      : (coutAlimentationTotal / 1000); // Fallback : estimation
 
     // Calculer le coût de production par kg sur TOUTE la période de production
     // 1. Trouver la période de production (date d'entrée la plus ancienne jusqu'à aujourd'hui)
@@ -464,55 +603,53 @@ function PerformanceIndicatorsComponent() {
     mortalites,
   ]);
 
-  // Utiliser les indicateurs du backend s'ils sont disponibles, sinon utiliser le calcul local
-  const indicateursAffiches = indicateursPerformance || calculatedIndicators;
-
   // Générer les recommandations
   const generatedRecommandations = useMemo(() => {
     const recs: Recommandation[] = [];
 
-    if (!indicateursAffiches) return recs;
+    if (!calculatedIndicators) return recs;
 
     // Recommandation sur le taux de mortalité
-    if (typeof indicateursAffiches.taux_mortalite === 'number' && indicateursAffiches.taux_mortalite > 5) {
+    if (calculatedIndicators.taux_mortalite > 5) {
       recs.push({
         id: 'rec_mortalite',
         type: 'avertissement',
         titre: 'Taux de mortalité élevé',
-        message: `Le taux de mortalité est de ${indicateursAffiches.taux_mortalite.toFixed(1)}%. Il est recommandé de vérifier les conditions d'élevage.`,
+        message: `Le taux de mortalité est de ${calculatedIndicators.taux_mortalite.toFixed(1)}%. Il est recommandé de vérifier les conditions d'élevage.`,
         action: 'Vérifier les installations et les soins vétérinaires',
       });
     }
 
     // Recommandation sur l'efficacité alimentaire
-    // Note: L'efficacité alimentaire est maintenant en ratio (gain_poids / alimentation_consommee)
-    // Une valeur < 0.25 indique une efficacité faible (IC > 4.0)
-    if (typeof indicateursAffiches.efficacite_alimentaire === 'number' && indicateursAffiches.efficacite_alimentaire < 0.25) {
+    // Seuils basés sur la nouvelle formule : Efficacité = Gain de poids (kg) / Aliment consommé (kg)
+    // < 0.2 : Très faible, 0.2-0.25 : Faible, 0.25-0.3 : Moyen, 0.3-0.4 : Bon, > 0.4 : Excellent
+    if (calculatedIndicators.efficacite_alimentaire < 0.25) {
       recs.push({
         id: 'rec_efficacite',
         type: 'avertissement',
         titre: 'Efficacité alimentaire faible',
-        message: `L'efficacité alimentaire est de ${indicateursAffiches.efficacite_alimentaire.toFixed(2)} (IC: ${typeof indicateursAffiches.indice_consommation === 'number' ? indicateursAffiches.indice_consommation.toFixed(2) : 'N/A'}). Pensez à ajuster les rations.`,
+        message: `L'efficacité alimentaire est de ${calculatedIndicators.efficacite_alimentaire.toFixed(2)} (ratio gain/aliment). Pensez à ajuster les rations et vérifier la qualité de l'alimentation.`,
         action: 'Optimiser les rations dans le module Nutrition',
       });
     }
 
-    // Recommandation sur le coût de production (si disponible)
-    if (typeof indicateursAffiches.cout_production_kg === 'number' && indicateursAffiches.cout_production_kg > 2000) {
+    // Recommandation sur le coût de production
+    if (calculatedIndicators.cout_production_kg > 2000) {
       recs.push({
         id: 'rec_cout',
         type: 'information',
         titre: 'Coût de production élevé',
-        message: `Le coût de production par kg est de ${indicateursAffiches.cout_production_kg.toFixed(0)} CFA/kg. Analysez vos dépenses.`,
+        message: `Le coût de production par kg est de ${calculatedIndicators.cout_production_kg.toFixed(0)} CFA/kg. Analysez vos dépenses.`,
         action: 'Consulter le module Finance pour optimiser les coûts',
       });
     }
 
     // Recommandation positive si tout va bien
+    // Seuils mis à jour : efficacité > 0.35 (bon) au lieu de > 2.5
     if (
-      typeof indicateursAffiches.taux_mortalite === 'number' && indicateursAffiches.taux_mortalite < 3 &&
-      typeof indicateursAffiches.efficacite_alimentaire === 'number' && indicateursAffiches.efficacite_alimentaire > 0.3 &&
-      (!indicateursAffiches.cout_production_kg || typeof indicateursAffiches.cout_production_kg === 'number' && indicateursAffiches.cout_production_kg < 1500)
+      calculatedIndicators.taux_mortalite < 3 &&
+      calculatedIndicators.efficacite_alimentaire > 0.35 &&
+      calculatedIndicators.cout_production_kg < 1500
     ) {
       recs.push({
         id: 'rec_succes',
@@ -524,10 +661,13 @@ function PerformanceIndicatorsComponent() {
     }
 
     return recs;
-  }, [indicateursAffiches]);
+  }, [calculatedIndicators]);
 
-  // Note: Les indicateurs sont maintenant chargés depuis le backend via loadIndicateursPerformance
-  // Le calcul local (calculatedIndicators) est conservé comme fallback uniquement
+  useEffect(() => {
+    if (calculatedIndicators && !areIndicatorsEqual(calculatedIndicators, indicateursPerformance)) {
+      dispatch(setIndicateursPerformance(calculatedIndicators));
+    }
+  }, [calculatedIndicators, indicateursPerformance, dispatch]);
 
   useEffect(() => {
     if (
@@ -569,7 +709,7 @@ function PerformanceIndicatorsComponent() {
 
   // Fonction pour exporter le rapport COMPLET en PDF (Dashboard + Finance + Rapports)
   const handleExportPDF = useCallback(async () => {
-    if (!projetActif || !indicateursAffiches) return;
+    if (!projetActif || !calculatedIndicators) return;
 
     setExportingPDF(true);
     try {
@@ -586,7 +726,7 @@ function PerformanceIndicatorsComponent() {
       const porceletsNes = gestations
         .filter((g) => g.statut === 'terminee' && g.nombre_porcelets_reel)
         .reduce((sum, g) => sum + (g.nombre_porcelets_reel || 0), 0);
-      const porceletsSevres = sevrages.reduce((sum, s) => sum + s.nombre_porcelets_sevres, 0);
+      const porceletsSevres = sevrages.reduce((sum, s) => sum + (s.nombre_porcelets_sevres || 0), 0);
       const tauxSurvie = porceletsNes > 0 ? (porceletsSevres / porceletsNes) * 100 : 0;
 
       // Sevrages récents (30 derniers jours)
@@ -602,7 +742,8 @@ function PerformanceIndicatorsComponent() {
         .filter((g) => g.statut === 'en_cours' && g.date_mise_bas_prevue)
         .sort(
           (a, b) =>
-            new Date(a.date_mise_bas_prevue).getTime() - new Date(b.date_mise_bas_prevue).getTime()
+            new Date(a.date_mise_bas_prevue!).getTime() -
+            new Date(b.date_mise_bas_prevue!).getTime()
         );
       const prochaineMiseBas =
         gestationsAvecDatePrevue.length > 0
@@ -645,143 +786,6 @@ function PerformanceIndicatorsComponent() {
       const nombreMois = 6;
       const depensesMensuelle = (totalCharges + totalDepenses) / nombreMois;
       const revenusMensuel = totalRevenus / nombreMois;
-
-      // Filtrer les données par projet
-      const chargesFixesProjet = chargesFixes.filter((cf) => cf.projet_id === projetActif.id);
-      const depensesPonctuellesProjet = depensesPonctuelles.filter((dp) => dp.projet_id === projetActif.id);
-      const revenusProjet = revenus.filter((r) => r.projet_id === projetActif.id);
-
-      // Calculer les données pour les graphiques financiers (6 derniers mois)
-      const now = new Date();
-      const monthsData = [];
-      const labelsMois: string[] = [];
-      const depensesPlanifie: number[] = [];
-      const depensesReel: number[] = [];
-      const revenusMois: number[] = [];
-
-      for (let i = 5; i >= 0; i--) {
-        const monthDate = subMonths(now, i);
-        const monthStart = startOfMonth(monthDate);
-        const monthEnd = endOfMonth(monthDate);
-        const monthKey = format(monthDate, 'MMM', { locale: fr });
-        labelsMois.push(monthKey);
-
-        // Dépenses planifiées (charges fixes actives)
-        let planifie = 0;
-        chargesFixesProjet
-          .filter((cf) => cf.statut === 'actif')
-          .forEach((cf) => {
-            const cfDate = parseISO(cf.date_debut);
-            if (cfDate <= monthEnd) {
-              if (cf.frequence === 'mensuel') {
-                planifie += cf.montant;
-              } else if (cf.frequence === 'trimestriel' && i % 3 === 0) {
-                planifie += cf.montant;
-              } else if (cf.frequence === 'annuel' && i === 5) {
-                planifie += cf.montant;
-              }
-            }
-          });
-        depensesPlanifie.push(Math.round(planifie));
-
-        // Dépenses réelles (dépenses ponctuelles du mois)
-        const reel = depensesPonctuellesProjet
-          .filter((dp) => {
-            const dpDate = parseISO(dp.date);
-            return dpDate >= monthStart && dpDate <= monthEnd;
-          })
-          .reduce((sum, dp) => sum + dp.montant, 0);
-        depensesReel.push(Math.round(reel));
-
-        // Revenus du mois
-        const revenusMoisValue = revenusProjet
-          .filter((r) => {
-            const rDate = parseISO(r.date);
-            return rDate >= monthStart && rDate <= monthEnd;
-          })
-          .reduce((sum, r) => sum + r.montant, 0);
-        revenusMois.push(Math.round(revenusMoisValue));
-      }
-
-      // Données pour graphique par catégorie de dépenses
-      const categoryData: Record<string, number> = {};
-      depensesPonctuellesProjet.forEach((dp) => {
-        const category = dp.categorie;
-        categoryData[category] = (categoryData[category] || 0) + dp.montant;
-      });
-      const pieChartColors = ['#2E7D32', '#4CAF50', '#FF9800', '#F44336', '#2196F3', '#9C27B0'];
-      const depensesParCategorie = Object.entries(categoryData).map(([category, montant], index) => ({
-        name: category,
-        value: montant,
-        color: pieChartColors[index % pieChartColors.length],
-      }));
-
-      // Données pour graphique par catégorie de revenus
-      const revenusCategoryData: Record<string, number> = {};
-      revenusProjet.forEach((r) => {
-        const category = r.categorie;
-        revenusCategoryData[category] = (revenusCategoryData[category] || 0) + r.montant;
-      });
-      const categoryLabels: Record<string, string> = {
-        vente_porc: 'Vente porc',
-        vente_autre: 'Vente autre',
-        subvention: 'Subvention',
-        autre: 'Autre',
-      };
-      const revenusParCategorie = Object.entries(revenusCategoryData).map(([category, montant], index) => ({
-        name: categoryLabels[category] || category,
-        value: montant,
-        color: pieChartColors[index % pieChartColors.length],
-      }));
-
-      // Calculer les données pour les graphiques de production
-      // Évolution du poids moyen (groupé par mois)
-      const poidsParMois: Record<string, { total: number; count: number }> = {};
-      Object.values(peseesParAnimal).flat().forEach((pesee) => {
-        const datePesee = parseISO(pesee.date);
-        const moisKey = format(datePesee, 'MMM yyyy', { locale: fr });
-        if (!poidsParMois[moisKey]) {
-          poidsParMois[moisKey] = { total: 0, count: 0 };
-        }
-        poidsParMois[moisKey].total += pesee.poids_kg;
-        poidsParMois[moisKey].count += 1;
-      });
-      const evolutionPoidsLabels = Object.keys(poidsParMois).slice(-6); // 6 derniers mois
-      const evolutionPoidsData = evolutionPoidsLabels.map((mois) => {
-        const data = poidsParMois[mois];
-        return data.count > 0 ? data.total / data.count : 0;
-      });
-
-      // Évolution des mortalités (groupé par mois)
-      const mortalitesParMois: Record<string, number> = {};
-      mortalites
-        .filter((m) => m.projet_id === projetActif.id)
-        .forEach((m) => {
-          const dateMortalite = parseISO(m.date);
-          const moisKey = format(dateMortalite, 'MMM yyyy', { locale: fr });
-          mortalitesParMois[moisKey] = (mortalitesParMois[moisKey] || 0) + (m.nombre_porcs || 1);
-        });
-      const mortalitesLabels = Object.keys(mortalitesParMois).slice(-6); // 6 derniers mois
-      const mortalitesData = mortalitesLabels.map((mois) => mortalitesParMois[mois] || 0);
-
-      // Évolution du GMQ (basé sur les pesées)
-      const gmqParMois: Record<string, { total: number; count: number }> = {};
-      Object.values(peseesParAnimal).flat().forEach((pesee) => {
-        if (pesee.gmq) {
-          const datePesee = parseISO(pesee.date);
-          const moisKey = format(datePesee, 'MMM yyyy', { locale: fr });
-          if (!gmqParMois[moisKey]) {
-            gmqParMois[moisKey] = { total: 0, count: 0 };
-          }
-          gmqParMois[moisKey].total += pesee.gmq;
-          gmqParMois[moisKey].count += 1;
-        }
-      });
-      const gmqLabels = Object.keys(gmqParMois).slice(-6); // 6 derniers mois
-      const gmqData = gmqLabels.map((mois) => {
-        const data = gmqParMois[mois];
-        return data.count > 0 ? data.total / data.count : 0;
-      });
 
       // Préparer les données pour le PDF COMPLET
       const rapportCompletData = {
@@ -826,20 +830,20 @@ function PerformanceIndicatorsComponent() {
 
         // Indicateurs de performance
         indicateurs: {
-          gmqMoyen: indicateursAffiches.taux_croissance,
-          tauxMortalite: indicateursAffiches.taux_mortalite,
-          tauxReproduction: indicateursAffiches.taux_croissance,
-          coutProduction: indicateursAffiches.cout_production_kg || 0,
-          efficaciteAlimentaire: indicateursAffiches.efficacite_alimentaire,
-          poidsVifTotal: indicateursAffiches.poids_total,
-          poidsCarcasseTotal: indicateursAffiches.poids_total * TAUX_CARCASSE,
-          valeurEstimee: indicateursAffiches.poids_total * (projetActif.prix_kg_vif || 0),
+          gmqMoyen: calculatedIndicators.taux_croissance,
+          tauxMortalite: calculatedIndicators.taux_mortalite,
+          tauxReproduction: calculatedIndicators.taux_croissance,
+          coutProduction: calculatedIndicators.cout_production_kg,
+          efficaciteAlimentaire: calculatedIndicators.efficacite_alimentaire,
+          poidsVifTotal: calculatedIndicators.poids_total,
+          poidsCarcasseTotal: calculatedIndicators.poids_total * 0.75,
+          valeurEstimee: calculatedIndicators.poids_total * (projetActif.prix_kg_vif || 0),
         },
         production: {
-          nombreAnimauxActifs: indicateursAffiches.nombre_porcs_vivants,
+          nombreAnimauxActifs: calculatedIndicators.nombre_porcs_vivants,
           peseesEffectuees: peseesEffectuees,
-          gainPoidsTotal: indicateursAffiches.gain_poids_total || gainPoidsTotal,
-          joursProduction: indicateursAffiches.periode_jours || 120,
+          gainPoidsTotal: gainPoidsTotal,
+          joursProduction: 120,
         },
         financeIndicateurs: {
           totalDepenses: totalCharges + totalDepenses,
@@ -853,35 +857,11 @@ function PerformanceIndicatorsComponent() {
           porceletsSevres: porceletsSevres,
           tauxSurvie: tauxSurvie,
         },
-        recommandations: (recommandations || []).map((r) => ({
+        recommandations: (recommandations || []).map((r: any) => ({
           categorie: r.titre,
           priorite: r.type === 'avertissement' ? ('haute' as const) : ('moyenne' as const),
           message: r.message,
         })),
-        
-        // Données pour les graphiques
-        graphiques: {
-          depensesPlanifieVsReel: {
-            labels: labelsMois,
-            planifie: depensesPlanifie,
-            reel: depensesReel,
-            revenus: revenusMois,
-          },
-          depensesParCategorie: depensesParCategorie,
-          revenusParCategorie: revenusParCategorie,
-          evolutionPoids: evolutionPoidsLabels.length > 0 ? {
-            labels: evolutionPoidsLabels,
-            poidsMoyen: evolutionPoidsData,
-          } : undefined,
-          mortalites: mortalitesLabels.length > 0 ? {
-            labels: mortalitesLabels,
-            nombre: mortalitesData,
-          } : undefined,
-          gmq: gmqLabels.length > 0 ? {
-            labels: gmqLabels,
-            gmq: gmqData,
-          } : undefined,
-        },
       };
 
       // Générer et partager le PDF COMPLET
@@ -904,7 +884,7 @@ function PerformanceIndicatorsComponent() {
     }
   }, [
     projetActif,
-    indicateursAffiches,
+    calculatedIndicators,
     recommandations,
     chargesFixes,
     depensesPonctuelles,
@@ -937,39 +917,31 @@ function PerformanceIndicatorsComponent() {
           </TouchableOpacity>
         </View>
 
-        {loadingIndicateurs ? (
-          <LoadingSpinner message="Calcul des indicateurs depuis le serveur..." />
-        ) : indicateursAffiches ? (
+        {calculatedIndicators ? (
           <>
             {/* Indicateurs principaux */}
             <View style={styles.statsContainer}>
               <StatCard
-                value={typeof indicateursAffiches.taux_mortalite === 'number' ? indicateursAffiches.taux_mortalite.toFixed(1) : 'N/A'}
+                value={calculatedIndicators.taux_mortalite.toFixed(1)}
                 label="Taux de mortalité"
                 unit="%"
-                valueColor={typeof indicateursAffiches.taux_mortalite === 'number' && indicateursAffiches.taux_mortalite > 5 ? colors.error : colors.success}
+                valueColor={calculatedIndicators.taux_mortalite > 5 ? colors.error : colors.success}
               />
               <StatCard
-                value={typeof indicateursAffiches.taux_croissance === 'number' ? indicateursAffiches.taux_croissance.toFixed(1) : 'N/A'}
+                value={calculatedIndicators.taux_croissance.toFixed(1)}
                 label="Taux de croissance"
                 unit="%"
                 valueColor={colors.primary}
               />
               <StatCard
-                value={typeof indicateursAffiches.efficacite_alimentaire === 'number' ? indicateursAffiches.efficacite_alimentaire.toFixed(3) : 'N/A'}
-                label={
-                  typeof indicateursAffiches.indice_consommation === 'number'
-                    ? `Efficacité (IC: ${indicateursAffiches.indice_consommation.toFixed(2)})`
-                    : 'Efficacité alimentaire'
-                }
+                value={calculatedIndicators.efficacite_alimentaire.toFixed(2)}
+                label="Efficacité alimentaire"
                 valueColor={
-                  typeof indicateursAffiches.efficacite_alimentaire === 'number'
-                    ? indicateursAffiches.efficacite_alimentaire > 0.3
-                      ? colors.success
-                      : indicateursAffiches.efficacite_alimentaire > 0.25
-                        ? colors.warning
-                        : colors.error
-                    : colors.textSecondary
+                  calculatedIndicators.efficacite_alimentaire > 0.35
+                    ? colors.success
+                    : calculatedIndicators.efficacite_alimentaire > 0.25
+                    ? colors.warning
+                    : colors.error
                 }
               />
             </View>
@@ -1010,16 +982,16 @@ function PerformanceIndicatorsComponent() {
                           performanceGlobale.statut === 'rentable'
                             ? colors.success + '15'
                             : performanceGlobale.statut === 'fragile'
-                              ? colors.warning + '15'
-                              : colors.error + '15',
+                            ? colors.warning + '15'
+                            : colors.error + '15',
                         marginTop: SPACING.md,
                         borderWidth: 2,
                         borderColor:
                           performanceGlobale.statut === 'rentable'
                             ? colors.success
                             : performanceGlobale.statut === 'fragile'
-                              ? colors.warning
-                              : colors.error,
+                            ? colors.warning
+                            : colors.error,
                       },
                     ]}
                   >
@@ -1034,12 +1006,12 @@ function PerformanceIndicatorsComponent() {
                             performanceGlobale.statut === 'rentable'
                               ? colors.success
                               : performanceGlobale.statut === 'fragile'
-                                ? colors.warning
-                                : colors.error,
+                              ? colors.warning
+                              : colors.error,
                         },
                       ]}
                     >
-                      {performanceGlobale.ecart_absolu >= 0 ? '+' : ''}
+                      {performanceGlobale.ecart_absolu >= 0 ? '+' : null}
                       {formatAmount(performanceGlobale.ecart_absolu)}
                     </Text>
                     <Text
@@ -1050,13 +1022,13 @@ function PerformanceIndicatorsComponent() {
                             performanceGlobale.statut === 'rentable'
                               ? colors.success
                               : performanceGlobale.statut === 'fragile'
-                                ? colors.warning
-                                : colors.error,
+                              ? colors.warning
+                              : colors.error,
                         },
                       ]}
                     >
-                      ({typeof performanceGlobale.ecart_pourcentage === 'number' && performanceGlobale.ecart_pourcentage >= 0 ? '+' : ''}
-                      {typeof performanceGlobale.ecart_pourcentage === 'number' ? performanceGlobale.ecart_pourcentage.toFixed(1) : 'N/A'}%)
+                      ({performanceGlobale.ecart_pourcentage >= 0 ? '+' : null}
+                      {performanceGlobale.ecart_pourcentage.toFixed(1)}%)
                     </Text>
                   </View>
                   <View
@@ -1076,9 +1048,7 @@ function PerformanceIndicatorsComponent() {
                     Coût par kilogramme (ancien calcul):
                   </Text>
                   <Text style={[styles.costValue, { color: colors.text }]}>
-                    {indicateursAffiches.cout_production_kg
-                      ? formatAmount(indicateursAffiches.cout_production_kg)
-                      : 'N/A'}
+                    {formatAmount(calculatedIndicators.cout_production_kg)}
                   </Text>
                 </View>
               )}
@@ -1092,7 +1062,7 @@ function PerformanceIndicatorsComponent() {
                   Nombre total de porcs:
                 </Text>
                 <Text style={[styles.detailValue, { color: colors.text }]}>
-                  {indicateursAffiches.nombre_porcs_total}
+                  {calculatedIndicators.nombre_porcs_total}
                 </Text>
               </View>
               <View style={styles.detailRow}>
@@ -1100,7 +1070,7 @@ function PerformanceIndicatorsComponent() {
                   Porcs vendus:
                 </Text>
                 <Text style={[styles.detailValue, { color: colors.text }]}>
-                  {indicateursAffiches.nombre_porcs_vivants}
+                  {calculatedIndicators.nombre_porcs_vivants}
                 </Text>
               </View>
               <View style={styles.detailRow}>
@@ -1108,7 +1078,7 @@ function PerformanceIndicatorsComponent() {
                   Porcs morts:
                 </Text>
                 <Text style={[styles.detailValue, { color: colors.text }]}>
-                  {indicateursAffiches.nombre_porcs_morts}
+                  {calculatedIndicators.nombre_porcs_morts}
                 </Text>
               </View>
               <View style={styles.detailRow}>
@@ -1116,7 +1086,7 @@ function PerformanceIndicatorsComponent() {
                   Poids total:
                 </Text>
                 <Text style={[styles.detailValue, { color: colors.text }]}>
-                  {typeof indicateursAffiches.poids_total === 'number' ? indicateursAffiches.poids_total.toFixed(1) : 'N/A'} kg
+                  {calculatedIndicators.poids_total.toFixed(1)} kg
                 </Text>
               </View>
             </View>
@@ -1127,7 +1097,7 @@ function PerformanceIndicatorsComponent() {
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>
                   💡 Recommandations
                 </Text>
-                {recommandations.map((rec) => (
+                {recommandations.map((rec: any) => (
                   <View
                     key={rec.id}
                     style={[
@@ -1278,6 +1248,3 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xl,
   },
 });
-
-// Mémoïser le composant pour éviter les re-renders inutiles
-export default React.memo(PerformanceIndicatorsComponent);

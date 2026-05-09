@@ -37,7 +37,7 @@ describe('productionSlice - Optimistic Updates', () => {
         statut: 'actif' as const,
       };
 
-      const createdAnimal: ProductionAnimal = {
+      const createdAnimal = {
         id: 'animal-3',
         ...newAnimalInput,
         date_entree: '2024-01-01',
@@ -96,7 +96,7 @@ describe('productionSlice - Optimistic Updates', () => {
   describe('updateProductionAnimal - Optimistic Update', () => {
     it('devrait mettre à jour l\'animal immédiatement (optimistic)', async () => {
       // Créer un animal dans le state
-      const existingAnimal: ProductionAnimal = {
+      const existingAnimal = {
         id: 'animal-1',
         projet_id: 'proj-1',
         code: 'A001',
@@ -139,7 +139,7 @@ describe('productionSlice - Optimistic Updates', () => {
     });
 
     it('devrait faire un rollback en cas d\'erreur lors de la mise à jour', async () => {
-      const existingAnimal: ProductionAnimal = {
+      const existingAnimal = {
         id: 'animal-1',
         projet_id: 'proj-1',
         code: 'A001',
@@ -171,7 +171,7 @@ describe('productionSlice - Optimistic Updates', () => {
 
   describe('deleteProductionAnimal - Optimistic Update', () => {
     it('devrait supprimer l\'animal immédiatement (optimistic)', async () => {
-      const existingAnimal: ProductionAnimal = {
+      const existingAnimal = {
         id: 'animal-1',
         projet_id: 'proj-1',
         code: 'A001',
@@ -219,7 +219,7 @@ describe('productionSlice - Optimistic Updates', () => {
     });
 
     it('devrait faire un rollback en cas d\'erreur lors de la suppression', async () => {
-      const existingAnimal: ProductionAnimal = {
+      const existingAnimal = {
         id: 'animal-1',
         projet_id: 'proj-1',
         code: 'A001',

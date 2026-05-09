@@ -3,7 +3,7 @@
  * V2.0 - Support mode batch (bande) et individuel
  */
 
-import { AgentActionResult, AgentContext } from '../../../types/chatAgent';
+import { AgentActionResult, AgentContext } from '../../../../types/chatAgent';
 import { format } from 'date-fns';
 import apiClient from '../../../api/apiClient';
 import { logger } from '../../../../utils/logger';

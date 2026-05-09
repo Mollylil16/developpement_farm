@@ -1,76 +1,15 @@
 /**
  * Service principal pour l'agent conversationnel
- * V4.1 - Sans appels directs à Gemini (tout passe par le backend)
- * 
- * ⚠️ DEPRECATED - NE PAS UTILISER EN PRODUCTION ⚠️
- * 
- * Ce service est utilisé UNIQUEMENT pour les tests et le développement.
- * En production, utilisez le hook `useChatAgent` qui communique directement avec le backend.
- * 
- * Raisons du dépôt :
- * - L'intelligence IA est maintenant gérée côté serveur
- * - Le hook `useChatAgent` est plus simple et mieux adapté à React
- * - Ce service est trop complexe (879 lignes) et difficile à maintenir
- * 
- * Migration :
- * - Remplacer `new ChatAgentService(config)` par `useChatAgent()` dans les composants React
- * - Pour les tests, ce service peut rester dans `src/services/chatAgent/tests/`
- * 
- * @deprecated Depuis V4.1 - Utiliser useChatAgent à la place
+ * Gère les interactions avec l'IA et l'exécution des actions
  */
 
-import {
-  ChatMessage,
-  AgentAction,
-  AgentActionType,
-  AgentContext,
-  AgentConfig,
-  AgentActionResult,
-} from '../../types/chatAgent';
+import { ChatMessage, AgentAction, AgentContext, AgentConfig, AgentActionResult, AgentActionType } from '../../types/chatAgent';
 import { AgentActionExecutor } from './AgentActionExecutor';
 import { ChatAgentAPI } from './ChatAgentAPI';
-import { buildOptimizedSystemPrompt } from './prompts/systemPrompt';
-import {
-  ConversationContextManager,
-  DataValidator,
-  ClarificationService,
-} from './core';
-import { ConfirmationManager } from './core/ConfirmationManager';
-import { STANDARD_MISUNDERSTANDING_MESSAGE } from './core/constants';
-import { ActionParser } from './core/ActionParser';
-import { PerformanceMonitor } from './monitoring/PerformanceMonitor';
-import { NaturalLanguageProcessor } from './core/NaturalLanguageProcessor';
-import { createLoggerWithPrefix } from '../../utils/logger';
-import { KnowledgeBaseAPI } from './knowledge/KnowledgeBaseAPI';
-import apiClient from '../api/apiClient';
-
-const logger = createLoggerWithPrefix('ChatAgentService');
-
-// ═══════════════════════════════════════════════════════════════════════════
-// CONSTANTES
-// ═══════════════════════════════════════════════════════════════════════════
-const GEMINI_CONFIDENCE = 0.95;    // Confiance attribuée aux réponses Gemini
-
-/**
- * Interface pour la réponse du backend Gemini
- */
-interface GeminiBackendResponse {
-  success: boolean;
-  data?: {
-    response: string;
-    timestamp?: string;
-  };
-  error?: string;
-}
-
-/**
- * Interface pour une action extraite de Gemini
- */
-interface GeminiParsedAction {
-  action: AgentActionType;
-  params: Record<string, unknown>;
-  explanation?: string;
-}
+import { FULL_VETERINARY_PROMPT } from '../../config/aiPrompts';
+import { IntentDetector } from './IntentDetector';
+import { AdvancedReasoningService } from './AdvancedReasoningService';
+import { ConversationHistoryService } from './ConversationHistoryService';
 
 export class ChatAgentService {
   private actionExecutor: AgentActionExecutor;
@@ -78,17 +17,13 @@ export class ChatAgentService {
   private config: AgentConfig;
   private context: AgentContext | null = null;
   private conversationHistory: ChatMessage[] = [];
-
-  // Composants core
-  private conversationContext: ConversationContextManager;
-  private dataValidator: DataValidator;
-  private confirmationManager: ConfirmationManager;
-  private performanceMonitor: PerformanceMonitor;
-  private clarificationService: ClarificationService;
+  private reasoningService: AdvancedReasoningService;
+  private historyService: ConversationHistoryService;
+  private proactiveCheckInterval: NodeJS.Timeout | null = null;
 
   constructor(config: AgentConfig) {
     this.config = {
-      model: 'local', // Détection locale uniquement
+      model: 'gpt-4o-mini',
       temperature: 0.7,
       maxTokens: 1000,
       language: 'fr-CI',
@@ -98,85 +33,114 @@ export class ChatAgentService {
     };
     this.actionExecutor = new AgentActionExecutor();
     this.api = new ChatAgentAPI(this.config);
-
-    // Initialiser les composants core
-    this.conversationContext = new ConversationContextManager();
-    this.dataValidator = new DataValidator();
-    this.confirmationManager = new ConfirmationManager();
-    this.performanceMonitor = new PerformanceMonitor();
-    this.clarificationService = new ClarificationService(this.conversationContext);
+    this.reasoningService = new AdvancedReasoningService();
+    this.historyService = new ConversationHistoryService();
   }
 
   /**
    * Initialise le contexte de l'agent
    */
-  async initializeContext(context: AgentContext, conversationId?: string): Promise<void> {
+  async initializeContext(context: AgentContext): Promise<void> {
     this.context = context;
     await this.actionExecutor.initialize(context);
-    await this.dataValidator.initialize(context);
+    await this.reasoningService.initialize(context);
+    await this.historyService.initialize(context.projetId);
+    
+    // Charger l'historique depuis AsyncStorage
+    const savedHistory = await this.historyService.loadHistory();
+    if (savedHistory.length > 0) {
+      this.conversationHistory = savedHistory;
+    }
+    
+    // Démarrer les vérifications proactives si activées
+    if (this.config.enableProactiveAlerts) {
+      this.startProactiveChecks();
+    }
+  }
 
-    // Charger l'historique dans le contexte conversationnel
-    if (this.conversationHistory.length > 0) {
-      for (const msg of this.conversationHistory) {
-        this.conversationContext.updateFromMessage(msg);
+  /**
+   * Démarre les vérifications proactives périodiques
+   */
+  private startProactiveChecks(): void {
+    // Vérifier toutes les 5 minutes
+    this.proactiveCheckInterval = setInterval(async () => {
+      await this.checkProactiveAlerts();
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    // Faire une première vérification immédiate
+    this.checkProactiveAlerts();
+  }
+
+  /**
+   * Arrête les vérifications proactives
+   */
+  private stopProactiveChecks(): void {
+    if (this.proactiveCheckInterval) {
+      clearInterval(this.proactiveCheckInterval);
+      this.proactiveCheckInterval = null;
+    }
+  }
+
+  /**
+   * Vérifie les alertes proactives et génère des suggestions
+   */
+  private async checkProactiveAlerts(): Promise<void> {
+    if (!this.context) {
+      return;
+    }
+
+    try {
+      const reasoning = await this.reasoningService.analyzeWithChainOfThought(
+        '',
+        this.conversationHistory
+      );
+
+      // Si des suggestions proactives existent, les ajouter à l'historique
+      if (reasoning.proactiveSuggestions.length > 0) {
+        const proactiveMessage: ChatMessage = {
+          id: this.generateId(),
+          role: 'assistant',
+          content: this.formatProactiveSuggestions(reasoning.proactiveSuggestions),
+          timestamp: new Date().toISOString(),
+          metadata: {
+            isProactive: true,
+          },
+        };
+
+        this.conversationHistory.push(proactiveMessage);
+        await this.historyService.addMessage(proactiveMessage);
       }
+    } catch (error) {
+      console.error('[ChatAgentService] Erreur vérification proactive:', error);
     }
   }
 
   /**
-   * Charge l'historique de conversation existant
+   * Formate les suggestions proactives en message
    */
-  loadHistory(messages: ChatMessage[]): void {
-    this.conversationHistory = messages;
-    // Mettre à jour le contexte conversationnel avec l'historique
-    for (const msg of messages) {
-      this.conversationContext.updateFromMessage(msg);
+  private formatProactiveSuggestions(suggestions: string[]): string {
+    if (suggestions.length === 0) {
+      return '';
     }
-  }
 
-  /**
-   * Gère les réponses rapides (cache) pour les messages simples
-   */
-  private handleQuickResponses(message: string): string | null {
-    const normalized = message.toLowerCase().trim();
-    
-    // Salutations simples
-    if (/^(bonjour|salut|hello|hi|bonsoir)$/i.test(normalized)) {
-      return "Bonjour ! Comment puis-je vous aider aujourd'hui ?";
-    }
-    
-    // Remerciements simples
-    if (/^(merci|ok|d'accord|parfait)$/i.test(normalized)) {
-      return "De rien ! N'hésitez pas si vous avez d'autres questions.";
-    }
-    
-    return null;
+    let message = '💡 **Suggestions proactives** :\n\n';
+    suggestions.forEach((suggestion, index) => {
+      message += `${index + 1}. ${suggestion}\n`;
+    });
+
+    return message;
   }
 
   /**
    * Envoie un message à l'agent et reçoit une réponse
-   * 
-   * V6.0 - FLUX SIMPLIFIÉ avec Gemini en priorité
-   * 
-   * 1. Cache rapide (5% des cas) - Salutations/remerciements
-   * 2. Gemini (95% des cas) - Appel direct avec recherche web
-   * 3. Fallback Knowledge Base (si Gemini échoue)
-   * 
-   * @param userMessage - Le message de l'utilisateur
-   * @param externalHistory - Historique externe optionnel (depuis useChatAgent). Si fourni, utilise cet historique au lieu de this.conversationHistory
+   * Retourne la réponse de l'assistant (le message utilisateur est géré par le hook)
    */
-  async sendMessage(
-    userMessage: string,
-    externalHistory?: Array<{ role: string; content: string }>
-  ): Promise<ChatMessage> {
+  async sendMessage(userMessage: string): Promise<ChatMessage> {
     if (!this.context) {
-      throw new Error("Le contexte de l'agent n'est pas initialisé");
+      throw new Error('Le contexte de l\'agent n\'est pas initialisé');
     }
 
-    const startTime = Date.now();
-    logger.info(`[Kouakou] 📨 Message reçu: "${userMessage.substring(0, 50)}..."`);
-
-    // Ajouter le message utilisateur à l'historique
+    // Ajouter le message de l'utilisateur à l'historique interne
     const userMsg: ChatMessage = {
       id: this.generateId(),
       role: 'user',
@@ -184,285 +148,202 @@ export class ChatAgentService {
       timestamp: new Date().toISOString(),
     };
     this.conversationHistory.push(userMsg);
+    
+    // Sauvegarder dans AsyncStorage
+    await this.historyService.addMessage(userMsg);
+    
+    // Raisonnement avancé avec chain-of-thought
+    let reasoning: any = null;
+    try {
+      reasoning = await this.reasoningService.analyzeWithChainOfThought(
+        userMessage,
+        this.conversationHistory
+      );
+      
+      console.log('[ChatAgentService] Raisonnement avancé:', {
+        intent: reasoning.userIntent,
+        recommendations: reasoning.recommendations,
+        proactiveSuggestions: reasoning.proactiveSuggestions,
+      });
+    } catch (reasoningError) {
+      console.error('[ChatAgentService] Erreur raisonnement avancé:', reasoningError);
+      // Continuer même si le raisonnement échoue
+    }
 
     try {
-      // Mettre à jour le contexte conversationnel
-      this.conversationContext.updateFromMessage(userMsg);
+      // Préparer le contexte pour l'IA
+      const systemPrompt = this.buildSystemPrompt();
+      const messagesForAPI = [
+        { role: 'system' as const, content: systemPrompt },
+        ...this.conversationHistory.slice(-10).map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        })),
+      ];
 
-      // Prétraitement NLP basique
-      const nlpResult = NaturalLanguageProcessor.process(userMessage);
-      const processedMessage = nlpResult.processed;
+      // Appeler l'API de l'IA
+      const aiResponse = await this.api.sendMessage(messagesForAPI);
 
-      // ═══════════════════════════════════════════════════════════
-      // OPTION 1 : CACHE RAPIDE (salutations, remerciements simples)
-      // ═══════════════════════════════════════════════════════════
+      // Analyser la réponse pour détecter des actions
+      // MODE AUTONOME : détection agressive et exécution directe
+      let action: AgentAction | null = null;
       
-      const quickResponse = this.handleQuickResponses(processedMessage);
-      if (quickResponse) {
-        logger.info('[Kouakou] ⚡ Réponse rapide (cache)');
-        const assistantMessage: ChatMessage = {
-          id: this.generateId(),
-          role: 'assistant',
-          content: quickResponse,
-          timestamp: new Date().toISOString(),
-          metadata: {
-            source: 'QuickResponse',
-          },
-        };
-        this.conversationHistory.push(assistantMessage);
-        const responseTime = Date.now() - startTime;
-        this.performanceMonitor.recordInteraction(userMsg, assistantMessage, responseTime);
-        return assistantMessage;
+      // Vérifier si c'est une réponse à une question précédente (contexte conversationnel)
+      const contextualAction = this.detectContextualAction(userMessage);
+      if (contextualAction) {
+        action = contextualAction;
+        console.log('[ChatAgentService] Action contextuelle détectée:', action.type);
+      } else {
+        const detectedIntent = IntentDetector.detectIntent(userMessage);
+        if (detectedIntent && detectedIntent.confidence >= 0.7) {
+          console.log('[ChatAgentService] Action détectée depuis IntentDetector:', detectedIntent.action, 'confiance:', detectedIntent.confidence);
+          
+          // Ajouter le message utilisateur aux params pour extraction de montant en fallback
+          const paramsWithUserMessage = {
+            ...detectedIntent.params,
+            userMessage: userMessage, // Pour extraction de montant en fallback
+          };
+          
+          // Déterminer si confirmation nécessaire (uniquement pour cas critiques)
+          const requiresConfirmation = this.requiresConfirmation(detectedIntent.action, paramsWithUserMessage);
+          
+          action = {
+            type: detectedIntent.action,
+            params: paramsWithUserMessage,
+            requiresConfirmation,
+          };
+        } else {
+          // Fallback : parser la réponse de l'IA
+          action = this.parseActionFromResponse(aiResponse, userMessage);
+          if (action) {
+            // Vérifier si confirmation nécessaire
+            action.requiresConfirmation = this.requiresConfirmation(action.type, action.params);
+          }
+        }
       }
 
-      // ═══════════════════════════════════════════════════════════
-      // OPTION 2 : GEMINI (95% des cas)
-      // ═══════════════════════════════════════════════════════════
-      
-      logger.info('[Kouakou] 🤖 Appel Gemini...');
-      
-      try {
-        const geminiStartTime = Date.now();
-        
-        // Construire le prompt optimisé pour Gemini
-        const systemPrompt = this.buildGeminiSystemPrompt();
-        
-        // Utiliser l'historique externe si fourni (depuis useChatAgent), sinon utiliser l'historique interne
-        // Limiter à 30 messages pour éviter de dépasser les limites de Gemini (~30K tokens)
-        let conversationContext: Array<{ role: string; content: string }>;
-        
-        if (externalHistory && externalHistory.length > 0) {
-          // Utiliser l'historique externe (source unique de vérité depuis useChatAgent)
-          conversationContext = externalHistory
-            .slice(-30) // Limiter à 30 messages pour conserver plus de contexte que .slice(-10)
-            .map((entry) => ({
-              role: entry.role === 'user' ? 'user' : 'model',
-              content: entry.content || '',
-            }));
-          logger.debug(`[ChatAgentService] Utilisation de l'historique externe: ${conversationContext.length} messages`);
-        } else {
-          // Fallback sur l'historique interne (limité à 30 messages au lieu de 10)
-          conversationContext = this.conversationHistory.slice(-30).map((msg) => ({
-            role: msg.role === 'user' ? 'user' : 'model',
-            content: msg.content,
-          }));
-          logger.debug(`[ChatAgentService] Utilisation de l'historique interne: ${conversationContext.length} messages`);
-        }
-        
-        // Appeler le backend Gemini
-        const geminiResponse = await this.callBackendGemini(
-          userMessage,
-          systemPrompt,
-          conversationContext
-        );
-        
-        const geminiTime = Date.now() - geminiStartTime;
-        logger.info(`[Gemini] ✅ Réponse reçue en ${geminiTime}ms`);
-        
-        // Vérifier que la réponse n'est pas vide
-        if (!geminiResponse || typeof geminiResponse !== 'string' || geminiResponse.trim().length === 0) {
-          throw new Error('Gemini a retourné une réponse vide');
-        }
-        
-        // Essayer d'extraire une action structurée de la réponse Gemini
-        const parsedAction = this.extractActionFromGeminiResponse(geminiResponse);
-        
-        if (parsedAction) {
-          // Gemini a détecté une action → Exécuter
-          logger.info(`[Kouakou] 🎯 Action détectée: ${parsedAction.action}`);
-          
-          const action: AgentAction = {
-            type: parsedAction.action,
-            params: parsedAction.params,
-          };
-          
-          const actionResult = await this.actionExecutor.execute(action, this.context);
-          
-          const assistantMessage: ChatMessage = {
-            id: this.generateId(),
-            role: 'assistant',
-            content: actionResult.message,
-            timestamp: new Date().toISOString(),
-            metadata: {
-              source: 'Gemini+Action',
-              actionExecuted: parsedAction.action,
-              actionResult: actionResult.data,
-              refreshHint: actionResult.refreshHint,
-            },
-          };
-          
-          this.conversationHistory.push(assistantMessage);
-          const responseTime = Date.now() - startTime;
-          this.performanceMonitor.recordInteraction(userMsg, assistantMessage, responseTime);
-          return assistantMessage;
-        } else {
-          // Gemini a répondu sans action (conversationnel ou recherche)
-          logger.info('[Kouakou] 💬 Gemini réponse conversationnelle');
-          
-          const assistantMessage: ChatMessage = {
-            id: this.generateId(),
-            role: 'assistant',
-            content: geminiResponse,
-            timestamp: new Date().toISOString(),
-            metadata: {
-              source: 'Gemini',
-            },
-          };
-          
-          this.conversationHistory.push(assistantMessage);
-          const responseTime = Date.now() - startTime;
-          this.performanceMonitor.recordInteraction(userMsg, assistantMessage, responseTime);
-          return assistantMessage;
-        }
-      } catch (error: any) {
-        // Log détaillé de l'erreur pour diagnostic
-        const apiConfig = await import('../../config/api.config').then(m => m.API_CONFIG).catch(() => null);
-        logger.error('[Kouakou] ❌ ERREUR GEMINI CRITIQUE:', {
-          message: error?.message || 'Erreur inconnue',
-          stack: error?.stack?.substring(0, 1000),
-          endpoint: '/kouakou/chat',
-          errorType: error?.constructor?.name,
-          status: error?.response?.status || error?.status,
-          responseData: error?.response?.data ? JSON.stringify(error.response.data).substring(0, 500) : undefined,
-          apiBaseURL: apiConfig?.baseURL || 'non disponible',
-          isNetworkError: error?.message?.includes('fetch') || error?.message?.includes('network'),
-        });
-        
-        // Déterminer le type d'erreur et générer un message approprié
-        let errorMessage = "Je rencontre un problème technique. ";
-        
-        const errorMsg = String(error?.message || '').toLowerCase();
-        const statusCode = error?.response?.status || error?.status;
-        
-        if (statusCode === 403 || errorMsg.includes('403') || errorMsg.includes('forbidden') || errorMsg.includes('api key')) {
-          errorMessage += "La clé API Gemini semble invalide ou expirée. Veuillez contacter le support.";
-        } else if (statusCode === 429 || errorMsg.includes('429') || errorMsg.includes('quota') || errorMsg.includes('rate limit')) {
-          errorMessage += "Le quota API est dépassé. Veuillez réessayer plus tard.";
-        } else if (statusCode === 500 || errorMsg.includes('500') || errorMsg.includes('internal server')) {
-          errorMessage += "Le serveur rencontre un problème. Veuillez réessayer dans quelques instants.";
-        } else if (statusCode === 503 || errorMsg.includes('503') || errorMsg.includes('service unavailable')) {
-          errorMessage += "Le service est temporairement indisponible. Veuillez réessayer plus tard.";
-        } else if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('connection') || errorMsg.includes('econnrefused')) {
-          errorMessage += "Impossible de contacter le serveur. Vérifiez votre connexion internet.";
-        } else if (errorMsg.includes('timeout') || errorMsg.includes('timed out')) {
-          errorMessage += "La requête a pris trop de temps. Veuillez réessayer.";
-        } else if (errorMsg.includes('vide') || errorMsg.includes('empty')) {
-          errorMessage += "Le serveur a retourné une réponse vide. Veuillez réessayer.";
-        } else {
-          errorMessage += "Veuillez réessayer dans quelques instants.";
-        }
-        
-        // Retourner un message d'erreur clair au lieu de continuer vers fallback
-        const errorResponse: ChatMessage = {
-          id: this.generateId(),
-          role: 'assistant',
-          content: errorMessage,
-          timestamp: new Date().toISOString(),
-          metadata: {
-            source: 'Error',
-            error: true,
-            errorType: error?.constructor?.name || 'Unknown',
-            statusCode: statusCode,
-          },
-        };
-        
-        this.conversationHistory.push(errorResponse);
-        const responseTime = Date.now() - startTime;
-        this.performanceMonitor.recordInteraction(userMsg, errorResponse, responseTime);
-        return errorResponse;
-      }
+      let assistantMessage: ChatMessage;
+      let actionResult: AgentActionResult | null = null;
 
-      // ═══════════════════════════════════════════════════════════
-      // OPTION 3 : FALLBACK (si Gemini échoue - 5% des cas)
-      // ═══════════════════════════════════════════════════════════
-      
-      logger.warn('[Kouakou] ⚠️ Gemini indisponible - Fallback Knowledge Base');
-      
-      try {
-        const kbResults = await KnowledgeBaseAPI.search(userMessage, {
-          projetId: this.context.projetId,
-          limit: 1,
-        });
-        
-        if (kbResults && kbResults[0]?.relevance_score >= 5) {
-          logger.info(`[KB] ✅ Résultat pertinent trouvé: ${kbResults[0].title}`);
-          const kbContent = `📚 ${kbResults[0].title}\n\n${kbResults[0].summary || kbResults[0].content}`;
-          
-          const assistantMessage: ChatMessage = {
+      if (action && action.type !== 'other') {
+        // Si confirmation requise (cas critiques uniquement), demander d'abord
+        if (action.requiresConfirmation) {
+          const contextId = this.generateContextId();
+          assistantMessage = {
             id: this.generateId(),
             role: 'assistant',
-            content: kbContent,
+            content: this.buildConfirmationMessage(action, userMessage),
             timestamp: new Date().toISOString(),
             metadata: {
-              source: 'KnowledgeBase',
+              pendingAction: action,
+              requiresConfirmation: true,
+              contextId: contextId,
+              isClarificationQuestion: false,
             },
           };
-          
-          this.conversationHistory.push(assistantMessage);
-          const responseTime = Date.now() - startTime;
-          this.performanceMonitor.recordInteraction(userMsg, assistantMessage, responseTime);
-          return assistantMessage;
-        }
-      } catch (kbError) {
-        logger.error('[KB] Erreur recherche:', kbError);
-      }
-      
-      // Dernier recours
-      const errorMessage: ChatMessage = {
-        id: this.generateId(),
-        role: 'assistant',
-        content: "Je rencontre un problème technique. Veuillez réessayer dans quelques instants.",
-        timestamp: new Date().toISOString(),
-        metadata: {
-          source: 'Error',
-        },
-      };
-      
-      this.conversationHistory.push(errorMessage);
-      const responseTime = Date.now() - startTime;
-      this.performanceMonitor.recordInteraction(userMsg, errorMessage, responseTime);
-      return errorMessage;
-    } catch (error: unknown) {
-      // Log détaillé de l'erreur pour diagnostic
-      logger.error("Erreur lors de l'envoi du message:", error);
-      
-      if (error instanceof Error) {
-        logger.error(`[ChatAgentService] Type d'erreur: ${error.constructor.name}`);
-        logger.error(`[ChatAgentService] Message: ${error.message}`);
-        logger.error(`[ChatAgentService] Stack: ${error.stack?.substring(0, 500)}`);
-        if ('status' in error) {
-          logger.error(`[ChatAgentService] Status: ${(error as any).status}`);
-        }
-        if ('response' in error) {
-          logger.error(`[ChatAgentService] Response: ${JSON.stringify((error as any).response)}`);
+        } else {
+          // Vérifier si l'action nécessite des clarifications (infos manquantes)
+          const missingInfo = this.checkMissingInfo(action);
+          if (missingInfo.length > 0) {
+            // Il manque des informations, poser une question de clarification
+            const contextId = this.generateContextId();
+            const clarificationQuestion = this.buildClarificationQuestion(action, missingInfo);
+            
+            assistantMessage = {
+              id: this.generateId(),
+              role: 'assistant',
+              content: clarificationQuestion,
+              timestamp: new Date().toISOString(),
+              metadata: {
+                pendingAction: action,
+                requiresConfirmation: false,
+                contextId: contextId,
+                isClarificationQuestion: true,
+              },
+            };
+          } else {
+            // MODE AUTONOME : Exécuter l'action directement sans demander confirmation
+            actionResult = await this.actionExecutor.execute(action, this.context);
+
+            // Vérifier si c'était une réponse contextuelle pour personnaliser le message
+            const isContextualResponse = contextualAction !== null;
+            let responseMessage = actionResult.message;
+            
+            if (isContextualResponse && action.type === 'create_revenu') {
+              // Personnaliser le message pour montrer qu'on se souvient du contexte
+              responseMessage = this.buildContextualResponse(action, actionResult.message);
+            }
+
+            // Créer le message de réponse avec le résultat de l'action
+            assistantMessage = {
+              id: this.generateId(),
+              role: 'assistant',
+              content: responseMessage,
+              timestamp: new Date().toISOString(),
+              metadata: {
+                actionExecuted: action.type,
+                actionResult: actionResult.data,
+                requiresConfirmation: false,
+              },
+            };
+          }
         }
       } else {
-        logger.error(`[ChatAgentService] Erreur non-Error: ${JSON.stringify(error)}`);
-        logger.error(`[ChatAgentService] Type: ${typeof error}`);
+        // Réponse simple sans action
+        assistantMessage = {
+          id: this.generateId(),
+          role: 'assistant',
+          content: aiResponse,
+          timestamp: new Date().toISOString(),
+        };
       }
 
-      const errorMsg = error instanceof Error ? error.message : String(error) || 'Erreur inconnue';
+      this.conversationHistory.push(assistantMessage);
       
-      // Message d'erreur standard
-      let errorContent = STANDARD_MISUNDERSTANDING_MESSAGE;
-
-      if (error instanceof Error && error.message) {
-        if (error.message.includes('montant') || error.message.includes('Montant')) {
-          errorContent = `Désolé, ${error.message}. Peux-tu me donner le montant exact ?`;
-        } else if (error.message.includes('Contexte non initialisé')) {
-          errorContent = 'Désolé, je ne suis pas encore prêt. Réessaie dans quelques instants.';
+      // Sauvegarder dans AsyncStorage
+      await this.historyService.addMessage(assistantMessage);
+      
+      // Ajouter les recommandations et suggestions proactives si disponibles
+      if (reasoning && (reasoning.recommendations.length > 0 || reasoning.proactiveSuggestions.length > 0)) {
+        const recommendationsMessage = this.buildRecommendationsMessage(reasoning);
+        if (recommendationsMessage) {
+          const recMsg: ChatMessage = {
+            id: this.generateId(),
+            role: 'assistant',
+            content: recommendationsMessage,
+            timestamp: new Date().toISOString(),
+            metadata: {
+              isRecommendation: true,
+            },
+          };
+          this.conversationHistory.push(recMsg);
+          await this.historyService.addMessage(recMsg);
         }
       }
-
+      
+      return assistantMessage;
+    } catch (error: any) {
+      console.error('Erreur lors de l\'envoi du message:', error);
+      
+      // Message d'erreur plus spécifique selon le type d'erreur
+      let errorContent = 'Désolé, j\'ai rencontré une erreur. Pouvez-vous reformuler votre demande ?';
+      
+      if (error?.message) {
+        // Si l'erreur vient de l'exécution d'une action, utiliser le message d'erreur
+        if (error.message.includes('montant') || error.message.includes('Montant')) {
+          errorContent = `Désolé, ${error.message}. Peux-tu me donner le montant exact de la dépense ? Par exemple : "J'ai dépensé 5000 FCFA pour l'alimentation".`;
+        } else if (error.message.includes('Contexte non initialisé')) {
+          errorContent = 'Désolé, je ne suis pas encore prêt. Réessaie dans quelques instants.';
+        } else {
+          errorContent = `Désolé, ${error.message}. Peux-tu reformuler ta demande avec plus de détails ?`;
+        }
+      }
+      
       const errorMessage: ChatMessage = {
         id: this.generateId(),
         role: 'assistant',
         content: errorContent,
         timestamp: new Date().toISOString(),
-        metadata: {
-          error: errorMsg,
-          educationalSuggestion: suggestion,
-        },
       };
       this.conversationHistory.push(errorMessage);
       return errorMessage;
@@ -470,442 +351,838 @@ export class ChatAgentService {
   }
 
   /**
-   * Confirme et exécute une action
+   * Confirme et exécute une action qui nécessite confirmation
    */
   async confirmAction(actionId: string, confirmed: boolean): Promise<ChatMessage> {
     if (!confirmed) {
       return {
         id: this.generateId(),
         role: 'assistant',
-        content: "D'accord, j'annule cette action.",
+        content: 'D\'accord, j\'annule cette action.',
         timestamp: new Date().toISOString(),
       };
     }
 
+    // L'action devrait déjà être exécutée, on confirme juste
     return {
       id: this.generateId(),
       role: 'assistant',
-      content: "Parfait, l'action a été confirmée et exécutée.",
+      content: 'Parfait, l\'action a été confirmée et exécutée.',
       timestamp: new Date().toISOString(),
     };
   }
 
   /**
-   * Appelle le backend Gemini pour obtenir une réponse IA
-   * Maintenant en POSITION 2 dans le pipeline (après détection rapide)
-   * 
-   * @param message - Le message utilisateur
-   * @param systemPrompt - Le prompt système pour Gemini
-   * @param conversationHistory - L'historique de conversation
-   * @returns La réponse de Gemini ou null en cas d'erreur
+   * Construit le prompt système pour l'IA
    */
-  private async callBackendGemini(
-    message: string,
-    systemPrompt: string,
-    conversationHistory: Array<{ role: string; content: string }>
-  ): Promise<string> {
-    // projetId peut être null pour les profils sans projet (buyer, veterinarian, technician)
-    if (!this.context?.userId) {
-      const error = new Error('Contexte userId manquant - impossible d\'appeler Gemini');
-      logger.error('[Gemini] ❌', error.message);
-      throw error;
+  private buildSystemPrompt(): string {
+    if (!this.context) {
+      return '';
     }
 
-    logger.debug(`[Gemini] Appel backend /kouakou/chat avec message: "${message.substring(0, 50)}..."`);
-    logger.debug(`[Gemini] Contexte: projetId=${this.context.projetId || 'null'}, userId=${this.context.userId}`);
-    
-    try {
-      const response = await apiClient.post<GeminiBackendResponse | { response: string }>('/kouakou/chat', {
-        message,
-        userId: this.context.userId,
-        projectId: this.context.projetId || null, // Peut être null pour profils sans projet
-        projetId: this.context.projetId || null,   // Et aussi projetId pour compatibilité
-        activeRole: this.context.activeRole, // Rôle actif pour adapter le prompt
-        context: {
-          farmId: this.context.projetId || null,
-          projectId: this.context.projetId || null, // Dans le contexte aussi
-          systemPrompt,
-          conversationHistory,
-          recentTransactions: this.context.recentTransactions,
-          activeRole: this.context.activeRole,
-        },
-      });
+    return `Tu es Kouakou, un assistant professionnel et chaleureux pour éleveurs de porcs en Côte d'Ivoire.
+Tu es compétent, efficace et tu comprends le langage terre-à-terre ivoirien tout en restant professionnel.
 
-      // Gérer les différents formats de réponse possibles
-      let geminiResponse: string | null = null;
-      
-      // Format 1: { success: true, data: { response: string } }
-      if (response && typeof response === 'object' && 'success' in response) {
-        const geminiBackendResp = response as GeminiBackendResponse;
-        if (geminiBackendResp.success && geminiBackendResp.data?.response) {
-          geminiResponse = geminiBackendResp.data.response;
-        } else if (geminiBackendResp.error) {
-          const error = new Error(`Erreur backend: ${geminiBackendResp.error}`);
-          logger.error('[Gemini]', error.message);
-          throw error;
-        }
-      }
-      
-      // Format 2: { response: string } (format direct)
-      if (!geminiResponse && response && typeof response === 'object' && 'response' in response) {
-        const directResp = response as { response: string };
-        if (directResp.response && typeof directResp.response === 'string') {
-          geminiResponse = directResp.response;
-        }
-      }
-      
-      // Format 3: La réponse est directement une string (cas improbable mais possible)
-      if (!geminiResponse && typeof response === 'string' && response.trim().length > 0) {
-        geminiResponse = response;
-      }
+CONTEXTE:
+- Projet: ${this.context.projetId}
+- Date actuelle: ${this.context.currentDate}
+- Utilisateur: ${this.context.userName || 'Éleveur'}
 
-      if (geminiResponse && geminiResponse.trim().length > 0) {
-        logger.debug(`[Gemini] Réponse backend: "${geminiResponse.substring(0, 100)}..."`);
-        return geminiResponse;
-      }
+TON ET LANGUE:
+- Professionnel mais chaleureux et accessible
+- Tutoiement respectueux : "Comment allez-vous ?", "Bien reçu", "Parfait"
+- Comprends et utilises parfois des expressions locales naturelles :
+  * "les porcs-là", "la provende-là", "ça va aller", "on se comprend"
+  * "d'accord", "bien reçu", "compris"
+- Ton encourageant mais professionnel : "Excellent travail", "Bien noté", "Très bien"
+- Unité monétaire : TOUJOURS FCFA ou F CFA (JAMAIS € ou $)
+- Poids en kg, alimentation en sacs (ex: "10 sacs de 50 kg")
 
-      const error = new Error(`Format de réponse inattendu du backend Gemini: ${JSON.stringify(response).substring(0, 200)}`);
-      logger.error('[Gemini]', error.message);
-      throw error;
-    } catch (error: any) {
-      logger.error('[Gemini] Erreur lors de l\'appel backend:', error);
-      
-      // Log plus détaillé pour le debug
-      if (error instanceof Error) {
-        logger.error(`[Gemini] Message: ${error.message}`);
-        logger.error(`[Gemini] Stack: ${error.stack?.substring(0, 500)}`);
-      }
-      
-      // Log de l'API config pour diagnostic
-      try {
-        const { API_CONFIG } = await import('../../config/api.config');
-        logger.error(`[Gemini] API Config: baseURL=${API_CONFIG.baseURL}`);
-      } catch (configError) {
-        logger.error(`[Gemini] Erreur lors de la récupération de la config API:`, configError);
-      }
-      
-      // Log de l'erreur complète pour diagnostic en production
-      if (error?.response) {
-        logger.error(`[Gemini] Response status: ${error.response.status}`);
-        logger.error(`[Gemini] Response data:`, JSON.stringify(error.response.data).substring(0, 500));
-      }
-      
-      // Propager l'erreur pour qu'elle soit gérée par le catch block de sendMessage
-      throw error;
-    }
+ACTIONS DISPONIBLES (TRÈS IMPORTANT - EXÉCUTE DIRECTEMENT) :
+
+1. REQUÊTES D'INFORMATION (exécute immédiatement sans confirmation) :
+   
+   STATISTIQUES - Variantes acceptées :
+   - "statistiques", "statistique", "bilan", "bilans"
+   - "combien de porc actif", "nombre de porc", "nombre porcs", "combien porcs"
+   - "porc actif", "porcs actifs", "actif", "actifs"
+   - "cheptel", "élevage", "mes animaux", "mes porcs"
+   - "état du cheptel", "situation du cheptel", "mon cheptel"
+   - "données", "chiffres", "total", "compte", "résumé"
+     → Action: {"action": "get_statistics", "params": {}}
+   
+   STOCKS - Variantes acceptées :
+   - "stock", "stocks", "stock actuel", "stocks actuels"
+   - "nourriture", "aliment", "aliments", "alimentation"
+   - "provende", "provendes", "ration", "rations"
+   - "quantité", "quantités", "reste", "restes"
+   - "état des stocks", "statut des stocks", "niveau de stock"
+   - "combien de nourriture", "combien d'aliment", "il reste"
+     → Action: {"action": "get_stock_status", "params": {}}
+   
+   COÛTS - Variantes acceptées :
+   - "coût", "coûts", "coût total", "coûts totaux"
+   - "dépense totale", "dépenses totales", "mes dépenses"
+   - "calculer", "calcul", "calcule", "budget"
+   - "combien j'ai dépensé", "j'ai dépensé combien"
+     → Action: {"action": "calculate_costs", "params": {}}
+   
+   RAPPELS - Variantes acceptées :
+   - "rappels", "rappel", "à faire", "tâches", "tâche"
+   - "programme", "programmes", "planifié", "planifiée"
+   - "vaccination à venir", "traitement à venir", "visite prévue"
+   - "prochaine", "prochaines", "calendrier", "agenda"
+     → Action: {"action": "get_reminders", "params": {}}
+   
+   ANALYSE - Variantes acceptées :
+   - "analyse", "analyses", "analyser", "analyser mes données"
+   - "situation", "situations", "état", "états"
+   - "évaluation", "diagnostic", "performance", "résultats"
+   - "évolution", "tendance", "comment va", "mon exploitation"
+     → Action: {"action": "analyze_data", "params": {}}
+   
+   RECHERCHE - Variantes acceptées :
+   - "chercher un animal", "trouver un porc", "recherche"
+   - "où est", "localiser", "montre moi", "affiche"
+     → Action: {"action": "search_animal", "params": {"search": "terme de recherche"}}
+
+2. ENREGISTREMENTS (demande confirmation avant) :
+   
+   VENTE - Exemples de requêtes :
+   - "J'ai vendu 5 porcs à 800 000 FCFA"
+   - "Vente de 3 porcs pour 500 000"
+   - "J'ai vendu 2 porcs de 50kg aujourd'hui à 300000"
+   - "J'ai vendu 8 porcs à Koné"
+   → Action: {"action": "create_revenu", "params": {"montant": 800000, "nombre": 5, "acheteur": "...", "poids_kg": 425, "categorie": "vente_porc"}}
+   - IMPORTANT: Le montant est TOUJOURS le nombre le plus grand dans la phrase (après "à", "pour", "montant", "prix")
+   - Paramètres requis : nombre (obligatoire), poids_kg ou poids_moyen (obligatoire pour ventes), montant (optionnel mais préféré), acheteur (optionnel)
+   - Si nombre ou poids manquant → Demander spécifiquement : "Combien de porcs exactement ?" ou "C'est quel poids moyen ou total ?"
+   - Après enregistrement : Marquer automatiquement les animaux comme "vendu" et retirer de l'inventaire actif
+   
+   MORTALITÉ - Exemples de requêtes :
+   - "Un porc est mort ce matin"
+   - "J'ai eu 2 morts aujourd'hui"
+   - "Un porc est crevé"
+   → Action: {"action": "create_mortalite", "params": {"nombre_porcs": 1, "cause": "...", "categorie": "autre"}}
+   - Paramètres requis : nombre_porcs (obligatoire), cause (optionnel mais recommandé), categorie (optionnel: "truie", "verrat", "porcelet", "autre")
+   - Si nombre manquant → Demander : "Combien de porcs exactement sont morts ?"
+   - Si cause manquante → Proposer : "Tu veux que je note la cause ?"
+   - Après enregistrement : Marquer automatiquement les animaux comme "mort" et retirer de l'inventaire actif
+   
+   DÉPENSE - Exemples de requêtes :
+   - "J'ai acheté 20 sacs de provende à 18 000 FCFA"
+   - "Dépense de 50 000 FCFA pour médicaments"
+   - "J'ai dépensé 15000 en médicament aujourd'hui"
+   → Action: {"action": "create_depense", "params": {"montant": 50000, "categorie": "medicaments", "date": "2025-01-15"}}
+   - IMPORTANT: Le montant est TOUJOURS le nombre le plus grand dans la phrase (après "de", "pour", "à", "montant", "prix", "coût")
+   - Paramètres requis : montant (obligatoire), categorie (optionnel: "alimentation", "medicaments", "veterinaire", "entretien", "autre")
+   
+   CHARGE FIXE - Exemples de requêtes :
+   - "Charge fixe de 100 000 FCFA mensuelle pour salaires"
+   - "Abonnement eau 15 000 FCFA par mois"
+   → Action: {"action": "create_charge_fixe", "params": {"montant": 100000, "libelle": "Salaires", "frequence": "mensuel", "categorie": "salaires"}}
+   - Paramètres requis : montant (obligatoire), libelle (obligatoire), frequence ("mensuel", "trimestriel", "annuel")
+   
+   PESÉE - Exemples de requêtes :
+   - "Peser le porc P001, il fait 45 kg"
+   - "Ajouter une pesée de 50 kg pour l'animal P002"
+   → Action: {"action": "create_pesee", "params": {"animal_code": "P001", "poids_kg": 45, "date": "2025-01-15"}}
+   - Paramètres requis : animal_code OU animal_id (obligatoire), poids_kg (obligatoire)
+   
+   INGRÉDIENT - Exemples de requêtes :
+   - "Créer un ingrédient maïs à 500 FCFA/kg"
+   - "Ajouter ingrédient soja 800 FCFA par kg"
+   → Action: {"action": "create_ingredient", "params": {"nom": "maïs", "prix_unitaire": 500, "unite": "kg"}}
+   - Paramètres requis : nom (obligatoire), prix_unitaire (obligatoire), unite ("kg", "g", "sac", "tonne")
+   
+   AUTRES ENREGISTREMENTS :
+   - Vaccination : {"action": "create_vaccination", "params": {...}}
+   - Visite vétérinaire : {"action": "create_visite_veterinaire", "params": {...}}
+   - Traitement : {"action": "create_traitement", "params": {...}}
+   - Maladie : {"action": "create_maladie", "params": {...}}
+   - Rappel personnalisé : {"action": "create_planification", "params": {"titre": "...", "date_prevue": "...", "type": "veterinaire|autre"}}
+     → Utilise cette action quand l'utilisateur demande un rappel (ex: "rappelle-moi d'appeler le vétérinaire demain")
+     → IMPORTANT: Ne confonds PAS avec "create_visite_veterinaire". Un rappel est une tâche dans le planning, pas une visite enregistrée.
+
+RÈGLES CRITIQUES - AUTONOMIE MAXIMALE :
+
+1. AUTONOMIE TOTALE - AGIS DIRECTEMENT :
+   - Tu as un accès TOTAL à l'application : tu peux lire, créer, modifier TOUTES les données
+   - Dès que l'intention de l'utilisateur est claire → EXÉCUTE IMMÉDIATEMENT sans demander confirmation
+   - Exemple : "J'ai vendu 8 porcs à Traoré à 1 200 000 FCFA" → Enregistre DIRECTEMENT et réponds : "C'est noté patron ! 8 porcs vendus à Traoré pour 1 200 000 FCFA le [date]. Tu veux que je te génère la facture tout de suite ?"
+
+2. CONFIRMATION UNIQUEMENT POUR CAS CRITIQUES :
+   - Demande confirmation UNIQUEMENT pour :
+     • Suppression de données (delete, supprimer, effacer)
+     • Montants très élevés ou ambigus (> 5 000 000 FCFA)
+     • Décisions sanitaires graves (abattage, quarantaine totale, euthanasie)
+   - Pour TOUT LE RESTE → Agis directement et confirme après : "C'est déjà enregistré mon frère !"
+
+3. ACTIONS AUTONOMES (exécute sans hésiter) :
+   - Enregistrer une vente complète (acheteur, nombre, poids, prix, date) → EXÉCUTE DIRECTEMENT
+   - Enregistrer une dépense (provende, médicaments, main-d'œuvre) → EXÉCUTE DIRECTEMENT
+   - Créer un rendez-vous vétérinaire → EXÉCUTE DIRECTEMENT
+   - Programmer un rappel automatique (vaccin, vermifugation, sevrage) → EXÉCUTE DIRECTEMENT
+   - Calculer et afficher : bénéfice du mois, coût par porc, jours de nourriture restants → EXÉCUTE DIRECTEMENT
+   - Analyser les tendances et alerter proactivement → EXÉCUTE DIRECTEMENT
+   - Proposer des optimisations → EXÉCUTE DIRECTEMENT
+
+4. POUR LES REQUÊTES D'INFORMATION :
+   - Si l'utilisateur demande des statistiques, stocks, coûts, rappels, analyse → EXÉCUTE IMMÉDIATEMENT
+   - Ne demande PAS de détails supplémentaires, exécute l'action directement
+   - Réponds avec le JSON d'action immédiatement
+
+5. POUR LES ENREGISTREMENTS (ventes, dépenses, pesées, etc.) :
+   - Si les paramètres sont clairs → EXÉCUTE DIRECTEMENT sans demander confirmation
+   - Si un paramètre manque mais peut être déduit → DÉDUIS-LE et EXÉCUTE
+   - Si vraiment ambigu ou montant > 5 millions → Alors demande confirmation
+   - Après exécution, confirme : "C'est noté patron ! [détails]. C'est déjà enregistré."
+
+6. POUR LES QUESTIONS - UNIQUEMENT SI L'INTENTION N'EST PAS CLAIRE :
+   - IMPORTANT: Pose des questions UNIQUEMENT si l'intention n'est pas claire (confiance < 0.75) ou si des paramètres critiques manquent
+   - Si l'intention est claire (confiance >= 0.75) → EXÉCUTE DIRECTEMENT sans poser de questions
+   - Si l'intention n'est pas claire :
+     * NE JAMAIS poser de questions génériques comme "Comment puis-je vous aider ?"
+     * Analyser le message pour détecter des indices (mots-clés, nombres, dates, domaines)
+     * Poser des questions SPÉCIFIQUES basées sur ce qui a été détecté :
+       - Si des nombres + mots financiers → "Tu veux enregistrer une dépense ou une vente ? Peux-tu me donner plus de détails ?"
+       - Si mention d'animaux → "Tu veux voir les statistiques de ton cheptel ou faire une action sur un animal ?"
+       - Si mention de santé → "Tu veux enregistrer une vaccination, un traitement, ou une maladie ?"
+       - Si mention de stocks → "Tu veux voir l'état de tes stocks ou enregistrer un achat d'aliments ?"
+     * Toujours proposer des exemples concrets dans ta question
+     * Utiliser le contexte de la conversation précédente si disponible
+
+3. EXEMPLES DE RÉPONSES CORRECTES :
+
+Utilisateur : "Combien de porc actif ai je dans mon cheptel aujourd'hui"
+→ Réponse IMMÉDIATE : {"action": "get_statistics", "params": {}}\n\nJe prépare tes statistiques du cheptel...
+
+Utilisateur : "Statistiques de porc actif"
+→ Réponse IMMÉDIATE : {"action": "get_statistics", "params": {}}\n\nAnalyse en cours...
+
+Utilisateur : "Quel est le stock actuel"
+→ Réponse IMMÉDIATE : {"action": "get_stock_status", "params": {}}\n\nVérification des stocks en cours...
+
+Utilisateur : "J'ai vendu 5 porcs à 800 000"
+→ Réponse : "Bien reçu. J'enregistre la vente de 5 porcs pour 800 000 FCFA. C'est confirmé ?"
+→ Après confirmation : {"action": "create_revenu", "params": {"montant": 800000, "categorie": "vente_porc", ...}}
+
+4. SI INFORMATION MANQUANTE :
+   - Pour les enregistrements : "Il me manque [info]. Pouvez-vous me donner [détail] ?"
+   - Pour les requêtes d'info : N'arrive JAMAIS, exécute toujours directement
+
+5. RÉPONSES :
+   - Courtes et directes (2-3 lignes max)
+   - Professionnelles mais chaleureuses
+   - Pas de répétition de "Peux-tu me donner plus de détails" pour les requêtes d'information
+
+FORMAT DE RÉPONSE:
+- Pour TOUTES les actions, utilise le format JSON: {"action": "nom_action", "params": {...}}
+- Pour les requêtes d'information, envoie le JSON immédiatement suivi d'un message court
+- Pour les enregistrements, demande confirmation d'abord, puis envoie le JSON après confirmation
+- IMPORTANT: Pour les dépenses/revenus, tu DOIS inclure le montant dans params.montant (formats: nombre, "5 000", "5000 FCFA")`;
   }
 
   /**
-   * Extrait une action structurée de la réponse Gemini
-   * Gemini peut retourner des JSON entre balises ```json ... ```
-   * ou des patterns comme ACTION: ... PARAMS: ...
+   * Parse la réponse de l'IA pour détecter des actions
+   * Utilise d'abord le JSON de l'IA, puis le détecteur d'intention comme fallback
    */
-  private extractActionFromGeminiResponse(geminiResponse: string): GeminiParsedAction | null {
+  private parseActionFromResponse(response: string, userMessage?: string): AgentAction | null {
     try {
-      // Méthode 1: Chercher un bloc JSON entre balises ```json
-      const jsonBlockMatch = geminiResponse.match(/```json\s*([\s\S]*?)\s*```/);
-      if (jsonBlockMatch) {
-        const parsed = JSON.parse(jsonBlockMatch[1]);
-        if (parsed.action) {
-          logger.debug(`[Gemini] Action extraite (JSON block): ${parsed.action}`);
-          return {
-            action: parsed.action as AgentActionType,
-            params: parsed.params || {},
-            explanation: parsed.explanation,
-          };
-        }
+      // Chercher un JSON dans la réponse (peut être sur plusieurs lignes)
+      // Essayer d'abord avec un match simple
+      let jsonMatch = response.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
+      
+      // Si pas trouvé, essayer avec un match multiligne plus permissif
+      if (!jsonMatch) {
+        jsonMatch = response.match(/\{[\s\S]*?\}/);
       }
-
-      // Méthode 2: Chercher un objet JSON simple dans la réponse
-      const jsonMatch = geminiResponse.match(/\{[^{}]*"action"\s*:\s*"([^"]+)"[^{}]*\}/);
+      
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[0]);
           if (parsed.action) {
-            logger.debug(`[Gemini] Action extraite (JSON inline): ${parsed.action}`);
+            const params = parsed.params || {};
+            
+            // Si c'est une dépense et que le montant n'est pas dans params, essayer de l'extraire depuis la réponse
+            if (parsed.action === 'create_depense' && (!params.montant || params.montant === null || params.montant === undefined)) {
+              const montantExtrait = this.extractMontantFromText(response);
+              if (montantExtrait) {
+                params.montant = montantExtrait;
+              }
+            }
+            
+            console.log('[ChatAgentService] Action détectée depuis JSON:', parsed.action, params);
+            
             return {
-              action: parsed.action as AgentActionType,
-              params: parsed.params || {},
-              explanation: parsed.explanation,
+              type: parsed.action as AgentAction['type'],
+              params,
+              requiresConfirmation: parsed.requiresConfirmation || false,
+              confirmationMessage: parsed.confirmationMessage,
             };
           }
-        } catch {
-          // JSON mal formé, essayer de parser manuellement
+        } catch (parseError) {
+          console.error('[ChatAgentService] Erreur parsing JSON:', parseError, 'JSON:', jsonMatch[0]);
         }
       }
-
-      // Méthode 3: Chercher pattern ACTION: ... PARAMS: ...
-      const actionPatternMatch = geminiResponse.match(/ACTION:\s*(\w+)/i);
-      if (actionPatternMatch) {
-        const actionName = actionPatternMatch[1];
-        let params: Record<string, unknown> = {};
-        
-        const paramsMatch = geminiResponse.match(/PARAMS:\s*(\{[\s\S]*?\})/i);
-        if (paramsMatch) {
-          try {
-            params = JSON.parse(paramsMatch[1]);
-          } catch {
-            // Ignorer si le JSON params est mal formé
-          }
-        }
-        
-        logger.debug(`[Gemini] Action extraite (pattern): ${actionName}`);
-        return {
-          action: actionName as AgentActionType,
-          params,
-        };
-      }
-
-      // Aucune action trouvée - c'est une réponse conversationnelle
-      return null;
     } catch (error) {
-      logger.error('[Gemini] Erreur parsing réponse:', error);
-      return null;
+      console.error('[ChatAgentService] Erreur détection action:', error);
     }
-  }
 
-  /**
-   * Construit le prompt système optimisé pour Gemini
-   * Ce prompt guide Gemini à retourner des actions structurées
-   */
-  private buildGeminiSystemPrompt(): string {
-    const basePrompt = buildOptimizedSystemPrompt(this.context!);
+    // Note: Le détecteur d'intention est maintenant appelé avant cette méthode dans sendMessage
+
+    // Dernier fallback : détection basique sur la réponse
+    const lowerResponse = response.toLowerCase();
     
-    const structuredPrompt = `${basePrompt}
+    if (lowerResponse.includes('statistique') || lowerResponse.includes('bilan') || 
+        lowerResponse.includes('combien de porc') || lowerResponse.includes('nombre de porc') ||
+        lowerResponse.includes('porc actif') || lowerResponse.includes('cheptel')) {
+      console.log('[ChatAgentService] Fallback basique: get_statistics');
+      return { type: 'get_statistics', params: {} };
+    }
+    
+    if (lowerResponse.includes('stock') && (lowerResponse.includes('actuel') || lowerResponse.includes('état'))) {
+      console.log('[ChatAgentService] Fallback basique: get_stock_status');
+      return { type: 'get_stock_status', params: {} };
+    }
 
-═══════════════════════════════════════════════════════════════
-INSTRUCTIONS IMPORTANTES POUR LE FORMAT DE RÉPONSE
-═══════════════════════════════════════════════════════════════
-
-Si l'utilisateur demande une ACTION (créer, enregistrer, calculer, etc.), réponds avec cette structure JSON :
-
-\`\`\`json
-{
-  "action": "nom_action",
-  "params": { ... },
-  "explanation": "Explication courte de ce que tu vas faire"
-}
-\`\`\`
-
-ACTIONS DISPONIBLES:
-- create_depense : Enregistrer une dépense (params: montant, categorie, description, date)
-- create_revenu : Enregistrer un revenu/vente (params: montant, source, description, date)
-- create_charge_fixe : Enregistrer une charge fixe (params: montant, categorie, frequence)
-- marketplace_get_price_trends : Consulter les prix du marché
-- marketplace_sell_animal : Mettre un animal en vente (params: animal_id ou animal_code, price_per_kg)
-- get_statistics : Obtenir des statistiques
-- get_bilan_financier : Voir le bilan financier
-- get_reminders : Voir les rappels/vaccins en retard
-- create_vaccination : Enregistrer une vaccination (params: animal_id, vaccin, date)
-- create_pesee : Enregistrer une pesée (params: animal_id, poids_kg, date)
-- list_animals : Lister les animaux du cheptel
-- search_animal : Rechercher un animal (params: code ou critères)
-
-EXEMPLES:
-
-User: "J'ai dépensé 50000 FCFA pour l'aliment"
-\`\`\`json
-{
-  "action": "create_depense",
-  "params": {
-    "montant": 50000,
-    "categorie": "aliment",
-    "description": "Achat d'aliment"
-  },
-  "explanation": "J'enregistre ta dépense de 50 000 FCFA pour l'aliment."
-}
-\`\`\`
-
-User: "Quel est le prix du marché ?"
-\`\`\`json
-{
-  "action": "marketplace_get_price_trends",
-  "params": {},
-  "explanation": "Je consulte les tendances de prix du marché pour toi."
-}
-\`\`\`
-
-User: "J'ai vendu un porc à 300000"
-\`\`\`json
-{
-  "action": "create_revenu",
-  "params": {
-    "montant": 300000,
-    "source": "vente_porc",
-    "description": "Vente d'un porc"
-  },
-  "explanation": "J'enregistre ta vente de 300 000 FCFA."
-}
-\`\`\`
-
-SI L'UTILISATEUR POSE UNE QUESTION ou fait la CONVERSATION (salutation, remerciement, conseil général), réponds NATURELLEMENT en français, SANS JSON.
-
-User: "Bonjour Kouakou"
-→ Bonjour ! Comment puis-je t'aider avec ton élevage aujourd'hui ?
-
-User: "Merci"
-→ De rien ! N'hésite pas si tu as d'autres questions.
-
-User: "Donne-moi des conseils sur l'alimentation des porcelets"
-→ [Réponds avec tes connaissances sur l'alimentation des porcelets, sans JSON]
-`;
-
-    return structuredPrompt;
+    return null;
   }
 
   /**
-   * Enregistre une correction utilisateur (V4.0)
-   * @deprecated Cette méthode n'est plus utilisée - l'apprentissage est géré par Gemini
+   * Réinitialise l'historique de conversation
    */
-  async recordUserCorrection(
-    originalMessage: string,
-    detectedIntent: string | null,
-    correctIntent: string,
-    correctParams?: Record<string, any>
-  ): Promise<void> {
-    // Désactivé - l'apprentissage est maintenant géré par Gemini
-    logger.warn('[recordUserCorrection] Méthode désactivée - apprentissage géré par Gemini');
-  }
-
-  /**
-   * Résout les références dans les paramètres
-   * Amélioré pour résoudre plus de types de références
-   */
-  private resolveReferences(params: Record<string, unknown>): void {
-    if (params.acheteur && typeof params.acheteur === 'string') {
-      const resolved = this.conversationContext.resolveReference(params.acheteur, 'acheteur');
-      if (resolved) {
-        params.acheteur = resolved;
-      }
-    }
-
-    if (params.animal_code && typeof params.animal_code === 'string') {
-      const resolved = this.conversationContext.resolveReference(params.animal_code, 'animal');
-      if (resolved) {
-        params.animal_code = resolved;
-      }
-    }
-
-    if (params.montant && typeof params.montant === 'string') {
-      const resolved = this.conversationContext.resolveReference(params.montant, 'montant');
-      if (resolved) {
-        params.montant = resolved;
-      }
-    }
-
-    if (params.date && typeof params.date === 'string') {
-      const resolved = this.conversationContext.resolveReference(params.date, 'date');
-      if (resolved) {
-        params.date = resolved;
-      }
-    }
-
-    if (params.categorie && typeof params.categorie === 'string') {
-      const resolved = this.conversationContext.resolveReference(params.categorie, 'categorie');
-      if (resolved) {
-        params.categorie = resolved;
-      }
-    }
-  }
-
-  /**
-   * Enrichit les paramètres depuis l'historique conversationnel
-   * Utilise les dernières valeurs mentionnées pour compléter les paramètres manquants
-   */
-  private enrichParamsFromHistory(
-    params: Record<string, unknown>,
-    actionType: AgentActionType
-  ): Record<string, unknown> {
-    const enriched = { ...params };
-    const normalizedMessage = (params.userMessage as string || '').toLowerCase();
-
-    // Utiliser le contexte pour enrichir seulement si des références implicites sont détectées
-    const hasImplicitReference = normalizedMessage.match(
-      /\b(?:pour\s+ca|pour\s+cela|meme|le\s+meme|la\s+meme|au\s+meme|avec\s+ca|avec\s+cela)\b/i
-    );
-
-    if (!hasImplicitReference) {
-      return enriched; // Pas de référence implicite, ne pas enrichir
-    }
-
-    const context = this.conversationContext.getExtractionContext();
-
-    // Actions de création de revenu/vente
-    if (actionType === 'create_revenu') {
-      if (!enriched.acheteur && context.lastAcheteur) {
-        enriched.acheteur = context.lastAcheteur;
-      }
-      if (!enriched.montant && context.lastMontant) {
-        enriched.montant = context.lastMontant;
-      }
-      if (!enriched.date && context.lastDate) {
-        enriched.date = context.lastDate;
-      }
-    }
-
-    // Actions de création de dépense
-    if (actionType === 'create_depense') {
-      if (!enriched.montant && context.lastMontant) {
-        enriched.montant = context.lastMontant;
-      }
-      if (!enriched.categorie && context.lastCategorie) {
-        enriched.categorie = context.lastCategorie;
-      }
-      if (!enriched.date && context.lastDate) {
-        enriched.date = context.lastDate;
-      }
-    }
-
-    // Actions de création de pesée
-    if (actionType === 'create_pesee') {
-      if (!enriched.animal_code && context.lastAnimal) {
-        enriched.animal_code = context.lastAnimal;
-      }
-      if (!enriched.date && context.lastDate) {
-        enriched.date = context.lastDate;
-      }
-    }
-
-    // Actions de création de vaccination
-    if (actionType === 'create_vaccination') {
-      if (!enriched.animal_code && context.lastAnimal) {
-        enriched.animal_code = context.lastAnimal;
-      }
-      if (!enriched.date && context.lastDate) {
-        enriched.date = context.lastDate;
-      }
-    }
-
-    return enriched;
-  }
-
-  /**
-   * Réinitialise l'historique
-   */
-  clearHistory(): void {
+  async clearHistory(): Promise<void> {
     this.conversationHistory = [];
+    await this.historyService.clearHistory();
   }
 
   /**
-   * Récupère l'historique
+   * Récupère l'historique de conversation
    */
   getHistory(): ChatMessage[] {
     return [...this.conversationHistory];
   }
 
   /**
-   * Restaure l'historique
+   * Restaure l'historique depuis la base de données
    */
   restoreHistory(messages: ChatMessage[]): void {
     this.conversationHistory = [...messages];
-    this.conversationContext.reset();
-    for (const msg of messages) {
-      this.conversationContext.updateFromMessage(msg);
-    }
   }
 
+  /**
+   * Détecte si le message est une réponse contextuelle à une question précédente
+   * Par exemple : réponse avec poids après une question sur le poids d'une vente
+   * Amélioré pour gérer tous les cas de clarifications (nombre, poids, acheteur, etc.)
+   */
+  private detectContextualAction(userMessage: string): AgentAction | null {
+    // Vérifier les 10 derniers messages pour détecter un contexte
+    const recentMessages = this.conversationHistory.slice(-10);
+    
+    // Chercher si le dernier message de Kouakou était une question de clarification
+    const lastAssistantMessage = recentMessages
+      .filter(msg => msg.role === 'assistant')
+      .pop();
+    
+    // Vérifier si c'était une question de clarification (contient "?" ou metadata.isClarificationQuestion)
+    const isClarificationQuestion = lastAssistantMessage && (
+      lastAssistantMessage.content.includes('?') ||
+      lastAssistantMessage.metadata?.isClarificationQuestion === true ||
+      lastAssistantMessage.metadata?.pendingAction !== undefined
+    );
+
+    // Récupérer l'action en attente depuis les métadonnées
+    const pendingAction = lastAssistantMessage?.metadata?.pendingAction;
+    
+    if (pendingAction && isClarificationQuestion) {
+      // C'est une réponse à une question de clarification
+      // Combiner les paramètres de l'action en attente avec les nouvelles informations
+      return this.combineContextualParams(pendingAction, userMessage, recentMessages);
+    }
+
+    // Détecter si c'est une réponse avec des poids (ex: "82 kg et 90 kg", "85 kg chacun")
+    const poidsMatches = userMessage.match(/(\d+[.,]?\d*)\s*(?:kg|kilogramme|kilo)/gi);
+    const hasPoids = poidsMatches && poidsMatches.length > 0;
+    
+    // Détecter si le message précédent de Kouakou demandait le poids
+    const demandePoids = lastAssistantMessage && (
+      lastAssistantMessage.content.includes('poids moyen ou poids total') ||
+      lastAssistantMessage.content.includes('quel poids') ||
+      lastAssistantMessage.content.includes('poids moyen') ||
+      lastAssistantMessage.content.includes('poids total')
+    );
+    
+    if (hasPoids && demandePoids) {
+      // C'est probablement une réponse à une question sur le poids d'une vente
+      // Chercher le message utilisateur précédent qui mentionnait une vente
+      const previousUserMessages = recentMessages
+        .filter(msg => msg.role === 'user')
+        .slice(-3);
+      
+      // Chercher le message qui mentionne une vente
+      const venteMessage = previousUserMessages.find(msg => 
+        msg.content.toLowerCase().includes('vendu') ||
+        msg.content.toLowerCase().includes('vente')
+      );
+      
+      if (venteMessage) {
+        // Extraire les paramètres de la vente depuis le message précédent
+        const venteParams = IntentDetector.extractVenteParams(venteMessage.content);
+        
+        // Extraire les poids depuis le message actuel (ex: "82 kg et 90 kg")
+        if (poidsMatches && poidsMatches.length > 0) {
+          // Calculer le poids moyen et total
+          const poidsIndividuels = poidsMatches.map(match => {
+            const poids = parseFloat(match.replace(/[^\d,.]/g, '').replace(',', '.'));
+            return isNaN(poids) ? 0 : poids;
+          }).filter(p => p > 0);
+          
+          if (poidsIndividuels.length > 0) {
+            const poidsTotal = poidsIndividuels.reduce((sum, p) => sum + p, 0);
+            const poidsMoyen = poidsTotal / poidsIndividuels.length;
+            const nombre = venteParams.nombre || poidsIndividuels.length;
+            
+            console.log('[ChatAgentService] Détection contextuelle vente:', {
+              nombre,
+              poidsMoyen,
+              poidsTotal,
+              poidsIndividuels,
+            });
+            
+            // Combiner les paramètres
+            return {
+              type: 'create_revenu' as AgentActionType,
+              params: {
+                ...venteParams,
+                nombre: nombre,
+                poids_moyen: poidsMoyen,
+                poids_moyen_kg: poidsMoyen,
+                poids_total: poidsTotal,
+                poids_kg: poidsTotal,
+                poids_individuels: poidsIndividuels,
+                userMessage: userMessage,
+              },
+              requiresConfirmation: false,
+            };
+          }
+        }
+      }
+    }
+    
+    // Chercher si le dernier message de Kouakou demandait la cause pour une mortalité
+    if (lastAssistantMessage && lastAssistantMessage.content.includes('note la cause')) {
+      const previousUserMessage = recentMessages
+        .filter(msg => msg.role === 'user')
+        .slice(-2, -1)[0];
+      
+      if (previousUserMessage && (
+        previousUserMessage.content.toLowerCase().includes('mort') ||
+        previousUserMessage.content.toLowerCase().includes('creve') ||
+        previousUserMessage.content.toLowerCase().includes('decede')
+      )) {
+        // Extraire les paramètres de la mortalité depuis le message précédent
+        const mortaliteParams = IntentDetector.extractMortaliteParams(previousUserMessage.content);
+        
+        // Extraire la cause depuis le message actuel
+        const causeMatch = userMessage.match(/(?:cause|cause:|du a|du au|parce que|car)\s*[:\-]?\s*(.+)/i);
+        if (causeMatch && causeMatch[1]) {
+          return {
+            type: 'create_mortalite' as AgentActionType,
+            params: {
+              ...mortaliteParams,
+              cause: causeMatch[1].trim(),
+              userMessage: userMessage,
+            },
+            requiresConfirmation: false,
+          };
+        }
+      }
+    }
+    
+    return null;
+  }
 
   private generateId(): string {
     return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
+
+  /**
+   * Détermine si une action nécessite confirmation (uniquement pour cas critiques)
+   */
+  private requiresConfirmation(actionType: string, params: Record<string, any>): boolean {
+    // Suppression de données → TOUJOURS demander confirmation
+    if (actionType.includes('delete') || actionType.includes('supprimer') || actionType.includes('effacer')) {
+      return true;
+    }
+
+    // Montants très élevés (> 5 millions FCFA) → demander confirmation
+    const montant = params.montant || params.prix || params.cout || params.amount;
+    if (montant && typeof montant === 'number' && montant > 5000000) {
+      return true;
+    }
+    // Si montant est une string, essayer de parser
+    if (montant && typeof montant === 'string') {
+      const parsed = parseInt(montant.replace(/[\s,]/g, ''));
+      if (!isNaN(parsed) && parsed > 5000000) {
+        return true;
+      }
+    }
+
+    // Décisions sanitaires graves → demander confirmation
+    const lowerMessage = JSON.stringify(params).toLowerCase();
+    if (lowerMessage.includes('abattage') || 
+        lowerMessage.includes('euthanasie') || 
+        lowerMessage.includes('quarantaine totale') ||
+        lowerMessage.includes('abattre tous')) {
+      return true;
+    }
+
+    // Pour tout le reste → pas de confirmation nécessaire (autonomie maximale)
+    return false;
+  }
+
+  /**
+   * Construit un message de confirmation pour les cas critiques
+   */
+  private buildConfirmationMessage(action: AgentAction, userMessage: string): string {
+    const montant = action.params.montant || action.params.prix || action.params.cout;
+    
+    if (montant && typeof montant === 'number' && montant > 5000000) {
+      return `Attention patron ! C'est un montant important : ${montant.toLocaleString('fr-FR')} FCFA. Tu confirmes que je peux enregistrer ça ?`;
+    }
+
+    if (action.type.includes('delete') || action.type.includes('supprimer')) {
+      return `Attention ! Tu veux vraiment supprimer cette donnée ? C'est une action irréversible. Tu confirmes ?`;
+    }
+
+    const lowerMessage = userMessage.toLowerCase();
+    if (lowerMessage.includes('abattage') || lowerMessage.includes('euthanasie')) {
+      return `Yako ! C'est une décision sanitaire grave. Tu confirmes vraiment qu'il faut procéder à l'abattage ?`;
+    }
+
+    return `Je veux juste confirmer avant d'enregistrer. C'est bon pour toi ?`;
+  }
+
+  /**
+   * Extrait un montant depuis un texte
+   * Cherche des patterns comme "5000 FCFA", "5 000 francs", etc.
+   */
+  private extractMontantFromText(text: string): number | null {
+    // Fonction helper pour parser un montant avec différents formats
+    const parseMontantString = (montantStr: string): number => {
+      // Gérer les formats : "50.000", "50 000", "50,000", "50000"
+      // Le point peut être séparateur de milliers (format européen/ivoirien) ou décimal
+      
+      // Si le nombre contient un point et a plus de 3 chiffres après le point, c'est probablement un séparateur de milliers
+      if (montantStr.includes('.') && montantStr.split('.')[1]?.length >= 3) {
+        // Format "50.000" = 50000 (séparateur de milliers)
+        return parseInt(montantStr.replace(/\./g, ''));
+      }
+      
+      // Si le nombre contient une virgule, c'est probablement un séparateur décimal (format français)
+      if (montantStr.includes(',')) {
+        // Format "50,5" = 50.5 (décimal) ou "50,000" = 50000 (séparateur de milliers)
+        const parts = montantStr.split(',');
+        if (parts[1] && parts[1].length >= 3) {
+          // Plus de 3 chiffres après la virgule = séparateur de milliers
+          return parseInt(montantStr.replace(/,/g, ''));
+        } else {
+          // Format décimal
+          return parseFloat(montantStr.replace(/,/g, '.'));
+        }
+      }
+      
+      // Sinon, retirer espaces et points (séparateurs de milliers)
+      const cleaned = montantStr.replace(/[\s\.]/g, '');
+      return parseInt(cleaned) || 0;
+    };
+
+    // Regex pour trouver un montant dans le texte
+    // Patterns prioritaires (plus fiables)
+    const priorityPatterns = [
+      // Pattern 1: Montant après "à", "pour", "de", "montant", "prix", "coût" (gère points et espaces)
+      /(?:a|pour|de|montant|prix|cout|vendu a|vendu pour|depense|achete|paye|j'ai depense|j'ai paye)[:\s]+(\d[\d\s,\.]+)(?:\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*))?/i,
+      // Pattern 2: "50.000 FCFA", "50 000 FCFA", "50000 FCFA" (avec devise, gère points)
+      /(\d[\d\s,\.]{3,})\s*(?:FCFA|CFA|francs?|F\s*)/i,
+    ];
+
+    for (const pattern of priorityPatterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        const montant = parseMontantString(match[1]);
+        if (!isNaN(montant) && montant >= 1000 && montant < 100000000) { 
+          // Montants raisonnables entre 1000 et 100 millions
+          return montant;
+        }
+      }
+    }
+
+    // Pattern 3: Chercher tous les nombres de 3+ chiffres et prendre le plus grand
+    const allNumbers = text.match(/\b(\d[\d\s,\.]{3,})\b/g);
+    if (allNumbers) {
+      const validNumbers = allNumbers
+        .map(n => parseMontantString(n))
+        .filter(n => n >= 1000 && n < 100000000); // Montants raisonnables
+      
+      if (validNumbers.length > 0) {
+        return Math.max(...validNumbers);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Combine les paramètres de l'action en attente avec les nouvelles informations du message
+   */
+  private combineContextualParams(pendingAction: AgentAction, userMessage: string, recentMessages: ChatMessage[]): AgentAction | null {
+    const combinedParams = { ...pendingAction.params };
+    const normalizedMessage = userMessage.toLowerCase();
+
+    switch (pendingAction.type) {
+      case 'create_revenu':
+        // Extraire le nombre si mentionné
+        const nombreMatch = userMessage.match(/(\d+)\s*(?:porc|porcs|tete|tetes)/i);
+        if (nombreMatch) {
+          combinedParams.nombre = parseInt(nombreMatch[1]);
+          combinedParams.nombre_porcs = combinedParams.nombre;
+        }
+
+        // Extraire le poids
+        const poidsMatches = userMessage.match(/(\d+[.,]?\d*)\s*(?:kg|kilogramme|kilo)/gi);
+        if (poidsMatches && poidsMatches.length > 0) {
+          const poidsIndividuels = poidsMatches.map(match => {
+            const poids = parseFloat(match.replace(/[^\d,.]/g, '').replace(',', '.'));
+            return isNaN(poids) ? 0 : poids;
+          }).filter(p => p > 0);
+          
+          if (poidsIndividuels.length > 0) {
+            const poidsTotal = poidsIndividuels.reduce((sum, p) => sum + p, 0);
+            const poidsMoyen = poidsTotal / poidsIndividuels.length;
+            combinedParams.poids_moyen = poidsMoyen;
+            combinedParams.poids_moyen_kg = poidsMoyen;
+            combinedParams.poids_total = poidsTotal;
+            combinedParams.poids_kg = poidsTotal;
+            combinedParams.poids_individuels = poidsIndividuels;
+          }
+        }
+
+        // Extraire l'acheteur (ex: "à Koné", "pour Koné", "5 à Koné")
+        const acheteurMatch = userMessage.match(/(?:a|pour|chez)\s+([A-Za-z\s]+?)(?:\s|$|,)/i) ||
+                              userMessage.match(/(\d+)\s*(?:a|pour|chez)\s+([A-Za-z\s]+?)(?:\s|$|,)/i);
+        if (acheteurMatch) {
+          const acheteur = acheteurMatch[2] || acheteurMatch[1];
+          if (acheteur && acheteur.trim().length > 0) {
+            combinedParams.acheteur = acheteur.trim();
+            combinedParams.client = combinedParams.acheteur;
+          }
+        }
+
+        // Extraire le montant si mentionné
+        const montantMatch = userMessage.match(/(\d[\d\s,\.]+)\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*)/i);
+        if (montantMatch) {
+          const montantStr = montantMatch[1].replace(/[\s,]/g, '');
+          const montant = parseInt(montantStr);
+          if (!isNaN(montant) && montant > 0) {
+            combinedParams.montant = montant;
+          }
+        }
+
+        combinedParams.userMessage = userMessage;
+        return {
+          ...pendingAction,
+          params: combinedParams,
+        };
+
+      case 'create_mortalite':
+        // Extraire le nombre
+        const nombreMortMatch = userMessage.match(/(\d+)\s*(?:porc|porcs|mort|morts)/i);
+        if (nombreMortMatch) {
+          combinedParams.nombre_porcs = parseInt(nombreMortMatch[1]);
+          combinedParams.nombre = combinedParams.nombre_porcs;
+        }
+
+        // Extraire la cause
+        const causeMatch = userMessage.match(/(?:cause|cause:|du a|du au|parce que|car)\s*[:\-]?\s*(.+)/i);
+        if (causeMatch && causeMatch[1]) {
+          combinedParams.cause = causeMatch[1].trim();
+        } else if (userMessage.length > 10 && !nombreMortMatch) {
+          // Si le message est assez long et ne contient pas de nombre, c'est probablement la cause
+          combinedParams.cause = userMessage.trim();
+        }
+
+        combinedParams.userMessage = userMessage;
+        return {
+          ...pendingAction,
+          params: combinedParams,
+        };
+
+      case 'create_depense':
+        // Extraire le montant
+        const montantDepenseMatch = userMessage.match(/(\d[\d\s,\.]+)\s*(?:f\s*c\s*f\s*a|fcfa|francs?|f\s*)/i);
+        if (montantDepenseMatch) {
+          const montantStr = montantDepenseMatch[1].replace(/[\s,]/g, '');
+          const montant = parseInt(montantStr);
+          if (!isNaN(montant) && montant > 0) {
+            combinedParams.montant = montant;
+          }
+        }
+
+        // Extraire la catégorie si mentionnée
+        const categorieKeywords: Record<string, string> = {
+          'aliment': 'alimentation',
+          'provende': 'alimentation',
+          'nourriture': 'alimentation',
+          'medicament': 'medicaments',
+          'vaccin': 'medicaments',
+          'veterinaire': 'veterinaire',
+          'veto': 'veterinaire',
+          'entretien': 'entretien',
+          'equipement': 'equipements',
+        };
+
+        for (const [keyword, categorie] of Object.entries(categorieKeywords)) {
+          if (normalizedMessage.includes(keyword)) {
+            combinedParams.categorie = categorie;
+            break;
+          }
+        }
+
+        combinedParams.userMessage = userMessage;
+        return {
+          ...pendingAction,
+          params: combinedParams,
+        };
+    }
+
+    return null;
+  }
+
+  /**
+   * Génère un ID de contexte pour relier les messages entre eux
+   */
+  private generateContextId(): string {
+    return `ctx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * Vérifie si une action nécessite des clarifications (informations manquantes)
+   */
+  private checkMissingInfo(action: AgentAction): string[] {
+    const missing: string[] = [];
+    const params = action.params || {};
+
+    switch (action.type) {
+      case 'create_revenu':
+        if (!params.nombre || params.nombre <= 0) {
+          missing.push('nombre');
+        }
+        if (!params.poids_total && !params.poids_moyen && !params.poids_kg) {
+          missing.push('poids');
+        }
+        break;
+      case 'create_mortalite':
+        if (!params.nombre_porcs || params.nombre_porcs <= 0) {
+          missing.push('nombre');
+        }
+        break;
+      case 'create_depense':
+        if (!params.montant || params.montant <= 0) {
+          missing.push('montant');
+        }
+        break;
+    }
+
+    return missing;
+  }
+
+  /**
+   * Construit une question de clarification basée sur les informations manquantes
+   */
+  private buildClarificationQuestion(action: AgentAction, missingInfo: string[]): string {
+    const params = action.params || {};
+
+    switch (action.type) {
+      case 'create_revenu':
+        if (missingInfo.includes('nombre') && missingInfo.includes('poids')) {
+          return 'Combien de porcs exactement tu as vendus et c\'est quel poids moyen ou poids total ? (ex: "5 porcs, 85 kg chacun" ou "5 porcs, 425 kg au total")';
+        } else if (missingInfo.includes('nombre')) {
+          return 'Combien de porcs exactement tu as vendus ? Donne-moi le nombre précis.';
+        } else if (missingInfo.includes('poids')) {
+          const nombre = params.nombre || 'X';
+          return `Ok, tu as vendu ${nombre} porc${nombre > 1 ? 's' : ''}. C'est quel poids moyen ou poids total ? (ex: "85 kg chacun" ou "425 kg au total")`;
+        }
+        break;
+      case 'create_mortalite':
+        if (missingInfo.includes('nombre')) {
+          return 'Combien de porcs exactement sont morts ? Donne-moi le nombre précis.';
+        }
+        break;
+      case 'create_depense':
+        if (missingInfo.includes('montant')) {
+          return 'C\'est quel montant exactement ? Donne-moi le montant de la dépense (ex: "50 000 FCFA").';
+        }
+        break;
+    }
+
+    return 'Peux-tu me donner plus de détails pour que je puisse t\'aider ?';
+  }
+
+  /**
+   * Construit une réponse contextuelle personnalisée pour montrer qu'on se souvient du contexte
+   */
+  private buildContextualResponse(action: AgentAction, defaultMessage: string): string {
+    // Chercher dans l'historique le message précédent qui a déclenché cette action
+    const recentMessages = this.conversationHistory.slice(-5);
+    const previousUserMessage = recentMessages
+      .filter(msg => msg.role === 'user')
+      .slice(-2, -1)[0];
+
+    if (previousUserMessage && action.type === 'create_revenu') {
+      // Vérifier si le message précédent mentionnait une vente
+      if (previousUserMessage.content.toLowerCase().includes('vendu') ||
+          previousUserMessage.content.toLowerCase().includes('vente')) {
+        // Personnaliser le message pour montrer qu'on se souvient
+        const nombre = action.params.nombre || action.params.nombre_porcs || 'X';
+        const acheteur = action.params.acheteur || action.params.client || 'client';
+        
+        return `Ah d'acc mon frère, je me souviens que tu parlais de la vente des porcs. Avec ${nombre} porc${nombre > 1 ? 's' : ''} à ${acheteur}, c'est noté ! ${defaultMessage}`;
+      }
+    }
+
+    return defaultMessage;
+  }
+
+  /**
+   * Construit un message avec les recommandations et suggestions proactives
+   */
+  private buildRecommendationsMessage(reasoning: any): string | null {
+    const parts: string[] = [];
+
+    if (reasoning.recommendations && reasoning.recommendations.length > 0) {
+      parts.push('💡 **Recommandations** :');
+      reasoning.recommendations.forEach((rec: string, index: number) => {
+        parts.push(`${index + 1}. ${rec}`);
+      });
+    }
+
+    if (reasoning.proactiveSuggestions && reasoning.proactiveSuggestions.length > 0) {
+      if (parts.length > 0) parts.push('');
+      parts.push('🚀 **Suggestions proactives** :');
+      reasoning.proactiveSuggestions.forEach((suggestion: string, index: number) => {
+        parts.push(`${index + 1}. ${suggestion}`);
+      });
+    }
+
+    return parts.length > 0 ? parts.join('\n') : null;
+  }
+
+  /**
+   * Nettoie les ressources lors de la destruction
+   */
+  destroy(): void {
+    this.stopProactiveChecks();
+  }
 }
+

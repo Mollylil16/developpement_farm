@@ -118,7 +118,7 @@ export class PlanificationsService {
     await this.checkProjetOwnership(projetId, userId);
 
     const result = await this.databaseService.query(
-      `SELECT * FROM planifications WHERE projet_id = $1 ORDER BY date_prevue ASC`,
+      `SELECT * FROM planifications WHERE projet_id = $1 ORDER BY date_prevue ASC LIMIT 500`,
       [projetId]
     );
     return result.rows.map((row) => this.mapRowToPlanification(row));
@@ -260,48 +260,51 @@ export class PlanificationsService {
   }
 
   async createBatch(createPlanificationDtos: CreatePlanificationDto[], userId: string) {
-    // Vérifier que tous les projets appartiennent à l'utilisateur
-    for (const dto of createPlanificationDtos) {
-      await this.checkProjetOwnership(dto.projet_id, userId);
-    }
+    if (!createPlanificationDtos.length) return [];
 
-    const planifications = [];
+    // Check ownership once per unique projet_id instead of once per DTO
+    const uniqueProjetIds = [...new Set(createPlanificationDtos.map(d => d.projet_id))];
+    await Promise.all(uniqueProjetIds.map(id => this.checkProjetOwnership(id, userId)));
+
     const now = new Date().toISOString();
+    const COLS = 15;
+    const values: any[] = [];
+    const placeholders: string[] = [];
 
-    for (const dto of createPlanificationDtos) {
-      const id = this.generatePlanificationId();
-      const statut = 'a_faire';
-      const recurrence = dto.recurrence || 'aucune';
-
-      const result = await this.databaseService.query(
-        `INSERT INTO planifications (
-          id, projet_id, type, titre, description, date_prevue, date_echeance,
-          rappel, statut, recurrence, lien_gestation_id, lien_sevrage_id,
-          notes, date_creation, derniere_modification
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-        RETURNING *`,
-        [
-          id,
-          dto.projet_id,
-          dto.type,
-          dto.titre,
-          dto.description || null,
-          dto.date_prevue,
-          dto.date_echeance || null,
-          dto.rappel || null,
-          statut,
-          recurrence,
-          dto.lien_gestation_id || null,
-          dto.lien_sevrage_id || null,
-          dto.notes || null,
-          now,
-          now,
-        ]
+    for (let i = 0; i < createPlanificationDtos.length; i++) {
+      const dto = createPlanificationDtos[i];
+      const offset = i * COLS;
+      placeholders.push(
+        `($${offset+1},$${offset+2},$${offset+3},$${offset+4},$${offset+5},$${offset+6},$${offset+7},$${offset+8},$${offset+9},$${offset+10},$${offset+11},$${offset+12},$${offset+13},$${offset+14},$${offset+15})`
       );
-
-      planifications.push(this.mapRowToPlanification(result.rows[0]));
+      values.push(
+        this.generatePlanificationId(),
+        dto.projet_id,
+        dto.type,
+        dto.titre,
+        dto.description || null,
+        dto.date_prevue,
+        dto.date_echeance || null,
+        dto.rappel || null,
+        'a_faire',
+        dto.recurrence || 'aucune',
+        dto.lien_gestation_id || null,
+        dto.lien_sevrage_id || null,
+        dto.notes || null,
+        now,
+        now,
+      );
     }
 
-    return planifications;
+    const result = await this.databaseService.query(
+      `INSERT INTO planifications (
+        id, projet_id, type, titre, description, date_prevue, date_echeance,
+        rappel, statut, recurrence, lien_gestation_id, lien_sevrage_id,
+        notes, date_creation, derniere_modification
+      ) VALUES ${placeholders.join(', ')} RETURNING *`,
+      values
+    );
+
+    return result.rows.map(row => this.mapRowToPlanification(row));
   }
 }

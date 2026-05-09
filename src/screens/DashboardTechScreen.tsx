@@ -45,7 +45,7 @@ const DashboardTechScreen: React.FC = () => {
   const { assistedFarms, todayTasks, recentRecords, loading, error, refresh } = useTechData(
     currentUser?.id
   );
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   const { projetCollaboratifActif, collaborateurActuel, invitationsEnAttente } = useAppSelector((state) => state.collaboration);
   const { planifications, planificationsAVenir } = useAppSelector((state) => state.planification);
 
@@ -267,7 +267,7 @@ const DashboardTechScreen: React.FC = () => {
                   .filter((p) => p.statut === 'a_faire' || p.statut === 'en_cours')
                   .slice(0, 3)
                   .map((planif) => (
-                    <PlanificationCard key={planif.id} planification={planif} colors={colors} />
+                    <PlanificationCard key={planif.id} planification={planif as any} colors={colors} />
                   ))}
               </View>
             </View>

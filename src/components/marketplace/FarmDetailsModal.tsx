@@ -24,138 +24,40 @@ import type { FarmCard, MarketplaceListing } from '../../types/marketplace';
 import { formatDate } from '../../utils/formatters';
 import { formatPrice } from '../../services/PricingService';
 import { useAppSelector } from '../../store/hooks';
-import { useProjetEffectif } from '../../hooks/useProjetEffectif';
-import apiClient from '../../services/api/apiClient';
-import { API_CONFIG } from '../../config/api.config';
+import { getDatabase } from '../../services/database';
+import { MarketplaceListingRepository } from '../../database/repositories';
+import { AnimalRepository } from '../../database/repositories';
+import { PeseeRepository } from '../../database/repositories';
+import { VaccinationRepository } from '../../database/repositories';
+import { MaladieRepository } from '../../database/repositories';
+import { TraitementRepository } from '../../database/repositories';
+import { VisiteVeterinaireRepository } from '../../database/repositories';
 import { TYPE_PROPHYLAXIE_LABELS } from '../../types/sante';
 import SubjectCard from './SubjectCard';
-import { logger } from '../../utils/logger';
-import { PhotoGallery } from './PhotoGallery';
-// Note: Pas de MarketplaceListingRepository - utiliser apiClient directement pour les listings
-
-// Structure pour passer les sélections avec les IDs réels
-export interface SelectedSubject {
-  listingId: string; // ID réel du listing
-  subjectId: string; // ID réel du sujet (pigId pour batch, subjectId pour individuel)
-}
-
-// Interface pour les détails sanitaires
-interface VaccinationDetail {
-  date_vaccination?: string;
-  date_rappel?: string;
-  type_prophylaxie?: string;
-  type_vaccin?: string;
-}
-
-interface MaladieDetail {
-  type?: string;
-  gueri?: boolean;
-}
-
-interface VisiteDetail {
-  date?: string;
-  date_visite?: string;
-  motif?: string;
-  veterinaire?: string;
-}
-
-interface HealthDetails {
-  vaccinations?: VaccinationDetail[];
-  maladies?: MaladieDetail[];
-  visites?: VisiteDetail[];
-}
 
 interface FarmDetailsModalProps {
   visible: boolean;
-  farm?: FarmCard | null; // Optionnel : pour les fermes groupées
-  initialListing?: MarketplaceListing | null; // Optionnel : pour les listings individuels
+  farm: FarmCard | null;
   onClose: () => void;
-  onMakeOffer: (selections: SelectedSubject[]) => void;
+  onMakeOffer: (selectedSubjectIds: string[]) => void;
 }
 
-type SortOption =
-  | 'price_asc'
-  | 'price_desc'
-  | 'weight_asc'
-  | 'weight_desc'
-  | 'date_asc'
-  | 'date_desc';
+type SortOption = 'price_asc' | 'price_desc' | 'weight_asc' | 'weight_desc' | 'date_asc' | 'date_desc';
 type FilterRace = string | 'all';
 
 export default function FarmDetailsModal({
   visible,
   farm,
-  initialListing,
   onClose,
   onMakeOffer,
 }: FarmDetailsModalProps) {
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
-  const { user } = useAppSelector((state) => state.auth ?? { user: null });
-  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
-  const projetActif = useProjetEffectif();
-
-  // ✅ Déterminer le farmId : soit depuis farm, soit depuis initialListing
-  const farmId = farm?.farmId || initialListing?.farmId;
+  const { user } = useAppSelector((state) => (state as any).auth);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   
-  // Créer une FarmCard minimale à partir du listing si nécessaire
-  const effectiveFarm: FarmCard | null = useMemo(() => {
-    if (farm) return farm;
-    if (initialListing) {
-      // Créer une FarmCard minimale depuis le listing
-      const totalSubjects = initialListing.listingType === 'batch' && initialListing.pigCount
-        ? initialListing.pigCount
-        : 1;
-      const totalWeight = initialListing.weight || 0;
-      
-      return {
-        id: initialListing.farmId,
-        farmId: initialListing.farmId,
-        name: 'Ferme', // Sera enrichi après
-        location: initialListing.location,
-        totalSubjects,
-        totalWeight,
-        averageRating: 0,
-        isNew: false,
-        stats: {
-          totalListings: totalSubjects,
-          totalSales: 0,
-          averageRating: 0,
-          totalRatings: 0,
-          responseTime: 0,
-          completionRate: 0,
-        },
-        producerId: initialListing.producerId,
-        producerName: 'Producteur', // Sera enrichi après
-        aggregatedData: {
-          totalSubjectsForSale: totalSubjects,
-          totalWeight,
-          priceRange: {
-            min: initialListing.pricePerKg,
-            max: initialListing.pricePerKg,
-          },
-          averagePricePerKg: initialListing.pricePerKg,
-        },
-        producerRating: {
-          overall: 0,
-          totalReviews: 0,
-        },
-        badges: {
-          isNewProducer: false,
-          isCertified: false,
-          fastResponder: false,
-        },
-        preview: {
-          subjectPhotos: [],
-          availableRaces: initialListing.race ? [initialListing.race] : [],
-        },
-        lastUpdated: new Date(initialListing.updatedAt),
-      };
-    }
-    return null;
-  }, [farm, initialListing]);
-
   // Vérifier si l'utilisateur est le producteur de cette ferme
-  const isProducer = farmId && projetActif && farmId === projetActif.id;
+  // Le farmId correspond à l'ID du projet, donc si farm.farmId === projetActif.id, c'est sa ferme
+  const isProducer = farm && projetActif && farm.farmId === projetActif.id;
 
   const [listings, setListings] = useState<MarketplaceListing[]>([]);
   const [loading, setLoading] = useState(false);
@@ -165,402 +67,135 @@ export default function FarmDetailsModal({
   const [sortBy, setSortBy] = useState<SortOption>('price_asc');
   const [filterRace, setFilterRace] = useState<FilterRace>('all');
   const [expandedSubjectId, setExpandedSubjectId] = useState<string | null>(null);
-  const [healthDetails, setHealthDetails] = useState<Record<string, HealthDetails>>({});
+  const [healthDetails, setHealthDetails] = useState<Record<string, any>>({});
 
   // Charger les listings de la ferme
   const loadListings = useCallback(async () => {
-    if (!farmId) return;
+    if (!farm || !farm.farmId) return;
 
     try {
       setLoading(true);
-      
-      // ✅ Si on a un initialListing, l'ajouter immédiatement pour affichage rapide
-      let initialListings: MarketplaceListing[] = [];
-      if (initialListing) {
-        // Enrichir le listing initial avec les données nécessaires
-        initialListings = [{
-          ...initialListing,
-          code: initialListing.code || (initialListing.subjectId ? `#${initialListing.subjectId.slice(0, 8)}` : 'N/A'),
-          race: initialListing.race || 'Non spécifiée',
-          weight: initialListing.weight || 0,
-          weightDate: initialListing.lastWeightDate || initialListing.weightDate,
-          age: initialListing.age || 0,
-          totalPrice: initialListing.calculatedPrice,
-          healthStatus: initialListing.healthStatus || 'good',
-          vaccinations: initialListing.vaccinations !== undefined ? initialListing.vaccinations : false,
-          available: true,
-        }];
-        
-        // Pour les batch listings, créer les listings virtuels immédiatement
-        if (initialListing.listingType === 'batch' && initialListing.batchId && initialListing.pigIds && initialListing.pigIds.length > 0) {
-          const pricePerKg = initialListing.pricePerKg;
-          const averageWeight = initialListing.weight || 0;
-          const pigCount = initialListing.pigCount || 1;
-          const pricePerPig = pigCount > 0 ? (initialListing.calculatedPrice / pigCount) : 0;
-          const validPigIds = initialListing.pigIds.filter((id: string | null | undefined) => id && typeof id === 'string' && id.trim().length > 0);
-          
-            if (validPigIds.length > 0) {
-            initialListings = validPigIds.map((pigId: string) => {
-              // ✅ Nettoyer l'ID pour éviter les doubles ##
-              const cleanId = pigId && typeof pigId === 'string' ? pigId.replace(/^#+/, '') : '';
-              const pigIdShort = cleanId.slice(0, 8) || 'N/A';
-              return {
-                ...initialListing,
-                id: pigId,
-                subjectId: pigId,
-                code: `#${pigIdShort}`,
-                race: initialListing.race || 'Non spécifiée',
-                weight: averageWeight,
-                weightDate: initialListing.lastWeightDate || initialListing.weightDate || new Date().toISOString(),
-                age: 0,
-                pricePerKg: pricePerKg,
-                calculatedPrice: pricePerPig,
-                totalPrice: pricePerPig,
-                healthStatus: 'good' as const,
-                vaccinations: false,
-                available: true,
-                originalListingId: initialListing.id,
-              } as MarketplaceListing & { originalListingId: string };
-            });
-          }
-        }
-        
-        // Afficher immédiatement le listing initial
-        setListings(initialListings);
-      }
-      
-      // Récupérer tous les listings de la ferme depuis l'API backend
-      // Le backend retourne maintenant un objet avec pagination
-      // Note: le backend utilise 'projet_id' pas 'farm_id', donc on utilise projet_id
-      const response = await apiClient.get<{
-        listings: any[];
-        total: number;
-      }>(`/marketplace/listings`, {
-        params: { 
-          projet_id: farmId, // Le backend filtre par projet_id (farm_id dans le modèle)
-          limit: 50, // Limité à 50 pour les performances - pagination à implémenter si nécessaire
-        },
-      });
-      const farmListings = response.listings || [];
+      const db = await getDatabase();
+      const listingRepo = new MarketplaceListingRepository();
 
+      // Récupérer tous les listings de la ferme
+      const farmListings = await listingRepo.findByFarmId(farm.farmId);
+      
       // Filtrer seulement les disponibles
-      // ✅ Exclure le listing initial s'il est déjà chargé (éviter les doublons)
-      const availableListings = farmListings.filter((l) => {
-        if (l.status !== 'available') return false;
-        // Si on a un initialListing, exclure-le des résultats (il est déjà dans initialListings)
-        if (initialListing && l.id === initialListing.id) return false;
-        return true;
-      });
+      const availableListings = farmListings.filter(l => l.status === 'available');
 
-      // Enrichir avec les données des animaux depuis l'API backend
-      // Pour les batch listings, créer un listing virtuel pour chaque animal individuel
-      const enrichedListingsPromises = availableListings.map(async (listing) => {
-        try {
-          // Pour les batch listings, enrichir chaque animal individuellement
-          if (listing.listingType === 'batch' && listing.batchId && listing.pigIds && listing.pigIds.length > 0) {
-            const pricePerKg = listing.pricePerKg;
-            const averageWeight = listing.weight || 0;
-            const pricePerPig = listing.pigCount > 0 ? (listing.calculatedPrice / listing.pigCount) : 0;
-            
-            // Filtrer les pigIds valides
-            const validPigIds = listing.pigIds.filter((id: string | null | undefined) => id && typeof id === 'string' && id.trim().length > 0);
-            
-            if (validPigIds.length === 0) {
-              // Pas de pigIds valides, retourner le listing batch tel quel
-              const pigCount = listing.pigCount || 0;
-              const totalWeight = averageWeight * pigCount;
-              return [{
-                ...listing,
-                code: `Bande #${listing.batchId.slice(0, 8)}`,
-                race: listing.race || 'Non spécifiée',
-                weight: totalWeight,
-                weightDate: listing.lastWeightDate || listing.weightDate,
-                age: 0,
-                totalPrice: listing.calculatedPrice,
-                healthStatus: 'good' as const,
-                vaccinations: false,
-                available: true,
-                isBatch: true,
-                pigCount,
-              }];
-            }
-            
-            // ✅ Créer un listing virtuel pour chaque animal du batch
-            // Utiliser UNIQUEMENT les données déjà disponibles dans le listing du marketplace
-            // Éviter les appels API protégés qui échouent avec 403 pour les acheteurs
-            const individualListings = validPigIds.map((pigId: string) => {
-              // ✅ Nettoyer l'ID pour éviter les doubles ##
-              const cleanId = pigId && typeof pigId === 'string' ? pigId.replace(/^#+/, '') : '';
-              const pigIdShort = cleanId.slice(0, 8) || 'N/A';
-              
-              // Utiliser les données agrégées du listing batch
-              // Les informations détaillées (poids individuel, vaccinations, etc.) ne sont disponibles
-              // que pour le producteur. Pour les acheteurs, utiliser les moyennes/agrégations.
-              return {
-                ...listing,
-                id: pigId, // ✅ Utiliser directement le pigId comme ID (ID réel)
-                subjectId: pigId, // Utiliser pigId comme subjectId
-                code: `#${pigIdShort}`, // Code basé sur l'ID (nettoyé)
-                race: listing.race || 'Non spécifiée',
-                weight: averageWeight, // Poids moyen du batch
-                weightDate: listing.lastWeightDate || listing.weightDate || new Date().toISOString(),
-                age: 0, // L'âge n'est pas disponible sans accès aux détails de l'animal
-                pricePerKg: pricePerKg,
-                calculatedPrice: pricePerPig, // Prix moyen par animal
-                totalPrice: pricePerPig,
-                healthStatus: 'good' as const, // Pas d'info détaillée disponible pour les acheteurs
-                vaccinations: false, // Pas d'info disponible sans accès aux détails
-                available: true,
-                originalListingId: listing.id, // ✅ Stocker l'ID réel du listing original
-              } as MarketplaceListing & { originalListingId: string };
-            });
-            
-            return individualListings;
-          }
-          
-          // Pour les listings individuels, charger les détails de l'animal
-          if (!listing.subjectId) {
-            // Listing sans subjectId, utiliser les données disponibles
-            return [{
-              ...listing,
-              code: listing.code || 'N/A',
-              race: listing.race || 'Non spécifiée',
-              weight: listing.weight || 0,
-              weightDate: listing.lastWeightDate || listing.weightDate,
-              age: 0,
-              totalPrice: listing.calculatedPrice,
-              healthStatus: 'good' as const,
-              vaccinations: false,
-              available: true,
-            }];
-          }
-            
-          // Pour les listings individuels avec subjectId
-          // ✅ Utiliser UNIQUEMENT les données déjà disponibles dans le listing
-          // Ne pas appeler les endpoints protégés qui échouent avec 403 pour les acheteurs
-          // Le backend devrait enrichir les listings avec les informations nécessaires
-          return [{
-            ...listing,
-            code: listing.code || (listing.subjectId ? `#${listing.subjectId.slice(0, 8)}` : 'N/A'),
-            race: listing.race || 'Non spécifiée',
-            weight: listing.weight || 0,
-            weightDate: listing.lastWeightDate || listing.weightDate,
-            age: listing.age || 0, // Si l'âge est disponible dans le listing
-            totalPrice: listing.calculatedPrice,
-            healthStatus: listing.healthStatus || 'good',
-            vaccinations: listing.vaccinations !== undefined ? listing.vaccinations : false,
-            available: true,
-          }];
-        } catch (error) {
-          logger.error(`Erreur enrichissement listing ${listing.id}:`, error);
-          return [];
-        }
-      });
-
-      // Attendre que toutes les promesses se résolvent, puis aplatir les résultats
-      const enrichedListingsArrays = await Promise.all(enrichedListingsPromises);
+      // Enrichir avec les données des animaux
+      const animalRepo = new AnimalRepository();
+      const peseeRepo = new PeseeRepository();
+      const vaccinationRepo = new VaccinationRepository();
       
-      // Aplatir les résultats (car chaque promesse retourne un array de listings)
-      const enrichedListings = enrichedListingsArrays
-        .reduce((acc: MarketplaceListing[], listingsArray: MarketplaceListing[]) => {
-          return acc.concat(listingsArray);
-        }, [] as MarketplaceListing[])
-        .filter((l: MarketplaceListing | null): l is MarketplaceListing => l !== null);
-
-      // ✅ Combiner les listings initiaux avec les listings enrichis de la ferme
-      // Les listings initiaux sont déjà affichés, on les combine avec les autres
-      const allListings = [...initialListings, ...enrichedListings];
-      
-      // Supprimer les doublons (au cas où initialListing serait aussi dans enrichedListings)
-      const uniqueListings = allListings.filter((listing, index, self) => 
-        index === self.findIndex((l: MarketplaceListing) => l.id === listing.id)
-      );
-      
-      setListings(uniqueListings);
-      
-      // ✅ Enrichir les informations de la ferme en arrière-plan si initialListing
-      if (initialListing && effectiveFarm) {
-        (async () => {
+      const enrichedListings = await Promise.all(
+        availableListings.map(async (listing) => {
           try {
-            const repositories = await import('../../database/repositories');
-            if (repositories.ProjetRepository && repositories.UserRepository) {
-              const projetRepo = new repositories.ProjetRepository();
-              const userRepo = new repositories.UserRepository();
-              
-              const [projet, producer] = await Promise.all([
-                projetRepo.findById(initialListing.farmId).catch(() => null),
-                userRepo.findById(initialListing.producerId).catch(() => null),
-              ]);
-              
-              // Mettre à jour la FarmCard avec les vraies données
-              if (projet || producer) {
-                // On pourrait mettre à jour effectiveFarm ici, mais comme c'est un useMemo,
-                // on laisse FarmDetailsModal utiliser les données minimales
-                // Les vraies données seront utilisées lors du prochain rechargement
-              }
+            const animal = await animalRepo.findById(listing.subjectId);
+            if (!animal) return null;
+
+            // Récupérer la dernière pesée pour le poids actuel
+            const dernierePesee = await peseeRepo.findLastByAnimal(animal.id);
+            const poidsActuel = dernierePesee?.poids_kg || animal.poids_initial || 0;
+
+            // Calculer l'âge en mois
+            const ageEnMois = animal.date_naissance
+              ? Math.floor(
+                  (new Date().getTime() - new Date(animal.date_naissance).getTime()) /
+                    (1000 * 60 * 60 * 24 * 30)
+                )
+              : 0;
+
+            // Vérifier le statut des vaccinations
+            const vaccinations = await vaccinationRepo.findByAnimal(animal.id);
+            const vaccinationsAJour = vaccinations.length > 0 && 
+              vaccinations.every(v => v.date_rappel === null || new Date(v.date_rappel) > new Date());
+
+            // Déterminer le statut de santé
+            let healthStatus: 'good' | 'attention' | 'critical' = 'good';
+            if (animal.statut === 'mort') {
+              healthStatus = 'critical';
+            } else if (!vaccinationsAJour) {
+              healthStatus = 'attention';
             }
+
+            return {
+              ...listing,
+              code: animal.code || `#${animal.id.slice(0, 8)}`,
+              race: animal.race || 'Non spécifiée',
+              weight: poidsActuel,
+              weightDate: dernierePesee?.date || listing.lastWeightDate,
+              age: ageEnMois,
+              totalPrice: listing.calculatedPrice,
+              healthStatus,
+              vaccinations: vaccinationsAJour,
+              available: true,
+            };
           } catch (error) {
-            // Ignorer les erreurs, le modal fonctionne avec les données minimales
-            console.debug('Erreur chargement données enrichies (non bloquant):', error);
+            console.error(`Erreur enrichissement listing ${listing.id}:`, error);
+            return null;
           }
-        })();
-      }
-    } catch (error: unknown) {
-      logger.error('Erreur chargement listings:', error);
+        })
+      );
+
+      setListings(enrichedListings.filter((l) => l !== null) as MarketplaceListing[]);
+    } catch (error: any) {
+      console.error('Erreur chargement listings:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [farmId, initialListing, effectiveFarm]);
+  }, [farm]);
 
-  // Charger les détails sanitaires d'un sujet via l'API backend
-  const loadHealthDetails = useCallback(
-    async (subjectId: string) => {
-      if (healthDetails[subjectId]) return; // Déjà chargé
+  // Charger les détails sanitaires d'un sujet
+  const loadHealthDetails = useCallback(async (subjectId: string) => {
+    if (healthDetails[subjectId]) return; // Déjà chargé
 
-      try {
-        const { SanteHistoriqueService } = await import('../../services/sante/SanteHistoriqueService');
-        const historique = await SanteHistoriqueService.getHistorique(subjectId);
+    try {
+      const db = await getDatabase();
+      const vaccinationRepo = new VaccinationRepository();
+      const maladieRepo = new MaladieRepository();
+      const traitementRepo = new TraitementRepository();
+      const visiteRepo = new VisiteVeterinaireRepository();
 
-        // Filtrer les visites pour ne garder que celles qui concernent cet animal
-        const visitesFiltrees = (historique.visites || []).filter(
-          (v) => v.animaux_examines?.includes(subjectId)
-        );
+      const [vaccinations, maladies, traitements, visites] = await Promise.all([
+        vaccinationRepo.findByAnimal(subjectId),
+        maladieRepo.findByAnimal(subjectId),
+        traitementRepo.findByAnimal(subjectId),
+        visiteRepo.findByProjet(farm?.farmId || '').then(vs => 
+          vs.filter(v => v.animaux_examines?.includes(subjectId))
+        ),
+      ]);
 
-        // Toujours sauvegarder l'historique, même s'il est vide (cas 403)
-        setHealthDetails((prev) => ({
-          ...prev,
-          [subjectId]: {
-            vaccinations: historique.vaccinations || [],
-            maladies: historique.maladies || [],
-            traitements: historique.traitements || [],
-            visites: visitesFiltrees,
-          },
-        }));
-      } catch (error) {
-        // Les erreurs 403 sont déjà gérées par SanteHistoriqueService
-        // Ne logger que les autres erreurs (réseau, serveur, etc.)
-        if (__DEV__) {
-          const { APIError } = await import('../../services/api/apiError');
-          if (!(error instanceof APIError) || error.status !== 403) {
-            logger.warn('Erreur chargement détails sanitaires (hors 403):', error);
-          }
-        }
-        
-        // Mettre un historique vide en cas d'erreur autre que 403
-        setHealthDetails((prev) => ({
-          ...prev,
-          [subjectId]: {
-            vaccinations: [],
-            maladies: [],
-            traitements: [],
-            visites: [],
-          },
-        }));
-      }
-    },
-    [healthDetails]
-  );
+      setHealthDetails(prev => ({
+        ...prev,
+        [subjectId]: {
+          vaccinations,
+          maladies,
+          traitements,
+          visites,
+        },
+      }));
+    } catch (error) {
+      console.error('Erreur chargement détails sanitaires:', error);
+    }
+  }, [farm, healthDetails]);
 
   useEffect(() => {
-    if (visible && (farm || initialListing)) {
+    if (visible && farm) {
       loadListings();
       setSelectedIds(new Set());
       setSearchQuery('');
       setFilterRace('all');
       setExpandedSubjectId(null);
     }
-  }, [visible, farm, initialListing, loadListings]);
-
-  // ✅ Enrichir les listings avec les poids réels depuis le backend
-  // Après le chargement initial avec poids moyens, récupérer les poids individuels
-  useEffect(() => {
-    const enrichWithRealWeights = async () => {
-      if (!visible || listings.length === 0) return;
-      
-      // Trouver les listings batch qui ont besoin d'enrichissement
-      const batchListingIds = new Set<string>();
-      listings.forEach((listing) => {
-        const originalId = (listing as MarketplaceListing & { originalListingId?: string }).originalListingId;
-        if (originalId) {
-          batchListingIds.add(originalId);
-        }
-      });
-      
-      if (batchListingIds.size === 0) return;
-      
-      try {
-        // Appeler l'API pour récupérer les poids réels
-        const response = await apiClient.post<Array<{
-          listing: any;
-          subjects: Array<{
-            id: string;
-            code?: string;
-            poids_initial?: number;
-            derniere_pesee?: { poids_kg: number; date: string };
-          }>;
-        }>>('/marketplace/listings/details', {
-          listingIds: Array.from(batchListingIds),
-        });
-        
-        if (!response || response.length === 0) return;
-        
-        // Créer une map des poids réels par subjectId
-        const realWeights = new Map<string, number>();
-        for (const item of response) {
-          if (item.subjects) {
-            for (const subject of item.subjects) {
-              // Priorité : dernière pesée > poids initial
-              const realWeight = subject.derniere_pesee?.poids_kg || subject.poids_initial;
-              if (realWeight && realWeight > 0) {
-                realWeights.set(subject.id, realWeight);
-              }
-            }
-          }
-        }
-        
-        if (realWeights.size === 0) return;
-        
-        // Mettre à jour les listings avec les poids réels
-        setListings((prevListings) => 
-          prevListings.map((listing) => {
-            const subjectId = listing.subjectId || listing.id;
-            const realWeight = realWeights.get(subjectId);
-            
-            if (realWeight && realWeight !== listing.weight) {
-              // Recalculer le prix avec le poids réel
-              const pricePerKg = listing.pricePerKg || 0;
-              const calculatedPrice = Math.round(realWeight * pricePerKg);
-              
-              logger.debug(`[FarmDetailsModal] Mise à jour poids: ${listing.code} ${listing.weight}kg → ${realWeight}kg (prix: ${calculatedPrice} FCFA)`);
-              
-              return {
-                ...listing,
-                weight: realWeight,
-                calculatedPrice,
-                totalPrice: calculatedPrice,
-              };
-            }
-            return listing;
-          })
-        );
-        
-        logger.info(`[FarmDetailsModal] Poids réels mis à jour pour ${realWeights.size} sujets`);
-      } catch (error) {
-        // Ne pas bloquer l'affichage en cas d'erreur, garder les poids moyens
-        logger.warn('[FarmDetailsModal] Impossible de récupérer les poids réels:', error);
-      }
-    };
-    
-    // Déclencher après un court délai pour ne pas bloquer l'affichage initial
-    const timer = setTimeout(enrichWithRealWeights, 100);
-    return () => clearTimeout(timer);
-  }, [visible, listings.length > 0]); // Déclencher quand les listings sont chargés
+  }, [visible, farm, loadListings]);
 
   // Races disponibles
   const availableRaces = useMemo(() => {
     const races = new Set<string>();
-    listings.forEach((l) => {
+    listings.forEach(l => {
       if (l.race && l.race !== 'Non spécifiée') {
         races.add(l.race);
       }
@@ -576,17 +211,16 @@ export default function FarmDetailsModal({
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
-        (l) =>
+        l =>
           l.code?.toLowerCase().includes(query) ||
           l.race?.toLowerCase().includes(query) ||
-          (l.subjectId && l.subjectId.toLowerCase().includes(query)) ||
-          (l.batchId && l.batchId.toLowerCase().includes(query))
+          l.subjectId.toLowerCase().includes(query)
       );
     }
 
     // Filtre par race
     if (filterRace !== 'all') {
-      filtered = filtered.filter((l) => l.race === filterRace);
+      filtered = filtered.filter(l => l.race === filterRace);
     }
 
     // Tri
@@ -615,13 +249,13 @@ export default function FarmDetailsModal({
   // Calculer le prix total des sujets sélectionnés
   const totalPrice = useMemo(() => {
     return filteredAndSortedListings
-      .filter((l) => selectedIds.has(l.id))
+      .filter(l => selectedIds.has(l.id))
       .reduce((sum, l) => sum + (l.totalPrice || l.calculatedPrice || 0), 0);
   }, [filteredAndSortedListings, selectedIds]);
 
   // Toggle sélection
   const toggleSelection = (listingId: string) => {
-    setSelectedIds((prev) => {
+    setSelectedIds(prev => {
       const newSet = new Set(prev);
       if (newSet.has(listingId)) {
         newSet.delete(listingId);
@@ -637,7 +271,7 @@ export default function FarmDetailsModal({
     if (selectedIds.size === filteredAndSortedListings.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredAndSortedListings.map((l) => l.id)));
+      setSelectedIds(new Set(filteredAndSortedListings.map(l => l.id)));
     }
   };
 
@@ -656,47 +290,7 @@ export default function FarmDetailsModal({
     if (selectedIds.size === 0) {
       return;
     }
-    
-    // ✅ Construire la structure avec les IDs réels (listingId + subjectId)
-    const selections: SelectedSubject[] = Array.from(selectedIds)
-      .map((selectedId) => {
-        // Trouver le listing correspondant à cet ID
-        const listing = listings.find((l) => l.id === selectedId);
-        if (!listing) {
-          console.warn(`[FarmDetailsModal] Listing non trouvé pour selectedId: ${selectedId}`);
-          return null;
-        }
-        
-        // ✅ Pour les listings batch virtuels, utiliser originalListingId (ID réel du listing)
-        // Pour les listings individuels, utiliser listing.id directement
-        const originalListingId = (listing as any).originalListingId;
-        const listingId = originalListingId || listing.id;
-        const subjectId = listing.subjectId || listing.id;
-        
-        // ✅ Validation : s'assurer qu'on utilise bien un listingId et non un pigId
-        // Si originalListingId n'est pas défini pour un listing batch virtuel, c'est un problème
-        if (listing.listingType === 'batch' && !originalListingId && listing.id !== listingId) {
-          console.error(`[FarmDetailsModal] ⚠️ PROBLÈME: Listing batch virtuel sans originalListingId!`, {
-            listingId: listing.id,
-            listingType: listing.listingType,
-            hasOriginalListingId: !!originalListingId,
-            selectedId,
-          });
-          // Ne pas retourner null, mais utiliser le listing.id comme fallback
-          // Le backend devrait quand même trouver le listing si l'ID est correct
-        }
-        
-        console.log(`[FarmDetailsModal] Sélection - listingId: ${listingId}, subjectId: ${subjectId}, selectedId: ${selectedId}, originalListingId: ${originalListingId || 'N/A'}, listingType: ${listing.listingType}`);
-        
-        return {
-          listingId,
-          subjectId,
-        };
-      })
-      .filter((s): s is SelectedSubject => s !== null);
-    
-    console.log(`[FarmDetailsModal] Envoi de ${selections.length} sélections à onMakeOffer:`, selections);
-    onMakeOffer(selections);
+    onMakeOffer(Array.from(selectedIds));
   };
 
   // Retirer les sujets sélectionnés du marketplace
@@ -720,40 +314,28 @@ export default function FarmDetailsModal({
           onPress: async () => {
             try {
               setLoading(true);
+              const db = await getDatabase();
+              const listingRepo = new MarketplaceListingRepository();
 
-              // ✅ Extraire les IDs réels des listings (utiliser originalListingId si disponible)
-              const realListingIds = new Set<string>();
-              for (const selectedId of selectedIds) {
-                const listing = listings.find((l: MarketplaceListing) => l.id === selectedId);
-                if (listing) {
-                  const listingId = (listing as MarketplaceListing & { originalListingId?: string }).originalListingId || listing.id;
-                  realListingIds.add(listingId);
-                }
-              }
-
-              // Mettre à jour le statut de chaque listing à 'removed' via API
-              const updatePromises = Array.from(realListingIds).map((listingId) =>
-                apiClient.patch(`/marketplace/listings/${listingId}/status`, { status: 'removed' })
+              // Mettre à jour le statut de chaque listing à 'removed'
+              const updatePromises = Array.from(selectedIds).map(listingId =>
+                listingRepo.updateStatus(listingId, 'removed')
               );
 
               await Promise.all(updatePromises);
 
               const count = selectedIds.size;
-
+              
               // Recharger les listings
               await loadListings();
-
+              
               // Réinitialiser la sélection
               setSelectedIds(new Set());
 
-              Alert.alert(
-                'Succès',
-                `${count} sujet${count > 1 ? 's' : ''} retiré${count > 1 ? 's' : ''} du marketplace`
-              );
-            } catch (error: unknown) {
-              logger.error('Erreur retrait du marketplace:', error);
-              const errorMessage = error instanceof Error ? error.message : 'Impossible de retirer les sujets du marketplace';
-              Alert.alert('Erreur', errorMessage);
+              Alert.alert('Succès', `${count} sujet${count > 1 ? 's' : ''} retiré${count > 1 ? 's' : ''} du marketplace`);
+            } catch (error: any) {
+              console.error('Erreur retrait du marketplace:', error);
+              Alert.alert('Erreur', error.message || 'Impossible de retirer les sujets du marketplace');
             } finally {
               setLoading(false);
             }
@@ -763,7 +345,7 @@ export default function FarmDetailsModal({
     );
   }, [selectedIds, loadListings]);
 
-  if (!farmId && !initialListing) return null;
+  if (!farm) return null;
 
   return (
     <Modal
@@ -772,32 +354,18 @@ export default function FarmDetailsModal({
       presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
       onRequestClose={onClose}
     >
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: colors.background }]}
-        edges={['top']}
-      >
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         {/* Header */}
-        <View
-          style={[
-            styles.header,
-            { backgroundColor: colors.surface, borderBottomColor: colors.divider },
-          ]}
-        >
-          <TouchableOpacity
-            onPress={onClose}
-            style={styles.closeButton}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
+        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.divider }]}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerContent}>
             <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
-              {effectiveFarm?.name || 'Ferme'}
+              {farm.name}
             </Text>
             <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-              {filteredAndSortedListings.length} sujet
-              {filteredAndSortedListings.length > 1 ? 's' : ''} disponible
-              {filteredAndSortedListings.length > 1 ? 's' : ''}
+              {filteredAndSortedListings.length} sujet{filteredAndSortedListings.length > 1 ? 's' : ''} disponible{filteredAndSortedListings.length > 1 ? 's' : ''}
             </Text>
           </View>
           {selectedIds.size > 0 && (
@@ -810,12 +378,7 @@ export default function FarmDetailsModal({
         </View>
 
         {/* Filtres et recherche */}
-        <View
-          style={[
-            styles.filtersContainer,
-            { backgroundColor: colors.surface, borderBottomColor: colors.divider },
-          ]}
-        >
+        <View style={[styles.filtersContainer, { backgroundColor: colors.surface, borderBottomColor: colors.divider }]}>
           {/* Recherche */}
           <View style={[styles.searchContainer, { backgroundColor: colors.surfaceLight }]}>
             <Ionicons name="search" size={20} color={colors.textSecondary} />
@@ -853,7 +416,7 @@ export default function FarmDetailsModal({
                   Toutes races
                 </Text>
               </TouchableOpacity>
-              {availableRaces.map((race) => (
+              {availableRaces.map(race => (
                 <TouchableOpacity
                   key={race}
                   style={[
@@ -879,13 +442,7 @@ export default function FarmDetailsModal({
               style={[styles.sortButton, { backgroundColor: colors.surfaceLight }]}
               onPress={() => {
                 // Cycle through sort options
-                const options: SortOption[] = [
-                  'price_asc',
-                  'price_desc',
-                  'weight_asc',
-                  'weight_desc',
-                  'date_desc',
-                ];
+                const options: SortOption[] = ['price_asc', 'price_desc', 'weight_asc', 'weight_desc', 'date_desc'];
                 const currentIndex = options.indexOf(sortBy);
                 setSortBy(options[(currentIndex + 1) % options.length]);
               }}
@@ -902,20 +459,17 @@ export default function FarmDetailsModal({
           </View>
 
           {/* Sélectionner tout */}
-          <TouchableOpacity style={styles.selectAllButton} onPress={toggleSelectAll}>
+          <TouchableOpacity
+            style={styles.selectAllButton}
+            onPress={toggleSelectAll}
+          >
             <Ionicons
-              name={
-                selectedIds.size === filteredAndSortedListings.length
-                  ? 'checkbox'
-                  : 'square-outline'
-              }
+              name={selectedIds.size === filteredAndSortedListings.length ? 'checkbox' : 'square-outline'}
               size={20}
               color={colors.primary}
             />
             <Text style={[styles.selectAllText, { color: colors.primary }]}>
-              {selectedIds.size === filteredAndSortedListings.length
-                ? 'Tout désélectionner'
-                : 'Tout sélectionner'}
+              {selectedIds.size === filteredAndSortedListings.length ? 'Tout désélectionner' : 'Tout sélectionner'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -924,13 +478,10 @@ export default function FarmDetailsModal({
         <ScrollView
           style={styles.listContainer}
           refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                loadListings();
-              }}
-            />
+            <RefreshControl refreshing={refreshing} onRefresh={() => {
+              setRefreshing(true);
+              loadListings();
+            }} />
           }
         >
           {loading && listings.length === 0 ? (
@@ -950,35 +501,26 @@ export default function FarmDetailsModal({
               </Text>
             </View>
           ) : (
-            filteredAndSortedListings.map((listing) => {
-              const effectiveSubjectId = listing.subjectId || listing.id;
-              return (
-                <SubjectCardWithSelection
-                  key={listing.id}
-                  listing={listing}
-                  isSelected={selectedIds.has(listing.id)}
-                  onToggleSelection={() => toggleSelection(listing.id)}
-                  isExpanded={expandedSubjectId === effectiveSubjectId}
-                  onToggleHealthDetails={() => toggleHealthDetails(effectiveSubjectId)}
-                  healthDetails={healthDetails[effectiveSubjectId]}
-                />
-              );
-            })
+            filteredAndSortedListings.map(listing => (
+              <SubjectCardWithSelection
+                key={listing.id}
+                listing={listing}
+                isSelected={selectedIds.has(listing.id)}
+                onToggleSelection={() => toggleSelection(listing.id)}
+                isExpanded={expandedSubjectId === listing.subjectId}
+                onToggleHealthDetails={() => toggleHealthDetails(listing.subjectId)}
+                healthDetails={healthDetails[listing.subjectId]}
+              />
+            ))
           )}
         </ScrollView>
 
         {/* Footer avec récapitulatif */}
         {selectedIds.size > 0 && (
-          <View
-            style={[
-              styles.footer,
-              { backgroundColor: colors.surface, borderTopColor: colors.divider },
-            ]}
-          >
+          <View style={[styles.footer, { backgroundColor: colors.surface, borderTopColor: colors.divider }]}>
             <View style={styles.footerContent}>
               <Text style={[styles.footerText, { color: colors.text }]}>
-                {selectedIds.size} sujet{selectedIds.size > 1 ? 's' : ''} sélectionné
-                {selectedIds.size > 1 ? 's' : ''}
+                {selectedIds.size} sujet{selectedIds.size > 1 ? 's' : ''} sélectionné{selectedIds.size > 1 ? 's' : ''}
               </Text>
               {!isProducer && (
                 <Text style={[styles.footerPrice, { color: colors.primary }]}>
@@ -1025,7 +567,7 @@ interface SubjectCardWithSelectionProps {
   onToggleSelection: () => void;
   isExpanded: boolean;
   onToggleHealthDetails: () => void;
-  healthDetails?: HealthDetails;
+  healthDetails?: any;
 }
 
 function SubjectCardWithSelection({
@@ -1039,18 +581,13 @@ function SubjectCardWithSelection({
   const { colors, spacing, typography, borderRadius } = MarketplaceTheme;
 
   return (
-    <View
-      style={[
-        styles.subjectCard,
-        {
-          backgroundColor: colors.surface,
-          borderColor: isSelected ? colors.primary : colors.divider,
-        },
-      ]}
-    >
+    <View style={[styles.subjectCard, { backgroundColor: colors.surface, borderColor: isSelected ? colors.primary : colors.divider }]}>
       {/* Checkbox et carte sujet */}
       <View style={styles.subjectCardHeader}>
-        <TouchableOpacity style={styles.checkbox} onPress={onToggleSelection}>
+        <TouchableOpacity
+          style={styles.checkbox}
+          onPress={onToggleSelection}
+        >
           <Ionicons
             name={isSelected ? 'checkbox' : 'square-outline'}
             size={24}
@@ -1061,14 +598,14 @@ function SubjectCardWithSelection({
           <SubjectCard
             subject={{
               id: listing.id,
-              code: listing.code || listing.subjectId || `#${listing.id.slice(0, 8)}`,
+              code: listing.code || listing.subjectId,
               race: listing.race || 'Non spécifiée',
               weight: listing.weight || 0,
-              weightDate: listing.weightDate || listing.lastWeightDate || new Date().toISOString(),
+              weightDate: listing.weightDate || listing.lastWeightDate,
               age: listing.age || 0,
               pricePerKg: listing.pricePerKg,
               totalPrice: listing.totalPrice || listing.calculatedPrice,
-              healthStatus: (listing.healthStatus || 'good') as 'good' | 'attention' | 'critical',
+              healthStatus: listing.healthStatus || 'good',
               vaccinations: listing.vaccinations || false,
               available: listing.available !== false,
             }}
@@ -1076,16 +613,6 @@ function SubjectCardWithSelection({
           />
         </View>
       </View>
-
-      {/* Photos du listing - Afficher si disponibles */}
-      {listing.photos && Array.isArray(listing.photos) && listing.photos.length > 0 ? (
-        <View style={styles.photosSection}>
-          <PhotoGallery
-            photos={listing.photos as Array<{ url: string; thumbnailUrl?: string }>}
-            baseUrl={API_CONFIG.baseURL || ''}
-          />
-        </View>
-      ) : null}
 
       {/* Bouton détails sanitaires */}
       <TouchableOpacity
@@ -1113,7 +640,7 @@ function SubjectCardWithSelection({
 }
 
 // Composant pour afficher les détails sanitaires
-function HealthDetailsContent({ details }: { details: HealthDetails }) {
+function HealthDetailsContent({ details }: { details: any }) {
   const { colors, spacing, typography } = MarketplaceTheme;
 
   return (
@@ -1121,27 +648,18 @@ function HealthDetailsContent({ details }: { details: HealthDetails }) {
       {/* Vaccinations */}
       {details.vaccinations && details.vaccinations.length > 0 && (
         <View style={styles.healthSection}>
-          <Text style={[styles.healthSectionTitle, { color: colors.text }]}>💉 Vaccinations</Text>
-          {details.vaccinations.slice(0, 5).map((v: VaccinationDetail, idx: number) => (
+          <Text style={[styles.healthSectionTitle, { color: colors.text }]}>
+            💉 Vaccinations
+          </Text>
+          {details.vaccinations.slice(0, 5).map((v: any, idx: number) => (
             <View key={idx} style={styles.healthItem}>
               <Ionicons
-                name={
-                  v.date_rappel && new Date(v.date_rappel) > new Date()
-                    ? 'checkmark-circle'
-                    : 'alert-circle'
-                }
+                name={v.date_rappel && new Date(v.date_rappel) > new Date() ? 'checkmark-circle' : 'alert-circle'}
                 size={16}
-                color={
-                  v.date_rappel && new Date(v.date_rappel) > new Date()
-                    ? colors.success
-                    : colors.warning
-                }
+                color={v.date_rappel && new Date(v.date_rappel) > new Date() ? colors.success : colors.warning}
               />
               <Text style={[styles.healthItemText, { color: colors.text }]}>
-                {v.type_prophylaxie
-                  ? TYPE_PROPHYLAXIE_LABELS[v.type_prophylaxie as keyof typeof TYPE_PROPHYLAXIE_LABELS] || v.type_prophylaxie
-                  : v.type_vaccin || 'Vaccination'}{' '}
-                - {formatDate(v.date_vaccination)}
+                {v.type_prophylaxie ? (TYPE_PROPHYLAXIE_LABELS[v.type_prophylaxie as keyof typeof TYPE_PROPHYLAXIE_LABELS] || v.type_prophylaxie) : v.type_vaccin || 'Vaccination'} - {formatDate(v.date_vaccination)}
               </Text>
             </View>
           ))}
@@ -1151,8 +669,10 @@ function HealthDetailsContent({ details }: { details: HealthDetails }) {
       {/* Maladies */}
       {details.maladies && details.maladies.length > 0 && (
         <View style={styles.healthSection}>
-          <Text style={[styles.healthSectionTitle, { color: colors.text }]}>🦠 Maladies</Text>
-          {details.maladies.map((m: MaladieDetail, idx: number) => (
+          <Text style={[styles.healthSectionTitle, { color: colors.text }]}>
+            🦠 Maladies
+          </Text>
+          {details.maladies.map((m: any, idx: number) => (
             <View key={idx} style={styles.healthItem}>
               <Ionicons
                 name={m.gueri ? 'checkmark-circle' : 'close-circle'}
@@ -1160,7 +680,7 @@ function HealthDetailsContent({ details }: { details: HealthDetails }) {
                 color={m.gueri ? colors.success : colors.error}
               />
               <Text style={[styles.healthItemText, { color: colors.text }]}>
-                {m.type || 'Maladie'} - {m.gueri ? 'Guéri' : 'En cours'}
+                {m.type} - {m.gueri ? 'Guéri' : 'En cours'}
               </Text>
             </View>
           ))}
@@ -1332,10 +852,6 @@ const styles = StyleSheet.create({
   subjectCardContent: {
     flex: 1,
   },
-  photosSection: {
-    marginTop: MarketplaceTheme.spacing.md,
-    marginHorizontal: MarketplaceTheme.spacing.md,
-  },
   healthDetailsButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1418,3 +934,4 @@ const styles = StyleSheet.create({
     fontWeight: MarketplaceTheme.typography.fontWeights.bold,
   },
 });
+

@@ -34,8 +34,8 @@ export default function ProducerOffersScreen() {
   const { colors } = useTheme();
   const marketplaceColors = MarketplaceTheme.colors;
   const navigation = useNavigation();
-  const { user } = useAppSelector((state) => state.auth);
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { user } = useAppSelector((state) => (state as any).auth);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
 
   type EnrichedOffer = Offer & {
     listing?: MarketplaceListing;
@@ -72,7 +72,7 @@ export default function ProducerOffersScreen() {
             let subject: ProductionAnimal | undefined;
             if (firstSubjectId) {
               // ✅ Utiliser la route marketplace dédiée qui ne vérifie pas l'appartenance
-              const { AnimalRepository } = await import('../../../database/repositories');
+              const { AnimalRepository } = await import('../../database/repositories');
               const animalRepo = new AnimalRepository();
               subject = await animalRepo.findMarketplaceAnimal(firstSubjectId) as any || undefined;
             }

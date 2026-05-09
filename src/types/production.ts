@@ -28,6 +28,10 @@ export interface ProductionAnimal {
   photo_uri?: string;
   date_creation: string;
   derniere_modification: string;
+  date_acquisition?: string;
+  poids_actuel?: number;
+  etat_sante?: string;
+  localisation?: string;
 }
 
 export const STATUT_ANIMAL_LABELS: Record<StatutAnimal, string> = {
@@ -54,6 +58,9 @@ export interface CreateProductionAnimalInput {
   mere_id?: string | null;
   notes?: string;
   photo_uri?: string;
+  date_acquisition?: string;
+  poids_actuel?: number;
+  prix_achat?: number;
 }
 
 export interface UpdateProductionAnimalInput {
@@ -73,6 +80,8 @@ export interface UpdateProductionAnimalInput {
   mere_id?: string | null;
   notes?: string | null;
   photo_uri?: string | null;
+  poids_actuel?: number;
+  etat_sante?: string;
 }
 
 export interface ProductionPesee {
@@ -95,6 +104,7 @@ export interface CreatePeseeInput {
   poids_kg: number;
   commentaire?: string;
   cree_par?: string;
+  poids?: number;
 }
 
 export interface ProductionStandardGMQ {

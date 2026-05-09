@@ -39,7 +39,7 @@ module.exports = {
     scheme: "fermierpro",
     plugins: [
       "expo-localization",
-      "expo-apple-authentication",
+      // "expo-apple-authentication", // Not used in code - removed to avoid plugin resolution error
       // "./app.plugin.js",  // Désactivé temporairement - incompatible avec Expo SDK 51 (AndroidX déjà géré nativement)
       "expo-font",
       [

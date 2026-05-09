@@ -25,6 +25,7 @@ import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { QRCodeService } from '../common/services/qrcode.service';
 import { RateLimit } from '../common/decorators/rate-limit.decorator';
+import { Throttle } from '@nestjs/throttler';
 import { RateLimitInterceptor } from '../common/interceptors/rate-limit.interceptor';
 import { ValidateQrDto } from './dto/validate-qr.dto';
 import { ProfilePhotoInterceptor, ProfilePhotoValidationInterceptor } from './interceptors/file-upload.interceptor';
@@ -83,19 +84,19 @@ export class UsersController {
   /**
    * ANCIENS ENDPOINTS : Retournent l'utilisateur complet (pour compatibilité)
    */
-  @Public() // Permettre la vérification d'email sans auth (pour onboarding)
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 req/min — prevents email enumeration
   @Get('email/:email')
   async findByEmail(@Param('email') email: string) {
     const user = await this.usersService.findByEmail(email);
-    // Retourner un objet vide au lieu de null pour éviter les erreurs de parsing JSON
     return user || null;
   }
 
-  @Public() // Permettre la vérification de téléphone sans auth (pour onboarding)
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 req/min — prevents phone enumeration
   @Get('telephone/:telephone')
   async findByTelephone(@Param('telephone') telephone: string) {
     const user = await this.usersService.findByTelephone(telephone);
-    // Retourner un objet vide au lieu de null pour éviter les erreurs de parsing JSON
     return user || null;
   }
 

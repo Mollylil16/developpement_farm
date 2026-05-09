@@ -316,7 +316,7 @@ const OnboardingAuthScreen: React.FC = () => {
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
   const { colors } = useTheme();
-  const { isLoading, error, isAuthenticated, user } = useAppSelector((state) => state.auth);
+  const { isLoading, error, isAuthenticated, user } = useAppSelector((state) => (state as any).auth);
 
   const [identifier, setIdentifier] = useState(''); // email ou téléphone
   const [showInfoCard, setShowInfoCard] = useState(false);

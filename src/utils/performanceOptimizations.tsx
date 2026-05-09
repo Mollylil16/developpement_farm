@@ -86,7 +86,7 @@ export function useCachedMemo<T>(
     // Limiter la taille du cache à 50 entrées
     if (cacheRef.current.size > 50) {
       const firstKey = cacheRef.current.keys().next().value;
-      cacheRef.current.delete(firstKey);
+      cacheRef.current.delete(firstKey as any);
     }
 
     return value;

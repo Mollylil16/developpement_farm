@@ -48,7 +48,7 @@ describe('AnimalRepository', () => {
       getAllAsync: jest.fn(),
     } as any;
 
-    repository = new AnimalRepository(mockDb);
+    repository = new AnimalRepository();
   });
 
   describe('constructor', () => {

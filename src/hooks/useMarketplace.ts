@@ -14,6 +14,7 @@ import type {
 } from '../types/marketplace';
 import marketplaceService from '../services/MarketplaceService';
 import { logger } from '../utils/logger';
+const getMarketplaceService: any = () => marketplaceService;
 
 export function useMarketplace() {
   const [listings, setListings] = useState<MarketplaceListing[]>([]);

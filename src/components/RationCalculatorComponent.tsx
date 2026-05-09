@@ -93,7 +93,7 @@ export default function RationCalculatorComponent() {
 
     const ingredientsDetails = selectedIngredients
       .map((selIng) => {
-        const ingredient = ingredients.find((i) => i.id === selIng.ingredient_id);
+        const ingredient = ingredients.find((i: any) => i.id === selIng.ingredient_id);
         if (ingredient) {
           const cout = selIng.quantite * ingredient.prix_unitaire;
           coutTotal += cout;
@@ -269,7 +269,7 @@ export default function RationCalculatorComponent() {
             </View>
           ) : (
             <>
-              {ingredients.map((ingredient) => {
+              {ingredients.map((ingredient: any) => {
                 const selected = selectedIngredients.find(
                   (sel) => sel.ingredient_id === ingredient.id
                 );

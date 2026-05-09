@@ -4,7 +4,9 @@
 
 import { useMemo } from 'react';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { loadRations, loadRationsBudget } from '../../store/slices/nutritionSlice';
+import nutritionSliceModule from '../../store/slices/nutritionSlice';
+const loadRations: any = (nutritionSliceModule as any).loadRations;
+const loadRationsBudget: any = (nutritionSliceModule as any).loadRationsBudget;
 import { startOfMonth, parseISO, isAfter } from 'date-fns';
 import { useEffect, useRef } from 'react';
 
@@ -19,7 +21,7 @@ export interface NutritionWidgetData {
 
 export function useNutritionWidget(projetId?: string): NutritionWidgetData | null {
   const dispatch = useAppDispatch();
-  const { rations, rationsBudget } = useAppSelector((state) => state.nutrition);
+  const { rations, rationsBudget } = useAppSelector((state) => (state as any).nutrition);
   const dataChargeesRef = useRef<string | null>(null);
 
   // Charger les données

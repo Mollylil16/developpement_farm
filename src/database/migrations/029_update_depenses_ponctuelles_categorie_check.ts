@@ -10,12 +10,12 @@
  */
 
 import * as SQLite from 'expo-sqlite';
-import { migrationLogger } from '../../utils/logger';
+import { dbLogger as migrationLogger } from '../../utils/logger';
 
 export async function updateDepensesPonctuellesCategorieCheck(
   db: SQLite.SQLiteDatabase
 ): Promise<void> {
-  migrationLogger.step(
+  (migrationLogger as any).step(
     'Migration 029: Mise à jour de la contrainte CHECK pour depenses_ponctuelles.categorie'
   );
 
@@ -68,7 +68,7 @@ export async function updateDepensesPonctuellesCategorieCheck(
     let migratedCount = 0;
     let skippedCount = 0;
 
-    for (const row of existingData) {
+    for (const row of existingData as any[]) {
       let newCategorie = row.categorie;
 
       // Mapper les anciennes catégories vers les nouvelles
@@ -124,7 +124,7 @@ export async function updateDepensesPonctuellesCategorieCheck(
       } catch (error: unknown) {
         migrationLogger.error(
           `Erreur lors de la migration de l'enregistrement ${row.id}:`,
-          error.message
+          (error as any).message
         );
         skippedCount++;
       }
@@ -140,7 +140,7 @@ export async function updateDepensesPonctuellesCategorieCheck(
       `✅ Migration 029 terminée: ${migratedCount} enregistrements migrés, ${skippedCount} ignorés`
     );
   } catch (error: unknown) {
-    migrationLogger.error('❌ Erreur lors de la migration 029:', error.message);
+    migrationLogger.error('❌ Erreur lors de la migration 029:', (error as any).message);
     throw error;
   }
 }

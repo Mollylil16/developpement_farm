@@ -40,8 +40,8 @@ export default function CreateProjectScreen() {
   const dispatch = useAppDispatch();
   const navigation = useNavigation<NavigationProp<any>>();
   const route = useRoute();
-  const { user } = useAppSelector((state) => state.auth);
-  const { projetActif } = useAppSelector((state) => state.projet);
+  const { user } = useAppSelector((state) => (state as any).auth);
+  const { projetActif } = useAppSelector((state) => (state as any).projet);
   const { invitationsEnAttente } = useAppSelector((state) => state.collaboration);
   const { switchRole } = useRole();
   const [loading, setLoading] = useState(false);
@@ -95,14 +95,14 @@ export default function CreateProjectScreen() {
 
   // Afficher automatiquement le modal des invitations si elles existent
   useEffect(() => {
-    if (invitationsEnAttente.length > 0 && !hasShownInvitationsRef.current && !projetActif) {
+    if ((invitationsEnAttente as any).length > 0 && !hasShownInvitationsRef.current && !projetActif) {
       hasShownInvitationsRef.current = true;
       // Délai pour laisser le temps à l'écran de se charger
       setTimeout(() => {
         setInvitationsModalVisible(true);
       }, 1000);
     }
-  }, [invitationsEnAttente.length, projetActif?.id]); // ✅ projetActif?.id au lieu de projetActif (objet)
+  }, [(invitationsEnAttente as any).length, projetActif?.id]); // ✅ projetActif?.id au lieu de projetActif (objet)
 
   const handleSubmit = async () => {
     // Validation
@@ -142,7 +142,7 @@ export default function CreateProjectScreen() {
             lastName: '', // Sera complété plus tard
             password: '', // Pas de mot de passe pour l'instant
             profileType: 'producer',
-          });
+          } as any);
           finalUserId = newUser.id;
           // Mettre à jour l'utilisateur dans le store Redux
           dispatch(updateUser(newUser));

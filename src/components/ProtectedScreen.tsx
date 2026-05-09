@@ -8,19 +8,11 @@ import { useNavigation } from '@react-navigation/native';
 import { useRolePermissions } from '../hooks/useRolePermissions';
 import { useRole } from '../contexts/RoleContext';
 import { useAppSelector } from '../store/hooks';
-import { useProjetEffectif } from '../hooks/useProjetEffectif';
 import { useTheme } from '../contexts/ThemeContext';
 import { SCREENS } from '../navigation/types';
 import { SPACING, FONT_SIZES, BORDER_RADIUS } from '../constants/theme';
 
-type PermissionType =
-  | 'reproduction'
-  | 'nutrition'
-  | 'finance'
-  | 'rapports'
-  | 'planification'
-  | 'mortalites'
-  | 'sante';
+type PermissionType = 'reproduction' | 'nutrition' | 'finance' | 'rapports' | 'planification' | 'mortalites' | 'sante';
 
 interface ProtectedScreenProps {
   children: React.ReactNode;
@@ -45,9 +37,8 @@ export default function ProtectedScreen({
 }: ProtectedScreenProps) {
   const { activeRole } = useRole();
   const rolePermissions = useRolePermissions();
-  // Utiliser useProjetEffectif pour supporter les vétérinaires/techniciens
-  const projetActif = useProjetEffectif();
-  const currentUser = useAppSelector((state) => state.auth?.user);
+  const projetActif = useAppSelector((state) => (state as any).projet.projetActif);
+  const currentUser = useAppSelector((state) => (state as any).auth.user);
   const collaborateurActuel = useAppSelector((state) => state.collaboration.collaborateurActuel);
   const navigation = useNavigation();
   const { colors } = useTheme();
@@ -57,7 +48,7 @@ export default function ProtectedScreen({
     if (activeRole === 'producer') {
       return true; // Les producteurs ont accès à tout
     }
-
+    
     // Pour technicien et vétérinaire, vérifier les permissions de collaboration
     if ((activeRole === 'technician' || activeRole === 'veterinarian') && collaborateurActuel) {
       // Vérifier les permissions spécifiques à la ferme via la collaboration
@@ -80,7 +71,7 @@ export default function ProtectedScreen({
           return false;
       }
     }
-
+    
     switch (module) {
       case 'reproduction':
       case 'nutrition':
@@ -99,18 +90,16 @@ export default function ProtectedScreen({
   };
 
   // Vérifier si l'utilisateur est propriétaire du projet actif
-  const isProprietaire =
-    activeRole === 'producer' &&
-    projetActif &&
-    currentUser &&
-    (projetActif.proprietaire_id === currentUser.id ||
-      ('user_id' in projetActif && (projetActif as { user_id?: string }).user_id === currentUser.id));
+  const isProprietaire = activeRole === 'producer' && 
+    projetActif && 
+    currentUser && 
+    (projetActif.proprietaire_id === currentUser.id || (projetActif as any).user_id === currentUser.id);
 
   // Vérifier si l'utilisateur a accès
   let hasAccess: boolean;
   if (requireOwner) {
     // Seul le propriétaire peut accéder
-    hasAccess = Boolean(isProprietaire);
+    hasAccess = isProprietaire ?? false;
   } else if (requiredPermission) {
     // Vérifier la permission (propriétaire a toujours accès)
     hasAccess = isProprietaire || hasPermission(requiredPermission);
